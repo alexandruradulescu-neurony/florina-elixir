@@ -1,0 +1,4 @@
+"""
+Django project initialization.
+"""
+

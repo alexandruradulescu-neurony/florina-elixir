@@ -1,0 +1,89 @@
+{% extends 'voice/base.html' %}
+
+{% block title %}Agent Management - MES Voice{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <div class="mb-6">
+        <h1 class="text-4xl font-bold mb-2">Agent Management</h1>
+        <p class="text-base-content/70">Manage sales agents and their configurations</p>
+    </div>
+
+    <div class="card w-full bg-base-100 shadow-xl">
+        <div class="card-body">
+            <div class="overflow-x-auto">
+                <table class="table table-zebra w-full">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th>Pipedrive ID</th>
+                            <th>Phone Number</th>
+                            <th>Status</th>
+                            <th>Last Active</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for agent in agents %}
+                        <tr>
+                            <td>
+                                <div class="flex items-center gap-2">
+                                    <div class="avatar placeholder">
+                                        <div class="bg-primary text-primary-content rounded-full w-8">
+                                            <span class="text-xs">{{ agent.username|first|upper }}</span>
+                                        </div>
+                                    </div>
+                                    <span class="font-bold">{{ agent.username }}</span>
+                                </div>
+                            </td>
+                            <td>{{ agent.email|default:"-" }}</td>
+                            <td>
+                                {% if agent.pipedrive_user_id %}
+                                    <span class="badge badge-success gap-2">{{ agent.pipedrive_user_id }}</span>
+                                {% else %}
+                                    <span class="badge badge-ghost gap-2">Not Set</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if agent.phone_number %}
+                                    {{ agent.phone_number }}
+                                {% else %}
+                                    <span class="text-error">Missing</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if agent.pipedrive_user_id and agent.phone_number %}
+                                    <div class="flex items-center gap-2">
+                                        <div class="w-3 h-3 rounded-full bg-success"></div>
+                                        <span class="text-sm">Ready</span>
+                                    </div>
+                                {% elif not agent.phone_number %}
+                                    <div class="flex items-center gap-2">
+                                        <div class="w-3 h-3 rounded-full bg-error"></div>
+                                        <span class="text-sm text-error">Phone Missing</span>
+                                    </div>
+                                {% else %}
+                                    <div class="flex items-center gap-2">
+                                        <div class="w-3 h-3 rounded-full bg-warning"></div>
+                                        <span class="text-sm">Incomplete</span>
+                                    </div>
+                                {% endif %}
+                            </td>
+                            <td>{{ agent.last_login|date:"M d, Y"|default:"Never" }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="6" class="text-center text-base-content/70">No sales agents found</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="card-actions justify-end mt-4">
+                <a href="{% url 'admin:voice_user_add' %}" class="btn btn-primary">Add New Agent</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

@@ -1,0 +1,128 @@
+{% extends 'voice/base.html' %}
+
+{% block title %}Audit Logs - MES Voice{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <div class="mb-6">
+        <h1 class="text-4xl font-bold mb-2">Audit Log Explorer</h2>
+        <p class="text-base-content/70">View and filter system activity logs</p>
+    </div>
+
+    <!-- Filters -->
+    <div class="card w-full bg-base-100 shadow-xl mb-6">
+        <div class="card-body">
+            <h2 class="card-title">Filters</h2>
+            <form method="get" class="flex flex-wrap gap-4">
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">Log Level</span>
+                    </label>
+                    <select name="level" class="select select-bordered">
+                        <option value="">All Levels</option>
+                        <option value="DEBUG" {% if selected_level == 'DEBUG' %}selected{% endif %}>DEBUG</option>
+                        <option value="INFO" {% if selected_level == 'INFO' %}selected{% endif %}>INFO</option>
+                        <option value="WARNING" {% if selected_level == 'WARNING' %}selected{% endif %}>WARNING</option>
+                        <option value="ERROR" {% if selected_level == 'ERROR' %}selected{% endif %}>ERROR</option>
+                        <option value="CRITICAL" {% if selected_level == 'CRITICAL' %}selected{% endif %}>CRITICAL</option>
+                    </select>
+                </div>
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">Agent</span>
+                    </label>
+                    <select name="user_id" class="select select-bordered">
+                        <option value="">All Agents</option>
+                        {% for user in users %}
+                        <option value="{{ user.id }}" {% if selected_user_id == user.id|stringformat:"s" %}selected{% endif %}>{{ user.username }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-control self-end">
+                    <button type="submit" class="btn btn-primary">Apply Filters</button>
+                    <a href="{% url 'voice:audit_logs' %}" class="btn btn-outline mt-2">Clear</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Logs Table -->
+    <div class="card w-full bg-base-100 shadow-xl">
+        <div class="card-body">
+            <h2 class="card-title">Activity Logs</h2>
+            <div class="overflow-x-auto">
+                <table class="table table-zebra w-full">
+                    <thead>
+                        <tr>
+                            <th>Timestamp</th>
+                            <th>Level</th>
+                            <th>Action</th>
+                            <th>User</th>
+                            <th>Meeting</th>
+                            <th>Details</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for log in logs %}
+                        <tr>
+                            <td>{{ log.timestamp|date:"M d, Y H:i:s" }}</td>
+                            <td>
+                                {% if log.level == 'ERROR' %}
+                                    <span class="badge badge-error gap-2">{{ log.level }}</span>
+                                {% elif log.level == 'WARNING' %}
+                                    <span class="badge badge-warning gap-2">{{ log.level }}</span>
+                                {% elif log.level == 'CRITICAL' %}
+                                    <span class="badge badge-error gap-2">{{ log.level }}</span>
+                                {% elif log.level == 'DEBUG' %}
+                                    <span class="badge badge-ghost gap-2">{{ log.level }}</span>
+                                {% else %}
+                                    <span class="badge badge-info gap-2">{{ log.level }}</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ log.action }}</td>
+                            <td>{{ log.user.username|default:"System" }}</td>
+                            <td>{{ log.meeting.title|default:"-" }}</td>
+                            <td>
+                                <button class="btn btn-sm btn-outline" onclick="document.getElementById('modal_{{ log.id }}').showModal()">View Details</button>
+                                <dialog id="modal_{{ log.id }}" class="modal">
+                                    <div class="modal-box">
+                                        <h3 class="font-bold text-lg mb-4">Log Details</h3>
+                                        <div class="space-y-2">
+                                            <p><strong>Action:</strong> {{ log.action }}</p>
+                                            <p><strong>Level:</strong> {{ log.level }}</p>
+                                            <p><strong>Timestamp:</strong> {{ log.timestamp|date:"M d, Y H:i:s" }}</p>
+                                            {% if log.user %}
+                                            <p><strong>User:</strong> {{ log.user.username }}</p>
+                                            {% endif %}
+                                            {% if log.meeting %}
+                                            <p><strong>Meeting:</strong> {{ log.meeting.title }}</p>
+                                            {% endif %}
+                                            {% if log.details %}
+                                            <div>
+                                                <strong>Details:</strong>
+                                                <pre class="bg-base-200 p-2 rounded mt-2 text-sm overflow-auto">{{ log.details }}</pre>
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                        <div class="modal-action">
+                                            <form method="dialog">
+                                                <button class="btn">Close</button>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </dialog>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="6" class="text-center text-base-content/70">No logs found</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

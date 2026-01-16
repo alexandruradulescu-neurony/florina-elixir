@@ -1,0 +1,87 @@
+{% load voice_tags %}
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}MES Voice{% endblock %}</title>
+    
+    <!-- Tailwind CSS CDN with DaisyUI -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            daisyui: {
+                themes: ["light", "dark", "cupcake"],
+            },
+        }
+    </script>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
+    
+    {% block extra_css %}{% endblock %}
+</head>
+<body class="min-h-screen bg-base-200">
+    <!-- Navbar -->
+    <div class="navbar bg-base-100 shadow-lg">
+        <div class="flex-1">
+            <a href="{% url 'voice:home' %}" class="btn btn-ghost text-xl">MES Voice</a>
+        </div>
+        <div class="flex-none">
+            {% if user.is_authenticated %}
+                <!-- Navigation Links -->
+                <ul class="menu menu-horizontal px-1 hidden md:flex">
+                    {% if user.is_superuser %}
+                        <li><a href="{% url 'voice:superuser_dashboard' %}">Dashboard</a></li>
+                        <li><a href="{% url 'voice:programmed_calls' %}">Calls</a></li>
+                        <li><a href="{% url 'voice:prompt_list' %}">Prompts</a></li>
+                        <li><a href="{% url 'voice:audit_logs' %}">Logs</a></li>
+                        <li><a href="{% url 'voice:agent_management' %}">Agents</a></li>
+                        <li><a href="{% url 'admin:index' %}">Admin</a></li>
+                    {% elif user.is_sales_agent %}
+                        <li><a href="{% url 'voice:sales_agent_dashboard' %}">My Schedule</a></li>
+                        <li><a href="{% url 'voice:calendar_sync_status' %}">Calendar Sync</a></li>
+                        <li><a href="{% url 'voice:sales_agent_profile' %}">Profile</a></li>
+                    {% endif %}
+                </ul>
+                
+                <!-- User Menu Dropdown -->
+                <div class="dropdown dropdown-end">
+                    <div tabindex="0" role="button" class="btn btn-ghost btn-circle avatar">
+                        <div class="w-10 rounded-full bg-primary text-primary-content flex items-center justify-center">
+                            <span class="text-lg font-bold">{{ user.username|first|upper }}</span>
+                        </div>
+                    </div>
+                    <ul tabindex="0" class="menu menu-sm dropdown-content mt-3 z-[1] p-2 shadow bg-base-100 rounded-box w-52">
+                        <li class="menu-title">
+                            <span>{{ user.username }}</span>
+                        </li>
+                        {% if user.is_sales_agent %}
+                        <li><a href="{% url 'voice:sales_agent_profile' %}">Profile</a></li>
+                        {% endif %}
+                        <li><a href="{% url 'voice:logout' %}">Logout</a></li>
+                    </ul>
+                </div>
+            {% else %}
+                <a href="{% url 'voice:login' %}" class="btn btn-primary">Login</a>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Toast Container (Fixed bottom-right) -->
+    {% if messages %}
+        <div class="toast toast-end toast-bottom z-50">
+            {% for message in messages %}
+                <div class="alert {{ message.tags|daisyui_alert_class }} shadow-lg">
+                    <span>{{ message }}</span>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+
+    {% block extra_js %}{% endblock %}
+</body>
+</html>
+

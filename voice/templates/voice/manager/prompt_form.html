@@ -1,0 +1,105 @@
+{% extends 'voice/base.html' %}
+
+{% block title %}Edit Prompt - MES Voice{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <div class="mb-6">
+        <h1 class="text-4xl font-bold mb-2">Edit Prompt</h1>
+        <p class="text-base-content/70">Editing: {{ prompt.name }} ({{ prompt.get_prompt_type_display }})</p>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Left: Editor -->
+        <div class="card w-full bg-base-100 shadow-xl">
+            <div class="card-body">
+                <h2 class="card-title">Prompt Editor</h2>
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="form-control w-full mb-4">
+                        <label class="label">
+                            <span class="label-text">Prompt Name</span>
+                        </label>
+                        <input type="text" name="name" value="{{ prompt.name }}" class="input input-bordered w-full" required>
+                    </div>
+
+                    <div class="form-control w-full mb-4">
+                        <label class="label">
+                            <span class="label-text">Prompt Type</span>
+                        </label>
+                        <select name="prompt_type" class="select select-bordered w-full" required>
+                            <option value="PRE" {% if prompt.prompt_type == 'PRE' %}selected{% endif %}>Pre-Meeting Training</option>
+                            <option value="POST" {% if prompt.prompt_type == 'POST' %}selected{% endif %}>Post-Meeting Debrief</option>
+                        </select>
+                    </div>
+
+                    <div class="form-control w-full mb-4">
+                        <label class="label">
+                            <span class="label-text">System Prompt</span>
+                        </label>
+                        <textarea name="system_prompt" class="textarea textarea-bordered h-64" required>{{ prompt.system_prompt }}</textarea>
+                        <label class="label">
+                            <span class="label-text-alt">Use variables: {agent_name}, {customer_name}, {meeting_title}</span>
+                        </label>
+                    </div>
+
+                    <div class="form-control w-full mb-4">
+                        <label class="label">
+                            <span class="label-text">First Message (Optional)</span>
+                        </label>
+                        <textarea name="first_message" class="textarea textarea-bordered h-32" placeholder="First greeting message when the call starts...">{{ prompt.first_message|default:"" }}</textarea>
+                        <label class="label">
+                            <span class="label-text-alt">First message the AI agent will say. Supports same variables as system prompt.</span>
+                        </label>
+                    </div>
+
+                    <div class="form-control mb-4">
+                        <label class="label cursor-pointer justify-start">
+                            <input type="checkbox" name="is_active" class="checkbox checkbox-primary mr-2" {% if prompt.is_active %}checked{% endif %}>
+                            <span class="label-text">Active (only one active prompt per type)</span>
+                        </label>
+                    </div>
+
+                    <div class="card-actions">
+                        <button type="submit" class="btn btn-primary">Save Changes</button>
+                        <a href="{% url 'voice:prompt_list' %}" class="btn btn-outline">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Right: Preview -->
+        <div class="card w-full bg-base-100 shadow-xl">
+            <div class="card-body">
+                <h2 class="card-title">Preview</h2>
+                
+                {% if preview_first_message %}
+                <div class="mb-4">
+                    <h3 class="font-semibold mb-2">First Message:</h3>
+                    <div class="mockup-code bg-base-300">
+                        <pre><code>{{ preview_first_message }}</code></pre>
+                    </div>
+                </div>
+                {% endif %}
+                
+                <div class="mb-4">
+                    <h3 class="font-semibold mb-2">System Prompt:</h3>
+                    <div class="mockup-code bg-base-300">
+                        <pre><code>{{ preview_text }}</code></pre>
+                    </div>
+                </div>
+                
+                <div class="mt-4 p-4 bg-base-200 rounded-lg">
+                    <h3 class="font-bold mb-2">Sample Data Used:</h3>
+                    <ul class="text-sm space-y-1">
+                        <li><code>{agent_name}</code> → "John Doe"</li>
+                        <li><code>{customer_name}</code> → "Acme Corporation"</li>
+                        <li><code>{meeting_title}</code> → "Q4 Product Demo"</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

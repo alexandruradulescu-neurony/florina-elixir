@@ -1,0 +1,220 @@
+{% extends 'voice/base.html' %}
+
+{% block title %}Manager Dashboard - MES Voice{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <div class="mb-6">
+        <div class="flex justify-between items-center mb-4">
+            <div>
+                <h1 class="text-4xl font-bold mb-2">Manager Dashboard</h1>
+                <p class="text-base-content/70">System overview and monitoring</p>
+            </div>
+            <!-- Test Call Button -->
+            <div class="card bg-base-100 shadow-lg">
+                <div class="card-body p-4">
+                    <h3 class="card-title text-sm">Test Call</h3>
+                    <form method="post" action="{% url 'voice:test_call' %}" class="flex gap-2">
+                        {% csrf_token %}
+                        <input 
+                            type="text" 
+                            name="phone_number" 
+                            placeholder="+1234567890" 
+                            value="{{ user.phone_number|default:'' }}"
+                            class="input input-bordered input-sm w-40" 
+                        />
+                        <button type="submit" class="btn btn-primary btn-sm">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" />
+                            </svg>
+                            Test Call
+                        </button>
+                    </form>
+                    <p class="text-xs text-base-content/70 mt-1">Test ElevenLabs integration</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="stats stats-vertical lg:stats-horizontal shadow w-full mb-6">
+        <div class="stat">
+            <div class="stat-figure text-primary">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="inline-block w-8 h-8 stroke-current">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                </svg>
+            </div>
+            <div class="stat-title">Total Calls Today</div>
+            <div class="stat-value text-primary">{{ stats.calls_today }}</div>
+            <div class="stat-desc">Call attempts made today</div>
+        </div>
+
+        <div class="stat">
+            <div class="stat-figure text-secondary">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="inline-block w-8 h-8 stroke-current">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+            </div>
+            <div class="stat-title">Success Rate</div>
+            <div class="stat-value text-secondary">{{ stats.success_rate }}%</div>
+            <div class="stat-desc">{{ stats.completed_calls_today }} completed today</div>
+        </div>
+
+        <div class="stat">
+            <div class="stat-figure text-accent">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="inline-block w-8 h-8 stroke-current">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path>
+                </svg>
+            </div>
+            <div class="stat-title">System Health</div>
+            <div class="stat-value text-accent">
+                {% if stats.error_logs == 0 %}
+                    <span class="text-success">Good</span>
+                {% elif stats.error_logs < 5 %}
+                    <span class="text-warning">Warning</span>
+                {% else %}
+                    <span class="text-error">Critical</span>
+                {% endif %}
+            </div>
+            <div class="stat-desc">{{ stats.error_logs }} errors today</div>
+        </div>
+    </div>
+
+    <!-- Failed Calls Section -->
+    {% if failed_calls %}
+    <div class="card w-full bg-base-100 shadow-xl mb-6">
+        <div class="card-body">
+            <h2 class="card-title text-error">Failed Calls - Urgent Attention</h2>
+            <p class="text-sm text-base-content/70">Agents who missed both pre-meeting call attempts today</p>
+            <div class="overflow-x-auto">
+                <table class="table table-zebra w-full">
+                    <thead>
+                        <tr>
+                            <th>Agent</th>
+                            <th>Meeting</th>
+                            <th>Customer</th>
+                            <th>Start Time</th>
+                            <th>Status</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in failed_calls %}
+                        <tr>
+                            <td>{{ item.agent.username }}</td>
+                            <td>{{ item.meeting.title }}</td>
+                            <td>{{ item.meeting.customer_name|default:"-" }}</td>
+                            <td>{{ item.meeting.start_time|date:"M d, Y H:i" }}</td>
+                            <td>
+                                <span class="badge badge-error gap-2">Both Failed</span>
+                            </td>
+                            <td>
+                                <button class="btn btn-sm btn-primary">Manual Trigger</button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Recent Calls -->
+    <div class="card w-full bg-base-100 shadow-xl mb-6">
+        <div class="card-body">
+            <h2 class="card-title">Recent Calls</h2>
+            <div class="overflow-x-auto">
+                <table class="table table-zebra w-full">
+                    <thead>
+                        <tr>
+                            <th>Time</th>
+                            <th>Agent</th>
+                            <th>Meeting</th>
+                            <th>Phase</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for call in recent_calls %}
+                        <tr>
+                            <td>{{ call.created_at|date:"M d, Y H:i" }}</td>
+                            <td>{{ call.meeting.agent.username }}</td>
+                            <td>{{ call.meeting.title }}</td>
+                            <td>{{ call.get_phase_display }}</td>
+                            <td>
+                                {% if call.status == 'COMPLETED' %}
+                                    <span class="badge badge-success gap-2">Completed</span>
+                                {% elif call.status == 'NO_ANSWER' %}
+                                    <span class="badge badge-warning gap-2">No Answer</span>
+                                {% elif call.status == 'FAILED' %}
+                                    <span class="badge badge-error gap-2">Failed</span>
+                                {% else %}
+                                    <span class="badge badge-info gap-2">{{ call.get_status_display }}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="5" class="text-center text-base-content/70">No recent calls</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Live Audit Log -->
+    <div class="card w-full bg-base-100 shadow-xl">
+        <div class="card-body">
+            <div class="flex justify-between items-center mb-2">
+                <div>
+                    <h2 class="card-title">Live Audit Log</h2>
+                    <p class="text-sm text-base-content/70">Last 10 system activities</p>
+                </div>
+                <a href="{% url 'voice:audit_logs' %}" class="btn btn-sm btn-outline">
+                    View All Logs
+                </a>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="table table-zebra w-full">
+                    <thead>
+                        <tr>
+                            <th>Time</th>
+                            <th>Level</th>
+                            <th>Action</th>
+                            <th>User</th>
+                            <th>Meeting</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for log in recent_logs %}
+                        <tr>
+                            <td>{{ log.timestamp|date:"M d, Y H:i:s" }}</td>
+                            <td>
+                                {% if log.level == 'ERROR' %}
+                                    <span class="badge badge-error gap-2">{{ log.level }}</span>
+                                {% elif log.level == 'WARNING' %}
+                                    <span class="badge badge-warning gap-2">{{ log.level }}</span>
+                                {% else %}
+                                    <span class="badge badge-info gap-2">{{ log.level }}</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ log.action }}</td>
+                            <td>{{ log.user.username|default:"System" }}</td>
+                            <td>{{ log.meeting.title|default:"-" }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="5" class="text-center text-base-content/70">No recent activity</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

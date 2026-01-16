@@ -1,0 +1,18 @@
+{% extends 'voice/base.html' %}
+
+{% block title %}Logged Out - MES Voice{% endblock %}
+
+{% block content %}
+<div class="min-h-screen flex items-center justify-center bg-base-200">
+    <div class="card w-full max-w-md shadow-2xl bg-base-100">
+        <div class="card-body text-center">
+            <h2 class="card-title text-3xl font-bold justify-center mb-4">Logged Out</h2>
+            <p class="mb-6">You have been successfully logged out.</p>
+            <div class="card-actions justify-center">
+                <a href="{% url 'voice:login' %}" class="btn btn-primary">Login Again</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

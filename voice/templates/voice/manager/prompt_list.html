@@ -1,0 +1,70 @@
+{% extends 'voice/base.html' %}
+
+{% block title %}Voice Prompts - MES Voice{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <div class="mb-6">
+        <h1 class="text-4xl font-bold mb-2">Voice Prompts</h1>
+        <p class="text-base-content/70">Manage AI agent prompts for pre and post-meeting calls</p>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Left: Prompt List -->
+        <div class="card w-full bg-base-100 shadow-xl">
+            <div class="card-body">
+                <h2 class="card-title">Available Prompts</h2>
+                <div class="space-y-2">
+                    {% for prompt in prompts %}
+                    <div class="p-4 rounded-lg border {% if prompt.is_active %}border-primary bg-primary/10{% else %}border-base-300{% endif %}">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h3 class="font-bold">{{ prompt.name }}</h3>
+                                <p class="text-sm text-base-content/70">{{ prompt.get_prompt_type_display }}</p>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                {% if prompt.is_active %}
+                                    <span class="badge badge-success gap-2">Active</span>
+                                {% endif %}
+                                <a href="{% url 'voice:prompt_edit' prompt.id %}" class="btn btn-sm btn-primary">Edit</a>
+                            </div>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <p class="text-base-content/70">No prompts found. Create one in the admin panel.</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: Info/Instructions -->
+        <div class="card w-full bg-base-100 shadow-xl">
+            <div class="card-body">
+                <h2 class="card-title">Instructions</h2>
+                <div class="space-y-4">
+                    <div>
+                        <h3 class="font-bold mb-2">Available Variables</h3>
+                        <ul class="list-disc list-inside space-y-1 text-sm">
+                            <li><code>{agent_name}</code> - Sales agent's name</li>
+                            <li><code>{customer_name}</code> - Customer/client name</li>
+                            <li><code>{meeting_title}</code> - Meeting title</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h3 class="font-bold mb-2">Prompt Types</h3>
+                        <ul class="list-disc list-inside space-y-1 text-sm">
+                            <li><strong>Pre-Meeting Training:</strong> Called before the meeting to prepare the agent</li>
+                            <li><strong>Post-Meeting Debrief:</strong> Called after the meeting to review and learn</li>
+                        </ul>
+                    </div>
+                    <div class="alert alert-info">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        <span>Only one active prompt per type is allowed. Activating a new prompt will deactivate the previous one.</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

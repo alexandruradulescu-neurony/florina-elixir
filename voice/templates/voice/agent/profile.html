@@ -1,0 +1,64 @@
+{% extends 'voice/base.html' %}
+
+{% block title %}Profile Settings - MES Voice{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <div class="mb-6">
+        <h1 class="text-4xl font-bold mb-2">Profile Settings</h1>
+        <p class="text-base-content/70">Manage your profile information</p>
+    </div>
+
+    <div class="card w-full bg-base-100 shadow-xl max-w-2xl mx-auto">
+        <div class="card-body">
+            <h2 class="card-title">User Information</h2>
+            
+            <div class="space-y-4 mb-6">
+                <div>
+                    <p class="text-sm text-base-content/70">Username</p>
+                    <p class="font-bold">{{ user.username }}</p>
+                </div>
+                <div>
+                    <p class="text-sm text-base-content/70">Email</p>
+                    <p class="font-bold">{{ user.email|default:"Not provided" }}</p>
+                </div>
+                <div>
+                    <p class="text-sm text-base-content/70">Sales Agent</p>
+                    <p>
+                        {% if user.is_sales_agent %}
+                            <span class="badge badge-success gap-2">Yes</span>
+                        {% else %}
+                            <span class="badge badge-error gap-2">No</span>
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
+
+            <form method="post">
+                {% csrf_token %}
+                <div class="form-control w-full mb-4">
+                    <label class="label">
+                        <span class="label-text">Phone Number</span>
+                    </label>
+                    <input 
+                        type="text" 
+                        name="phone_number" 
+                        value="{{ user.phone_number|default:'' }}" 
+                        placeholder="+1234567890 (E.164 format)"
+                        class="input input-bordered w-full" 
+                    />
+                    <label class="label">
+                        <span class="label-text-alt">Required for receiving coaching calls. Use E.164 format (e.g., +1234567890)</span>
+                    </label>
+                </div>
+
+                <div class="card-actions">
+                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                    <a href="{% url 'voice:sales_agent_dashboard' %}" class="btn btn-outline">Cancel</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
