@@ -7,6 +7,7 @@ from django.core.management.base import BaseCommand
 from django_apscheduler.jobstores import DjangoJobStore
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
+from apscheduler.triggers.cron import CronTrigger
 from voice import tasks
 
 
@@ -49,12 +50,56 @@ class Command(BaseCommand):
             jobstore='default',
         )
         
+        # Schedule daily client sync (2:00 AM)
+        scheduler.add_job(
+            tasks.sync_all_clients_task,
+            trigger=CronTrigger(hour=2, minute=0),
+            id='sync_all_clients',
+            name='Sync all clients from CRM',
+            replace_existing=True,
+            jobstore='default',
+        )
+
+        # Schedule visit detection every 30 minutes
+        scheduler.add_job(
+            tasks.detect_visits_task,
+            trigger=IntervalTrigger(minutes=30),
+            id='detect_visits',
+            name='Detect visits from calendar events',
+            replace_existing=True,
+            jobstore='default',
+        )
+
+        # Schedule visit pre-calls every 5 minutes
+        scheduler.add_job(
+            tasks.process_visit_pre_calls,
+            trigger=IntervalTrigger(minutes=5),
+            id='process_visit_pre_calls',
+            name='Process visit pre-calls',
+            replace_existing=True,
+            jobstore='default',
+        )
+
+        # Schedule visit post-calls every 5 minutes
+        scheduler.add_job(
+            tasks.process_visit_post_calls,
+            trigger=IntervalTrigger(minutes=5),
+            id='process_visit_post_calls',
+            name='Process visit post-calls',
+            replace_existing=True,
+            jobstore='default',
+        )
+
         scheduler.start()
         self.stdout.write(self.style.SUCCESS('APScheduler started successfully!'))
         self.stdout.write('Registered jobs:')
         self.stdout.write('  - check_and_trigger_calls (every 5 minutes)')
         self.stdout.write('  - sync_all_user_calendars (every hour)')
         self.stdout.write('  - sync_pending_calls (every 15 minutes)')
+        self.stdout.write('  - sync_all_clients (daily at 2:00 AM)')
+        self.stdout.write('  - detect_visits (every 30 minutes)')
+        self.stdout.write('  - process_visit_pre_calls (every 5 minutes)')
+        self.stdout.write('  - process_visit_post_calls (every 5 minutes)')
         self.stdout.write('\nPress Ctrl+C to stop the scheduler.')
         
         try:

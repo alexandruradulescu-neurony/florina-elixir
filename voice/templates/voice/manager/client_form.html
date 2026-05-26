@@ -1,0 +1,111 @@
+{% extends 'voice/base.html' %}
+
+{% block title %}{% if editing %}Edit {{ client.name }}{% else %}Add Client{% endif %} - Sales Assistant{% endblock %}
+
+{% block page_header %}
+<div>
+    <div class="flex items-center gap-2 text-xs text-slate-400 mb-1">
+        <a href="{% url 'voice:client_list' %}" class="hover:text-teal-600 transition-colors">Clients</a>
+        <span>/</span>
+        <span class="text-slate-500">{% if editing %}{{ client.name }}{% else %}New{% endif %}</span>
+    </div>
+    <h1 class="text-xl font-bold text-slate-900">{% if editing %}Edit {{ client.name }}{% else %}Add Client{% endif %}</h1>
+    <p class="text-sm text-slate-500">{% if editing %}Update client details{% else %}Add a client manually{% endif %}</p>
+</div>
+{% endblock %}
+
+{% block content %}
+
+{% if form.non_field_errors %}
+<div class="mb-5 rounded-xl bg-red-50 border border-red-200 px-4 py-3">
+    {% for error in form.non_field_errors %}
+    <p class="text-sm text-red-700">{{ error }}</p>
+    {% endfor %}
+</div>
+{% endif %}
+
+<form method="post" class="max-w-3xl">
+    {% csrf_token %}
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        <!-- Left: Form fields -->
+        <div class="lg:col-span-2 space-y-6">
+
+            <div class="bg-white rounded-xl border border-slate-200 p-5">
+                <h2 class="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4">Client Information</h2>
+
+                <div class="mb-4">
+                    <label class="block text-xs font-medium text-slate-700 mb-1.5">Company Name <span class="text-red-400">*</span></label>
+                    <input type="text" name="name" value="{{ form.name.value|default:'' }}"
+                        class="w-full h-9 rounded-lg border border-slate-200 text-sm text-slate-700 px-3 focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-400 placeholder-slate-300"
+                        placeholder="Company name" required>
+                    {% if form.name.errors %}
+                    <p class="text-xs text-red-500 mt-1">{{ form.name.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-700 mb-1.5">CRM ID <span class="text-red-400">*</span></label>
+                        <input type="text" name="crm_id" value="{{ form.crm_id.value|default:'' }}"
+                            class="w-full h-9 rounded-lg border border-slate-200 text-sm text-slate-700 px-3 focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-400 placeholder-slate-300"
+                            placeholder="CRM organization ID" required>
+                        {% if form.crm_id.errors %}
+                        <p class="text-xs text-red-500 mt-1">{{ form.crm_id.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-700 mb-1.5">Domain</label>
+                        <input type="text" name="domain" value="{{ form.domain.value|default:'' }}"
+                            class="w-full h-9 rounded-lg border border-slate-200 text-sm text-slate-700 px-3 focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-400 placeholder-slate-300"
+                            placeholder="e.g. acme.com">
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <label class="block text-xs font-medium text-slate-700 mb-1.5">Industry</label>
+                    <input type="text" name="industry" value="{{ form.industry.value|default:'' }}"
+                        class="w-full h-9 rounded-lg border border-slate-200 text-sm text-slate-700 px-3 focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-400 placeholder-slate-300"
+                        placeholder="e.g. Technology, Finance, Retail">
+                </div>
+            </div>
+
+            <div class="bg-white rounded-xl border border-slate-200 p-5">
+                <h2 class="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4">AI Summary</h2>
+                <textarea name="ai_summary" rows="6"
+                    class="w-full rounded-lg border border-slate-200 text-sm text-slate-700 p-3 focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-400 placeholder-slate-300 resize-y"
+                    placeholder="Brief client summary — key contacts, deal history, talking points...">{{ form.ai_summary.value|default:'' }}</textarea>
+                <p class="text-[10px] text-slate-400 mt-1.5">This summary is used in pre-call coaching prompts. Can be auto-generated from CRM data later.</p>
+            </div>
+
+        </div>
+
+        <!-- Right: Actions -->
+        <div>
+            <div class="bg-white rounded-xl border border-slate-200 p-5 sticky top-4">
+                <button type="submit" class="w-full h-10 rounded-lg bg-teal-500 hover:bg-teal-600 text-white text-sm font-medium transition-colors mb-3">
+                    {% if editing %}Save Changes{% else %}Create Client{% endif %}
+                </button>
+                <a href="{% if editing %}{% url 'voice:client_detail' client.id %}{% else %}{% url 'voice:client_list' %}{% endif %}"
+                   class="block w-full h-10 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium text-center leading-10 hover:bg-slate-50 transition-colors">
+                    Cancel
+                </a>
+
+                {% if editing %}
+                <div class="mt-4 pt-4 border-t border-slate-100">
+                    <form method="post" action="{% url 'voice:client_delete' client.id %}" onsubmit="return confirm('Delete {{ client.name }}? This cannot be undone.')">
+                        {% csrf_token %}
+                        <button type="submit" class="w-full h-9 rounded-lg border border-red-200 text-red-600 text-xs font-medium hover:bg-red-50 transition-colors">
+                            Delete Client
+                        </button>
+                    </form>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+    </div>
+</form>
+
+{% endblock %}

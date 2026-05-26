@@ -1,0 +1,188 @@
+{% extends "voice/base.html" %}
+{% load static %}
+
+{% block title %}{{ visit.client.name|default:"Visit" }} — Sales Assistant{% endblock %}
+
+{% block header_utility %}
+<nav class="breadcrumb">
+    <a href="{% url 'voice:visit_list' %}">Visits</a>
+    <span class="sep">/</span>
+    <span>{{ visit.start_time|date:"M j" }}</span>
+    <span class="sep">/</span>
+    <span class="cur">{{ visit.client.name|default:"Visit" }}</span>
+</nav>
+{% endblock %}
+
+{% block display_title %}{{ visit.client.name|default:"Untitled visit" }}{% endblock %}
+
+{% block display_subtitle %}
+<div class="metastrip">
+    <span class="who-tag">
+        {% include "voice/partials/avatar.html" with initial=metastrip.agent_initial palette=metastrip.agent_palette size=22 %}
+        {{ metastrip.agent_name }}
+    </span>
+    <span>·</span>
+    <span>{{ metastrip.date_str }}, {{ metastrip.time_range }}</span>
+    <span>·</span>
+    <span class="meth">{{ metastrip.methodology_name }}</span>
+    <span>·</span>
+    <span class="vid">{{ metastrip.visit_id_code }}</span>
+</div>
+{% endblock %}
+
+{% block header_actions %}
+{% if visit.client.crm_id %}<a href="#" class="btn btn-secondary">Open in CRM</a>{% endif %}
+<button type="button" class="btn btn-secondary">Share</button>
+<button type="button" class="icon-btn" aria-label="More"><span class="ic ic-menu-dots ic-16"></span></button>
+{% endblock %}
+
+{% block content %}
+
+{# ─── Stepper ─── #}
+<div class="stepper">
+    {% for step in steps %}
+    <div class="step {% if step.done %}done{% elif step.active %}current{% else %}pending{% endif %}">
+        <span class="bubble">{% if step.done %}<span class="ic ic-check"></span>{% endif %}</span>
+        <span class="label">{{ step.label }}</span>
+    </div>
+    {% endfor %}
+</div>
+
+{# ─── 70/30 detail grid ─── #}
+<div class="detail-grid">
+    <div class="detail-col">
+
+        {# Meta card #}
+        <div class="dcard">
+            <div class="kv-strip">
+                {% for kv in kv_strip %}
+                <div class="kv">
+                    <div class="label">{{ kv.label }}</div>
+                    <div class="value">{{ kv.value }}</div>
+                    {% if kv.sub %}<div class="sub">{{ kv.sub }}</div>{% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        {# Attendees #}
+        <div class="dcard">
+            <h3>Attendees</h3>
+            <div class="attendees">
+                {% for a in attendees_list %}
+                <div class="att">
+                    {% include "voice/partials/avatar.html" with initial=a.initial palette="cyan" size=28 %}
+                    <span>{{ a.name }}</span>
+                    <span class="role">{{ a.role }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        {# Pre-call #}
+        <div class="dcard">
+            <h3>Pre-call</h3>
+            <div class="callpanel">
+                <div class="thumb"><span class="ic ic-comment-alt-dots"></span></div>
+                <div class="body">
+                    <div class="title">{{ pre_call_panel.title }}</div>
+                    <div class="desc">{{ pre_call_panel.description }}</div>
+                    <div class="tags">
+                        {% for tag in pre_call_panel.meta_tags %}<span class="tag">{{ tag }}</span>{% endfor %}
+                    </div>
+                </div>
+                {% if pre_call_panel.has_recording %}<button type="button" class="replay">Replay</button>{% endif %}
+            </div>
+            {% if pre_call_panel.snippet %}
+            <div class="snippet">
+                <span class="ts">{{ pre_call_panel.snippet.ts }}</span>{{ pre_call_panel.snippet.text }}
+            </div>
+            {% endif %}
+        </div>
+
+        {# Post-call #}
+        <div class="dcard">
+            <h3>Post-call</h3>
+            <div class="callpanel">
+                <div class="thumb"><span class="ic ic-comment-alt-dots"></span></div>
+                <div class="body">
+                    <div class="title">{{ post_call_panel.title }}</div>
+                    <div class="desc">{{ post_call_panel.description }}</div>
+                    <div class="tags">
+                        {% for tag in post_call_panel.meta_tags %}<span class="tag">{{ tag }}</span>{% endfor %}
+                    </div>
+                </div>
+                {% if post_call_panel.has_recording %}<button type="button" class="replay">Replay</button>{% endif %}
+            </div>
+            <div class="ministats">
+                <div class="ministat"><div class="l">Sentiment</div><div class="v">{{ post_call_ministats.sentiment }}%<span class="delta">{{ post_call_ministats.sentiment_delta }}</span></div></div>
+                <div class="ministat"><div class="l">Talk ratio</div><div class="v">{{ post_call_ministats.talk_ratio }}%</div></div>
+                <div class="ministat"><div class="l">Objections</div><div class="v">{{ post_call_ministats.objections }}</div></div>
+                <div class="ministat"><div class="l">Champion</div><div class="v" style="font-size:14px;">{{ post_call_ministats.champion }}</div></div>
+            </div>
+        </div>
+
+        {# Debrief #}
+        {% if visit.post_call_summary %}
+        <div class="dcard">
+            <h3>Debrief Summary</h3>
+            <p class="t-body" style="margin:0;line-height:1.5;color:var(--fg);">{{ visit.post_call_summary|linebreaksbr }}</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="detail-side">
+
+        {# Manager Notes #}
+        <div class="dcard notes">
+            <h3>Manager Notes</h3>
+            <form method="post">
+                {% csrf_token %}
+                <textarea name="manager_notes" placeholder="Notes about this visit…">{{ form.manager_notes.value|default:"" }}</textarea>
+                {% if form.methodology %}
+                <div class="fieldrow">
+                    <label class="t-meta" style="display:block;margin-bottom:6px;">Methodology override</label>
+                    {{ form.methodology }}
+                </div>
+                {% endif %}
+                <div class="fieldrow">
+                    <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;">Save</button>
+                </div>
+                <div class="savehint">Changes affect future pre/post-call prompts.</div>
+            </form>
+        </div>
+
+        {# Client Intel #}
+        <div class="dcard">
+            <h3>Client Intel</h3>
+            <p class="intel-summary">{{ client_intel_summary }}</p>
+            <div class="intel-chips">
+                {% for chip in intel_chips %}{% include "voice/partials/outcome_chip.html" with label=chip.label tone=chip.tone %}{% endfor %}
+            </div>
+            <div class="kpi-list">
+                {% for k in intel_kpis %}
+                <div class="row"><span class="l">{{ k.label }}</span><span class="v">{{ k.value }}</span></div>
+                {% endfor %}
+            </div>
+        </div>
+
+        {# Generated Prompts #}
+        {% if generated_prompts %}
+        <div class="dcard">
+            <h3>Generated Prompts</h3>
+            {% for p in generated_prompts %}
+            <div class="prompt-row">
+                <div class="head">
+                    <span class="kind">{{ p.id|upper }}</span>
+                    <span class="lbl">{{ p.label }}</span>
+                    <button type="button" class="copy">Copy</button>
+                </div>
+                <pre>{{ p.body }}</pre>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% endblock %}

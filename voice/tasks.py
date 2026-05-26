@@ -723,3 +723,273 @@ def sync_pending_calls():
             level=LogLevel.ERROR
         )
         raise
+
+
+# ============================================================================
+# New Visit-based tasks
+# ============================================================================
+
+def sync_all_clients_task():
+    """
+    Periodic task: sync all clients from CRM into local Client model.
+    Runs daily (overnight).
+    """
+    from .services.client_sync import sync_all_clients
+
+    try:
+        results = sync_all_clients()
+        logger.info(
+            f"Client sync: {results['created']} created, "
+            f"{results['updated']} updated, "
+            f"{len(results['errors'])} errors"
+        )
+        return results
+    except Exception as e:
+        logger.error(f"Error in sync_all_clients_task: {e}", exc_info=True)
+        log_activity(
+            action="Client sync task failed",
+            details={'error': str(e)},
+            level=LogLevel.ERROR,
+        )
+        raise
+
+
+def detect_visits_task():
+    """
+    Periodic task: scan all agents' calendars for today and create Visits
+    for events matching known clients.
+    Runs every 30 minutes alongside calendar sync.
+    """
+    from .services.visit_pipeline import detect_visits_for_all_agents
+
+    try:
+        results = detect_visits_for_all_agents()
+        logger.info(
+            f"Visit detection: {results['total_created']} created, "
+            f"{results['total_updated']} updated, "
+            f"{results['total_skipped']} skipped"
+        )
+        return results
+    except Exception as e:
+        logger.error(f"Error in detect_visits_task: {e}", exc_info=True)
+        log_activity(
+            action="Visit detection task failed",
+            details={'error': str(e)},
+            level=LogLevel.ERROR,
+        )
+        raise
+
+
+def process_visit_pre_calls():
+    """
+    Periodic task: find visits needing pre-calls, generate prompts, trigger calls.
+    Runs every 5 minutes (same cadence as check_and_trigger_calls).
+
+    Flow per visit:
+      1. Enrich client data from CRM (fresh pull)
+      2. Generate voice prompt via LLM (meta-prompt + context)
+      3. Trigger ElevenLabs call with generated prompt
+      4. Update visit status
+    """
+    from .selectors import get_visits_needing_pre_call
+    from .services.client_sync import enrich_client_from_crm
+    from .services.prompt_builder import generate_pre_call_prompt
+    from .models import Visit, CallAttempt, GlobalSettings
+    from .constants import VisitStatus
+
+    try:
+        visits = get_visits_needing_pre_call()
+        triggered = 0
+
+        for visit in visits:
+            try:
+                # Skip if agent has no phone
+                if not visit.agent.phone_number:
+                    logger.warning(f"Agent {visit.agent.username} has no phone, skipping visit {visit.id}")
+                    continue
+
+                # Skip if already has a scheduled/active pre-call
+                existing = CallAttempt.objects.filter(
+                    visit=visit, phase=CallPhase.PRE_MEETING,
+                    status__in=[CallStatus.SCHEDULED, CallStatus.INITIATED, CallStatus.IN_PROGRESS, CallStatus.COMPLETED],
+                ).exists()
+                if existing:
+                    continue
+
+                # Enrich client data
+                enrich_client_from_crm(visit.client)
+
+                # Generate prompt
+                settings = GlobalSettings.load()
+                prompt = generate_pre_call_prompt(visit)
+                if not prompt:
+                    logger.error(f"Failed to generate pre-call prompt for visit {visit.id}")
+                    continue
+
+                # Create CallAttempt
+                call = CallAttempt.objects.create(
+                    visit=visit,
+                    phase=CallPhase.PRE_MEETING,
+                    scheduled_offset_minutes=settings.pre_call_offset_minutes,
+                    status=CallStatus.SCHEDULED,
+                    scheduled_time=timezone.now(),
+                )
+
+                # Trigger the call
+                result = trigger_agent_call(
+                    agent_phone=visit.agent.phone_number,
+                    prompt_text=prompt,
+                    context_data={'visit_id': visit.id, 'client': visit.client.name},
+                    call_attempt=call,
+                    first_message_text=None,
+                )
+
+                if result.get('success'):
+                    visit.status = VisitStatus.PRE_CALL_DONE
+                    visit.save(update_fields=['status', 'updated_at'])
+                    triggered += 1
+                else:
+                    logger.error(f"Pre-call trigger failed for visit {visit.id}: {result.get('error')}")
+
+            except Exception as e:
+                logger.error(f"Error processing pre-call for visit {visit.id}: {e}", exc_info=True)
+
+        if triggered:
+            logger.info(f"Visit pre-calls: {triggered} triggered")
+        return {'triggered': triggered}
+
+    except Exception as e:
+        logger.error(f"Error in process_visit_pre_calls: {e}", exc_info=True)
+        raise
+
+
+def process_visit_post_calls():
+    """
+    Periodic task: find visits needing post-calls, generate prompts, trigger calls.
+    Runs every 5 minutes.
+
+    Flow per visit:
+      1. Generate post-call voice prompt via LLM
+      2. Trigger ElevenLabs call
+      3. (After call completes via webhook): summarize transcript, push to CRM
+    """
+    from .selectors import get_visits_needing_post_call
+    from .services.prompt_builder import generate_post_call_prompt
+    from .models import Visit, CallAttempt, GlobalSettings
+    from .constants import VisitStatus
+
+    try:
+        visits = get_visits_needing_post_call()
+        triggered = 0
+
+        for visit in visits:
+            try:
+                if not visit.agent.phone_number:
+                    continue
+
+                # Skip if already has a scheduled/active post-call
+                existing = CallAttempt.objects.filter(
+                    visit=visit, phase=CallPhase.POST_MEETING,
+                    status__in=[CallStatus.SCHEDULED, CallStatus.INITIATED, CallStatus.IN_PROGRESS, CallStatus.COMPLETED],
+                ).exists()
+                if existing:
+                    continue
+
+                settings = GlobalSettings.load()
+                prompt = generate_post_call_prompt(visit)
+                if not prompt:
+                    logger.error(f"Failed to generate post-call prompt for visit {visit.id}")
+                    continue
+
+                call = CallAttempt.objects.create(
+                    visit=visit,
+                    phase=CallPhase.POST_MEETING,
+                    scheduled_offset_minutes=settings.post_call_offset_minutes,
+                    status=CallStatus.SCHEDULED,
+                    scheduled_time=timezone.now(),
+                )
+
+                result = trigger_agent_call(
+                    agent_phone=visit.agent.phone_number,
+                    prompt_text=prompt,
+                    context_data={'visit_id': visit.id, 'client': visit.client.name},
+                    call_attempt=call,
+                    first_message_text=None,
+                )
+
+                if result.get('success'):
+                    visit.status = VisitStatus.POST_CALL_DONE
+                    visit.save(update_fields=['status', 'updated_at'])
+                    triggered += 1
+                else:
+                    logger.error(f"Post-call trigger failed for visit {visit.id}: {result.get('error')}")
+
+            except Exception as e:
+                logger.error(f"Error processing post-call for visit {visit.id}: {e}", exc_info=True)
+
+        if triggered:
+            logger.info(f"Visit post-calls: {triggered} triggered")
+        return {'triggered': triggered}
+
+    except Exception as e:
+        logger.error(f"Error in process_visit_post_calls: {e}", exc_info=True)
+        raise
+
+
+def process_visit_post_call_completion(call_attempt_id: int):
+    """
+    Called after a post-call completes (from webhook).
+    Summarizes transcript and pushes to CRM.
+
+    Args:
+        call_attempt_id: ID of the completed CallAttempt.
+    """
+    from .services.llm import summarize_call_transcript
+    from .models import CallAttempt
+    from .constants import VisitStatus
+    from voice.crm import get_crm_provider
+
+    try:
+        call = CallAttempt.objects.select_related('visit', 'visit__client').get(id=call_attempt_id)
+        visit = call.visit
+        if not visit:
+            return
+
+        # Summarize the transcript
+        if call.transcript:
+            context = f"Client: {visit.client.name}\nMeeting: {visit.title}"
+            summary = summarize_call_transcript(call.transcript, context)
+            if summary:
+                visit.post_call_summary = summary
+                call.summary = summary
+                call.save(update_fields=['summary', 'updated_at'])
+
+        # Push to CRM
+        if visit.crm_deal_id and (visit.post_call_summary or call.transcript):
+            crm = get_crm_provider()
+            if crm.is_configured():
+                note_text = visit.post_call_summary or call.transcript
+                subject = f"Post-Meeting Debrief: {visit.title} ({visit.client.name})"
+                result = crm.post_note_to_deal(visit.crm_deal_id, note_text, subject)
+                if result.get('success'):
+                    visit.crm_synced = True
+                    log_activity(
+                        user=visit.agent,
+                        action=f"Post-call summary synced to CRM deal {visit.crm_deal_id}",
+                        details={'visit_id': visit.id, 'note_id': result.get('note_id')},
+                    )
+                else:
+                    log_activity(
+                        user=visit.agent,
+                        action=f"CRM sync failed for visit {visit.id}",
+                        details={'error': result.get('error')},
+                        level=LogLevel.ERROR,
+                    )
+
+        visit.status = VisitStatus.COMPLETE
+        visit.save(update_fields=['post_call_summary', 'crm_synced', 'status', 'updated_at'])
+
+    except CallAttempt.DoesNotExist:
+        logger.error(f"CallAttempt {call_attempt_id} not found for post-call completion")
+    except Exception as e:
+        logger.error(f"Error in process_visit_post_call_completion: {e}", exc_info=True)

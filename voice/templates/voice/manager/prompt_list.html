@@ -1,70 +1,150 @@
 {% extends 'voice/base.html' %}
 
-{% block title %}Voice Prompts - MES Voice{% endblock %}
+{% block title %}Prompts - Sales Assistant{% endblock %}
 
-{% block content %}
-<div class="container mx-auto px-4 py-8">
-    <div class="mb-6">
-        <h1 class="text-4xl font-bold mb-2">Voice Prompts</h1>
-        <p class="text-base-content/70">Manage AI agent prompts for pre and post-meeting calls</p>
-    </div>
-
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <!-- Left: Prompt List -->
-        <div class="card w-full bg-base-100 shadow-xl">
-            <div class="card-body">
-                <h2 class="card-title">Available Prompts</h2>
-                <div class="space-y-2">
-                    {% for prompt in prompts %}
-                    <div class="p-4 rounded-lg border {% if prompt.is_active %}border-primary bg-primary/10{% else %}border-base-300{% endif %}">
-                        <div class="flex items-center justify-between">
-                            <div>
-                                <h3 class="font-bold">{{ prompt.name }}</h3>
-                                <p class="text-sm text-base-content/70">{{ prompt.get_prompt_type_display }}</p>
-                            </div>
-                            <div class="flex items-center gap-2">
-                                {% if prompt.is_active %}
-                                    <span class="badge badge-success gap-2">Active</span>
-                                {% endif %}
-                                <a href="{% url 'voice:prompt_edit' prompt.id %}" class="btn btn-sm btn-primary">Edit</a>
-                            </div>
-                        </div>
-                    </div>
-                    {% empty %}
-                    <p class="text-base-content/70">No prompts found. Create one in the admin panel.</p>
-                    {% endfor %}
-                </div>
-            </div>
-        </div>
-
-        <!-- Right: Info/Instructions -->
-        <div class="card w-full bg-base-100 shadow-xl">
-            <div class="card-body">
-                <h2 class="card-title">Instructions</h2>
-                <div class="space-y-4">
-                    <div>
-                        <h3 class="font-bold mb-2">Available Variables</h3>
-                        <ul class="list-disc list-inside space-y-1 text-sm">
-                            <li><code>{agent_name}</code> - Sales agent's name</li>
-                            <li><code>{customer_name}</code> - Customer/client name</li>
-                            <li><code>{meeting_title}</code> - Meeting title</li>
-                        </ul>
-                    </div>
-                    <div>
-                        <h3 class="font-bold mb-2">Prompt Types</h3>
-                        <ul class="list-disc list-inside space-y-1 text-sm">
-                            <li><strong>Pre-Meeting Training:</strong> Called before the meeting to prepare the agent</li>
-                            <li><strong>Post-Meeting Debrief:</strong> Called after the meeting to review and learn</li>
-                        </ul>
-                    </div>
-                    <div class="alert alert-info">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                        <span>Only one active prompt per type is allowed. Activating a new prompt will deactivate the previous one.</span>
-                    </div>
-                </div>
-            </div>
-        </div>
+{% block page_header %}
+<div class="flex items-center justify-between">
+    <div>
+        <h1 class="text-xl font-bold text-slate-900">Prompts</h1>
+        <p class="text-sm text-slate-500">{{ total_count }} prompt{{ total_count|pluralize }} &middot; Voice AI instructions for pre and post-meeting calls</p>
     </div>
 </div>
 {% endblock %}
 
+{% block content %}
+
+<!-- Active Prompts Summary -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+    <div class="bg-white rounded-xl border border-slate-200 p-4">
+        <div class="flex items-center justify-between mb-2">
+            <span class="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Active Pre-Call</span>
+            {% if active_pre %}
+            <div class="flex items-center gap-1.5">
+                <div class="w-2 h-2 rounded-full bg-teal-500"></div>
+                <span class="text-[10px] font-medium text-teal-700">Active</span>
+            </div>
+            {% else %}
+            <div class="flex items-center gap-1.5">
+                <div class="w-2 h-2 rounded-full bg-amber-400"></div>
+                <span class="text-[10px] font-medium text-amber-700">None active</span>
+            </div>
+            {% endif %}
+        </div>
+        {% if active_pre %}
+        <div class="text-sm font-semibold text-slate-800">{{ active_pre.name }}</div>
+        <div class="text-xs text-slate-400 mt-1 line-clamp-2">{{ active_pre.system_prompt|truncatewords:20 }}</div>
+        {% else %}
+        <div class="text-sm text-slate-400">No pre-call prompt is active. Agents won't receive pre-meeting coaching.</div>
+        {% endif %}
+    </div>
+    <div class="bg-white rounded-xl border border-slate-200 p-4">
+        <div class="flex items-center justify-between mb-2">
+            <span class="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Active Post-Call</span>
+            {% if active_post %}
+            <div class="flex items-center gap-1.5">
+                <div class="w-2 h-2 rounded-full bg-indigo-500"></div>
+                <span class="text-[10px] font-medium text-indigo-700">Active</span>
+            </div>
+            {% else %}
+            <div class="flex items-center gap-1.5">
+                <div class="w-2 h-2 rounded-full bg-amber-400"></div>
+                <span class="text-[10px] font-medium text-amber-700">None active</span>
+            </div>
+            {% endif %}
+        </div>
+        {% if active_post %}
+        <div class="text-sm font-semibold text-slate-800">{{ active_post.name }}</div>
+        <div class="text-xs text-slate-400 mt-1 line-clamp-2">{{ active_post.system_prompt|truncatewords:20 }}</div>
+        {% else %}
+        <div class="text-sm text-slate-400">No post-call prompt is active. Agents won't receive post-meeting debriefs.</div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Pre-Meeting Prompts -->
+<div class="mb-6">
+    <h2 class="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-3">Pre-Meeting Prompts</h2>
+    {% if pre_prompts %}
+    <div class="space-y-2">
+        {% for prompt in pre_prompts %}
+        <a href="{% url 'voice:prompt_edit' prompt.id %}" class="block bg-white rounded-xl border border-slate-200 p-4 hover:border-slate-300 transition-colors">
+            <div class="flex items-center justify-between mb-1">
+                <div class="flex items-center gap-2">
+                    <span class="font-semibold text-sm text-slate-800">{{ prompt.name }}</span>
+                    {% if prompt.is_active %}
+                    <span class="inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold bg-teal-100 text-teal-700">Active</span>
+                    {% endif %}
+                </div>
+                <span class="text-xs text-slate-400">{{ prompt.created_at|date:"M d, Y" }}</span>
+            </div>
+            <div class="text-xs text-slate-500 line-clamp-2">{{ prompt.system_prompt|truncatewords:30 }}</div>
+            {% if prompt.first_message %}
+            <div class="mt-2 text-[10px] text-slate-400">
+                Greeting: <span class="text-slate-500">{{ prompt.first_message|truncatewords:10 }}</span>
+            </div>
+            {% endif %}
+        </a>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="bg-white rounded-xl border border-slate-200 p-6 text-center">
+        <p class="text-sm text-slate-400">No pre-meeting prompts created yet</p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Post-Meeting Prompts -->
+<div class="mb-6">
+    <h2 class="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-3">Post-Meeting Prompts</h2>
+    {% if post_prompts %}
+    <div class="space-y-2">
+        {% for prompt in post_prompts %}
+        <a href="{% url 'voice:prompt_edit' prompt.id %}" class="block bg-white rounded-xl border border-slate-200 p-4 hover:border-slate-300 transition-colors">
+            <div class="flex items-center justify-between mb-1">
+                <div class="flex items-center gap-2">
+                    <span class="font-semibold text-sm text-slate-800">{{ prompt.name }}</span>
+                    {% if prompt.is_active %}
+                    <span class="inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-100 text-indigo-700">Active</span>
+                    {% endif %}
+                </div>
+                <span class="text-xs text-slate-400">{{ prompt.created_at|date:"M d, Y" }}</span>
+            </div>
+            <div class="text-xs text-slate-500 line-clamp-2">{{ prompt.system_prompt|truncatewords:30 }}</div>
+            {% if prompt.first_message %}
+            <div class="mt-2 text-[10px] text-slate-400">
+                Greeting: <span class="text-slate-500">{{ prompt.first_message|truncatewords:10 }}</span>
+            </div>
+            {% endif %}
+        </a>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="bg-white rounded-xl border border-slate-200 p-6 text-center">
+        <p class="text-sm text-slate-400">No post-meeting prompts created yet</p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Variables Reference -->
+<details class="mb-6">
+    <summary class="text-xs text-teal-600 cursor-pointer hover:text-teal-700 font-medium">Available template variables</summary>
+    <div class="mt-2 bg-white rounded-xl border border-slate-200 p-4">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+            <div>
+                <code class="text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded">{agent_name}</code>
+                <span class="text-slate-500 ml-1">Agent's name</span>
+            </div>
+            <div>
+                <code class="text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded">{customer_name}</code>
+                <span class="text-slate-500 ml-1">Client name</span>
+            </div>
+            <div>
+                <code class="text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded">{meeting_title}</code>
+                <span class="text-slate-500 ml-1">Meeting title</span>
+            </div>
+        </div>
+        <p class="text-[10px] text-slate-400 mt-2">Only one active prompt per type is allowed. Activating a new prompt deactivates the previous one.</p>
+    </div>
+</details>
+
+{% endblock %}

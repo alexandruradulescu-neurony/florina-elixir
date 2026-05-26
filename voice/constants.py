@@ -21,6 +21,15 @@ class CallPhase(models.TextChoices):
     POST_MEETING = 'POST', 'Post-Meeting Debrief'
 
 
+class VisitStatus(models.TextChoices):
+    """Status of a visit through its lifecycle."""
+    PLANNED = 'PLANNED', 'Planned'
+    PRE_CALL_DONE = 'PRE_CALL_DONE', 'Pre-Call Done'
+    IN_PROGRESS = 'IN_PROGRESS', 'In Progress'
+    POST_CALL_DONE = 'POST_CALL_DONE', 'Post-Call Done'
+    COMPLETE = 'COMPLETE', 'Complete'
+
+
 # Timing constants (in minutes)
 PRE_MEETING_OFFSETS = [-60, -30]  # 1 hour before, 30 mins before
 POST_MEETING_OFFSETS = [15, 30]   # 15 mins after, 30 mins after

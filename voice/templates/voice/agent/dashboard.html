@@ -2,13 +2,16 @@
 
 {% block title %}My Schedule - MES Voice{% endblock %}
 
-{% block content %}
-<div class="container mx-auto px-4 py-8">
-    <div class="mb-6">
-        <h1 class="text-4xl font-bold mb-2">My Schedule</h1>
-        <p class="text-base-content/70">Your daily timeline of calls and meetings</p>
+{% block page_header %}
+<div class="flex items-center justify-between">
+    <div>
+        <h1 class="text-xl font-bold text-slate-900">My Schedule</h1>
+        <p class="text-sm text-slate-500">Your daily timeline of calls and meetings</p>
     </div>
+</div>
+{% endblock %}
 
+{% block content %}
     <!-- Call Statistics -->
     <div class="stats stats-vertical lg:stats-horizontal shadow w-full mb-6">
         <div class="stat">
@@ -156,6 +159,5 @@
         </div>
     </div>
     {% endif %}
-</div>
 {% endblock %}
 

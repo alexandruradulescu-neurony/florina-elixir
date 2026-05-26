@@ -29,10 +29,21 @@ from .selectors import (
     get_agent_call_statistics,
     get_upcoming_meetings_for_agent,
     get_agent_timeline_data,
+    get_dashboard_visit_summary,
+    get_agent_readiness,
+    get_dashboard_action_items,
+    get_weekly_summary,
+    get_recent_post_call_summaries,
+    get_next_upcoming_visit,
+    get_visits_for_date,
+    get_clients_with_stats,
+    get_client_detail,
 )
-from .models import Meeting, VoicePrompt, User, CallAttempt
+from .models import Meeting, VoicePrompt, User, CallAttempt, Methodology, GlobalSettings, Visit, Client
 from .decorators import SuperuserRequiredMixin, SalesAgentRequiredMixin
+from .forms import AgentCreateForm, MethodologyForm, GlobalSettingsForm, VisitManagerNotesForm, AgentMethodologyForm, ClientForm
 from .utils import get_ngrok_url, validate_ngrok_url, build_webhook_url
+from voice import placeholders
 
 logger = logging.getLogger(__name__)
 
@@ -354,21 +365,38 @@ class CalendarSyncStatusView(LoginRequiredMixin, View):
 # ============================================================================
 
 class SuperuserDashboardView(SuperuserRequiredMixin, View):
-    """Superuser dashboard with system statistics and monitoring."""
-    
+    """Sales manager dashboard with business intelligence."""
+
     def get(self, request):
-        stats = get_system_statistics()
-        recent_calls = get_recent_calls(limit=20)
-        failed_calls = get_failed_calls_today()
-        recent_logs = get_recent_activity_logs(limit=10)
-        
+        today = timezone.now().date()
+
+        visit_summary = get_dashboard_visit_summary(today)
+        agent_cards = get_agent_readiness(today)
+        action_items = get_dashboard_action_items(today)
+        weekly = get_weekly_summary(today)
+        recent_summaries = get_recent_post_call_summaries(limit=5)
+        next_visit = get_next_upcoming_visit()
+        todays_visits = get_visits_for_date(today)
+
+        # Minutes until next visit for countdown
+        now = timezone.now()
+        next_visit_minutes = None
+        if next_visit and next_visit.start_time > now:
+            next_visit_minutes = int((next_visit.start_time - now).total_seconds() / 60)
+
         context = {
-            'stats': stats,
-            'recent_calls': recent_calls,
-            'failed_calls': failed_calls,
-            'recent_logs': recent_logs,
+            'today': today,
+            'visit_summary': visit_summary,
+            'agent_cards': agent_cards,
+            'action_items': action_items,
+            'weekly': weekly,
+            'recent_summaries': recent_summaries,
+            'next_visit': next_visit,
+            'next_visit_minutes': next_visit_minutes,
+            'todays_visits': todays_visits,
         }
-        
+
+        placeholders.dashboard_extras(context)
         return render(request, 'voice/manager/dashboard.html', context)
 
 
@@ -468,12 +496,21 @@ class TestCallView(SuperuserRequiredMixin, View):
 
 
 class PromptListView(SuperuserRequiredMixin, View):
-    """List all voice prompts."""
-    
+    """List all voice prompts grouped by type."""
+
     def get(self, request):
-        prompts = VoicePrompt.objects.all().order_by('prompt_type', '-is_active', '-created_at')
+        all_prompts = VoicePrompt.objects.all().order_by('-is_active', '-created_at')
+        pre_prompts = [p for p in all_prompts if p.prompt_type == 'PRE']
+        post_prompts = [p for p in all_prompts if p.prompt_type == 'POST']
+        active_pre = next((p for p in pre_prompts if p.is_active), None)
+        active_post = next((p for p in post_prompts if p.is_active), None)
+
         context = {
-            'prompts': prompts,
+            'pre_prompts': pre_prompts,
+            'post_prompts': post_prompts,
+            'active_pre': active_pre,
+            'active_post': active_post,
+            'total_count': all_prompts.count(),
         }
         return render(request, 'voice/manager/prompt_list.html', context)
 
@@ -534,13 +571,67 @@ class PromptEditView(SuperuserRequiredMixin, View):
 
 class AgentManagementView(SuperuserRequiredMixin, View):
     """Manage sales agents."""
-    
+
     def get(self, request):
-        agents = User.objects.filter(is_sales_agent=True).order_by('username')
+        today = timezone.now().date()
+        agents = User.objects.filter(is_sales_agent=True).select_related('default_methodology').order_by('username')
+        methodologies = Methodology.objects.filter(is_active=True).order_by('name')
+
+        enriched_agents = []
+        for agent in agents:
+            today_visits = Visit.objects.filter(agent=agent, start_time__date=today)
+            total_calls = CallAttempt.objects.filter(visit__agent=agent)
+            completed_calls = total_calls.filter(status='COMPLETED').count()
+            total_call_count = total_calls.count()
+
+            # Config issues
+            issues = []
+            if not agent.phone_number:
+                issues.append('No phone number')
+            if not agent.default_methodology:
+                issues.append('No methodology')
+            if not agent.email:
+                issues.append('No email')
+
+            enriched_agents.append({
+                'agent': agent,
+                'visits_today': today_visits.count(),
+                'visits_complete_today': today_visits.filter(status='COMPLETE').count(),
+                'total_calls': total_call_count,
+                'call_success_rate': round(completed_calls / total_call_count * 100) if total_call_count else 0,
+                'has_phone': bool(agent.phone_number),
+                'issues': issues,
+                'is_configured': len(issues) == 0,
+            })
+
         context = {
-            'agents': agents,
+            'agents': enriched_agents,
+            'methodologies': methodologies,
+            'agent_count': agents.count(),
+            'configured_count': sum(1 for a in enriched_agents if a['is_configured']),
         }
         return render(request, 'voice/manager/agent_list.html', context)
+
+
+class AgentCreateView(SuperuserRequiredMixin, View):
+    """Create a new sales agent."""
+
+    def get(self, request):
+        form = AgentCreateForm()
+        return render(request, 'voice/manager/agent_form.html', {'form': form})
+
+    def post(self, request):
+        form = AgentCreateForm(request.POST)
+        if form.is_valid():
+            agent = form.save()
+            log_activity(
+                action=f"Created sales agent: {agent.username}",
+                user=request.user,
+                level='INFO',
+            )
+            messages.success(request, f'Agent "{agent.username}" created successfully.')
+            return redirect('voice:agent_management')
+        return render(request, 'voice/manager/agent_form.html', {'form': form})
 
 
 class AuditLogExplorerView(SuperuserRequiredMixin, View):
@@ -557,11 +648,13 @@ class AuditLogExplorerView(SuperuserRequiredMixin, View):
             user_id = None
         
         logs = get_activity_logs_filtered(level=level, user_id=user_id, limit=100)
-        
+        log_count = logs.count() if hasattr(logs, 'count') else len(logs)
+
         context = {
             'logs': logs,
-            'selected_level': level,
-            'selected_user_id': user_id,
+            'log_count': log_count,
+            'selected_level': level or '',
+            'selected_user_id': str(user_id) if user_id else '',
             'users': User.objects.filter(is_sales_agent=True).order_by('username'),
         }
         return render(request, 'voice/manager/logs.html', context)
@@ -737,25 +830,41 @@ class ProgrammedCallsView(SuperuserRequiredMixin, View):
         show_upcoming = request.GET.get('show_upcoming', 'true') == 'true'
         
         # Base queryset for actual CallAttempt records
-        calls = CallAttempt.objects.select_related('meeting', 'meeting__agent').all()
-        
+        calls = CallAttempt.objects.select_related(
+            'meeting', 'meeting__agent', 'visit', 'visit__agent', 'visit__client',
+        ).all()
+
         # Apply filters
         if status_filter:
             calls = calls.filter(status=status_filter)
         if phase_filter:
             calls = calls.filter(phase=phase_filter)
         if agent_filter:
-            calls = calls.filter(meeting__agent_id=agent_filter)
-        
+            from django.db.models import Q
+            calls = calls.filter(Q(meeting__agent_id=agent_filter) | Q(visit__agent_id=agent_filter))
+
         # Order by created_at (newest first)
         calls = calls.order_by('-created_at')
-        
+
         # Calculate scheduled call time for actual calls
         for call in calls:
+            # Resolve times from visit or meeting
+            if call.visit:
+                start = call.visit.start_time
+                end = call.visit.end_time
+                call._agent = call.visit.agent
+                call._title = call.visit.title
+            elif call.meeting:
+                start = call.meeting.start_time
+                end = call.meeting.end_time
+                call._agent = call.meeting.agent
+                call._title = call.meeting.title
+            else:
+                continue
             if call.phase == 'PRE':
-                call.scheduled_time = call.meeting.start_time + timedelta(minutes=call.scheduled_offset_minutes)
-            else:  # POST
-                call.scheduled_time = call.meeting.end_time + timedelta(minutes=call.scheduled_offset_minutes)
+                call.scheduled_time = start + timedelta(minutes=call.scheduled_offset_minutes)
+            else:
+                call.scheduled_time = end + timedelta(minutes=call.scheduled_offset_minutes)
         
         # Get upcoming scheduled calls (not yet triggered)
         upcoming_calls = []
@@ -827,30 +936,36 @@ class ProgrammedCallsView(SuperuserRequiredMixin, View):
         
         # Add helper flags for template rendering
         for call in all_calls:
-            # Check if retry/trigger button should be shown
+            # Resolve start/end from visit or meeting
             if hasattr(call, 'is_upcoming') and call.is_upcoming:
-                # For upcoming calls (not yet created as CallAttempt)
+                _start = call.meeting.start_time
+                _end = call.meeting.end_time
+            elif hasattr(call, 'visit') and call.visit:
+                _start = call.visit.start_time
+                _end = call.visit.end_time
+            elif hasattr(call, 'meeting') and call.meeting:
+                _start = call.meeting.start_time
+                _end = call.meeting.end_time
+            else:
+                call.can_retry = False
+                call.can_trigger = False
+                continue
+
+            if hasattr(call, 'is_upcoming') and call.is_upcoming:
                 if call.phase == 'PRE':
-                    call.can_trigger = call.meeting.start_time > now
-                else:  # POST
-                    call.can_trigger = call.meeting.end_time < now
+                    call.can_trigger = _start > now
+                else:
+                    call.can_trigger = _end < now
             elif call.status == 'FAILED':
-                # For failed calls
                 if call.phase == 'PRE':
-                    # Can retry if meeting hasn't started yet
-                    call.can_retry = call.meeting.start_time > now
-                else:  # POST
-                    # Can retry if meeting has ended
-                    call.can_retry = call.meeting.end_time < now
+                    call.can_retry = _start > now
+                else:
+                    call.can_retry = _end < now
             elif call.status == 'SCHEDULED':
-                # For scheduled calls, allow manual trigger if within valid time window
                 if call.phase == 'PRE':
-                    # Can trigger pre-meeting call if meeting hasn't started yet
-                    # (within the 60-minute window before meeting)
-                    call.can_trigger = call.meeting.start_time > now
-                else:  # POST
-                    # Can trigger post-meeting call if meeting has ended
-                    call.can_trigger = call.meeting.end_time < now
+                    call.can_trigger = _start > now
+                else:
+                    call.can_trigger = _end < now
             else:
                 call.can_retry = False
                 call.can_trigger = False
@@ -968,5 +1083,634 @@ class ManualCallTriggerView(SuperuserRequiredMixin, View):
         except Exception as e:
             logger.error(f"Error in manual call trigger: {e}", exc_info=True)
             messages.error(request, f'Error triggering call: {str(e)}')
-        
+
         return redirect('voice:programmed_calls')
+
+
+# ============================================================================
+# Methodology Views
+# ============================================================================
+
+class MethodologyListView(SuperuserRequiredMixin, View):
+    """List all methodologies with usage stats."""
+
+    def get(self, request):
+        methodologies = Methodology.objects.all().select_related('created_by').order_by('-is_active', 'name')
+        settings = GlobalSettings.load()
+        system_default_id = settings.default_methodology_id
+
+        enriched = []
+        for m in methodologies:
+            agents_using = User.objects.filter(
+                is_sales_agent=True, default_methodology=m
+            ).count()
+            visits_using = Visit.objects.filter(methodology=m).count()
+
+            enriched.append({
+                'methodology': m,
+                'agents_using': agents_using,
+                'visits_using': visits_using,
+                'is_system_default': m.id == system_default_id,
+                'has_pdf': bool(m.source_material),
+                'has_summary': bool(m.ai_summary),
+            })
+
+        active_count = sum(1 for e in enriched if e['methodology'].is_active)
+
+        context = {
+            'methodologies': enriched,
+            'total_count': len(enriched),
+            'active_count': active_count,
+        }
+        return render(request, 'voice/manager/methodology_list.html', context)
+
+
+class MethodologyCreateView(SuperuserRequiredMixin, View):
+    """Create a new methodology with optional PDF upload."""
+
+    def get(self, request):
+        form = MethodologyForm()
+        return render(request, 'voice/manager/methodology_form.html', {'form': form})
+
+    def post(self, request):
+        form = MethodologyForm(request.POST, request.FILES)
+        if form.is_valid():
+            methodology = form.save(commit=False)
+            methodology.created_by = request.user
+            methodology.save()
+
+            # Process PDF if uploaded
+            if methodology.source_material:
+                try:
+                    from .services.llm import extract_pdf_text, summarize_methodology_pdf, is_configured
+                    if is_configured():
+                        pdf_text = extract_pdf_text(methodology.source_material.path)
+                        if pdf_text:
+                            summary = summarize_methodology_pdf(pdf_text)
+                            if summary:
+                                methodology.ai_summary = summary
+                                methodology.save(update_fields=['ai_summary'])
+                                messages.success(request, f'Methodology "{methodology.name}" created with AI summary.')
+                            else:
+                                messages.warning(request, f'Methodology created but AI summary generation failed. You can add it manually.')
+                        else:
+                            messages.warning(request, f'Methodology created but PDF text extraction failed.')
+                    else:
+                        messages.info(request, f'Methodology created. Configure ANTHROPIC_API_KEY to enable AI summarization.')
+                except Exception as e:
+                    logger.error(f"Error processing methodology PDF: {e}", exc_info=True)
+                    messages.warning(request, f'Methodology created but PDF processing failed: {e}')
+            else:
+                messages.success(request, f'Methodology "{methodology.name}" created.')
+
+            return redirect('voice:methodology_list')
+        return render(request, 'voice/manager/methodology_form.html', {'form': form})
+
+
+class MethodologyEditView(SuperuserRequiredMixin, View):
+    """Edit an existing methodology."""
+
+    def get(self, request, methodology_id):
+        try:
+            methodology = Methodology.objects.get(id=methodology_id)
+        except Methodology.DoesNotExist:
+            messages.error(request, 'Methodology not found.')
+            return redirect('voice:methodology_list')
+        form = MethodologyForm(instance=methodology)
+        return render(request, 'voice/manager/methodology_form.html', {
+            'form': form,
+            'methodology': methodology,
+            'editing': True,
+        })
+
+    def post(self, request, methodology_id):
+        try:
+            methodology = Methodology.objects.get(id=methodology_id)
+        except Methodology.DoesNotExist:
+            messages.error(request, 'Methodology not found.')
+            return redirect('voice:methodology_list')
+
+        form = MethodologyForm(request.POST, request.FILES, instance=methodology)
+        if form.is_valid():
+            methodology = form.save()
+
+            # Re-process PDF if a new one was uploaded
+            if 'source_material' in request.FILES:
+                try:
+                    from .services.llm import extract_pdf_text, summarize_methodology_pdf, is_configured
+                    if is_configured():
+                        pdf_text = extract_pdf_text(methodology.source_material.path)
+                        if pdf_text:
+                            summary = summarize_methodology_pdf(pdf_text)
+                            if summary:
+                                methodology.ai_summary = summary
+                                methodology.save(update_fields=['ai_summary'])
+                                messages.success(request, 'Methodology updated with new AI summary.')
+                                return redirect('voice:methodology_list')
+                except Exception as e:
+                    logger.error(f"Error processing methodology PDF: {e}", exc_info=True)
+                    messages.warning(request, f'Methodology updated but PDF processing failed: {e}')
+
+            messages.success(request, f'Methodology "{methodology.name}" updated.')
+            return redirect('voice:methodology_list')
+        return render(request, 'voice/manager/methodology_form.html', {
+            'form': form,
+            'methodology': methodology,
+            'editing': True,
+        })
+
+
+# ============================================================================
+# Global Settings View
+# ============================================================================
+
+class GlobalSettingsView(SuperuserRequiredMixin, View):
+    """Edit global system settings."""
+
+    def get(self, request):
+        settings_obj = GlobalSettings.load()
+        form = GlobalSettingsForm(instance=settings_obj)
+        return render(request, 'voice/manager/settings.html', {'form': form})
+
+    def post(self, request):
+        settings_obj = GlobalSettings.load()
+        form = GlobalSettingsForm(request.POST, instance=settings_obj)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Settings updated.')
+            return redirect('voice:global_settings')
+        return render(request, 'voice/manager/settings.html', {'form': form})
+
+
+# ============================================================================
+# Visit Management Views
+# ============================================================================
+
+class VisitListView(SuperuserRequiredMixin, View):
+    """List all visits for today or a selected date, across all agents."""
+
+    def get(self, request):
+        date_str = request.GET.get('date')
+        agent_id = request.GET.get('agent')
+        status_filter = request.GET.get('status')
+
+        if date_str:
+            try:
+                target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+            except ValueError:
+                target_date = timezone.now().date()
+        else:
+            target_date = timezone.now().date()
+
+        agent = None
+        if agent_id:
+            try:
+                agent = User.objects.get(id=agent_id, is_sales_agent=True)
+            except User.DoesNotExist:
+                pass
+
+        visits = get_visits_for_date(target_date, agent=agent)
+        if status_filter:
+            visits = visits.filter(status=status_filter)
+
+        # Enrich visits with call counts for display
+        enriched_visits = []
+        for visit in visits:
+            pre = CallAttempt.objects.filter(visit=visit, phase='PRE')
+            post = CallAttempt.objects.filter(visit=visit, phase='POST')
+            enriched_visits.append({
+                'visit': visit,
+                'pre_call_count': pre.count(),
+                'pre_call_done': pre.filter(status='COMPLETED').exists(),
+                'post_call_count': post.count(),
+                'post_call_done': post.filter(status='COMPLETED').exists(),
+                'has_failed_call': pre.filter(status__in=['FAILED', 'NO_ANSWER']).exists()
+                    or post.filter(status__in=['FAILED', 'NO_ANSWER']).exists(),
+            })
+
+        # Status summary for the strip
+        summary = get_dashboard_visit_summary(target_date)
+
+        # Date navigation
+        prev_date = target_date - timedelta(days=1)
+        next_date = target_date + timedelta(days=1)
+        is_today = target_date == timezone.now().date()
+
+        agents = User.objects.filter(is_sales_agent=True).order_by('username')
+
+        from .constants import VisitStatus
+        context = {
+            'visits': enriched_visits,
+            'target_date': target_date,
+            'prev_date': prev_date,
+            'next_date': next_date,
+            'is_today': is_today,
+            'summary': summary,
+            'agents': agents,
+            'agent_filter': agent_id or '',
+            'status_filter': status_filter or '',
+            'status_choices': VisitStatus.choices,
+            'now': timezone.now(),
+        }
+        placeholders.visits_extras(context)
+        return render(request, 'voice/manager/visit_list.html', context)
+
+
+class VisitDetailView(SuperuserRequiredMixin, View):
+    """View and edit a single visit — manager notes, methodology override, call status."""
+
+    def _build_context(self, visit, form):
+        pre_calls = CallAttempt.objects.filter(visit=visit, phase='PRE').order_by('created_at')
+        post_calls = CallAttempt.objects.filter(visit=visit, phase='POST').order_by('created_at')
+
+        # Progress steps for the tracker
+        from .constants import VisitStatus
+        status_order = [
+            VisitStatus.PLANNED, VisitStatus.PRE_CALL_DONE,
+            VisitStatus.IN_PROGRESS, VisitStatus.POST_CALL_DONE, VisitStatus.COMPLETE,
+        ]
+        current_idx = status_order.index(visit.status) if visit.status in status_order else 0
+        steps = [
+            {'key': 'planned', 'label': 'Planned', 'done': current_idx >= 0, 'active': current_idx == 0},
+            {'key': 'pre_call', 'label': 'Pre-Call', 'done': current_idx >= 1, 'active': current_idx == 1},
+            {'key': 'meeting', 'label': 'Meeting', 'done': current_idx >= 2, 'active': current_idx == 2},
+            {'key': 'post_call', 'label': 'Post-Call', 'done': current_idx >= 3, 'active': current_idx == 3},
+            {'key': 'complete', 'label': 'Complete', 'done': current_idx >= 4, 'active': current_idx == 4},
+        ]
+
+        # Pre-call status summary
+        pre_call_status = 'pending'
+        if pre_calls.filter(status='COMPLETED').exists():
+            pre_call_status = 'done'
+        elif pre_calls.filter(status__in=['FAILED', 'NO_ANSWER']).exists():
+            pre_call_status = 'failed'
+        elif pre_calls.filter(status__in=['INITIATED', 'IN_PROGRESS']).exists():
+            pre_call_status = 'active'
+
+        post_call_status = 'pending'
+        if post_calls.filter(status='COMPLETED').exists():
+            post_call_status = 'done'
+        elif post_calls.filter(status__in=['FAILED', 'NO_ANSWER']).exists():
+            post_call_status = 'failed'
+        elif post_calls.filter(status__in=['INITIATED', 'IN_PROGRESS']).exists():
+            post_call_status = 'active'
+
+        effective_methodology = visit.get_effective_methodology()
+        context = {
+            'visit': visit,
+            'form': form,
+            'pre_calls': pre_calls,
+            'post_calls': post_calls,
+            'effective_methodology': effective_methodology,
+            'steps': steps,
+            'pre_call_status': pre_call_status,
+            'post_call_status': post_call_status,
+        }
+        context.update(placeholders.visit_detail_extras(
+            visit, pre_calls, post_calls, effective_methodology
+        ))
+        return context
+
+    def get(self, request, visit_id):
+        try:
+            visit = Visit.objects.select_related(
+                'agent', 'client', 'methodology', 'agent__default_methodology',
+            ).get(id=visit_id)
+        except Visit.DoesNotExist:
+            messages.error(request, 'Visit not found.')
+            return redirect('voice:visit_list')
+
+        form = VisitManagerNotesForm(instance=visit)
+        context = self._build_context(visit, form)
+        return render(request, 'voice/manager/visit_detail.html', context)
+
+    def post(self, request, visit_id):
+        try:
+            visit = Visit.objects.select_related(
+                'agent', 'client', 'methodology', 'agent__default_methodology',
+            ).get(id=visit_id)
+        except Visit.DoesNotExist:
+            messages.error(request, 'Visit not found.')
+            return redirect('voice:visit_list')
+
+        form = VisitManagerNotesForm(request.POST, instance=visit)
+        if form.is_valid():
+            form.save()
+            log_activity(
+                user=request.user,
+                action=f"Manager updated visit: {visit.title}",
+                details={'visit_id': visit.id},
+            )
+            messages.success(request, 'Visit updated.')
+            return redirect('voice:visit_detail', visit_id=visit.id)
+
+        context = self._build_context(visit, form)
+        return render(request, 'voice/manager/visit_detail.html', context)
+
+
+class AgentMethodologyView(SuperuserRequiredMixin, View):
+    """Assign default methodology to an agent."""
+
+    def post(self, request, agent_id):
+        try:
+            agent = User.objects.get(id=agent_id, is_sales_agent=True)
+        except User.DoesNotExist:
+            messages.error(request, 'Agent not found.')
+            return redirect('voice:agent_management')
+
+        form = AgentMethodologyForm(request.POST, instance=agent)
+        if form.is_valid():
+            form.save()
+            methodology = agent.default_methodology
+            msg = f'Default methodology for {agent.username} set to "{methodology.name}".' if methodology else f'Default methodology cleared for {agent.username}.'
+            messages.success(request, msg)
+        return redirect('voice:agent_management')
+
+
+# ============================================================================
+# Client Views
+# ============================================================================
+
+class ClientListView(SuperuserRequiredMixin, View):
+    """Browse all CRM-synced clients."""
+
+    def get(self, request):
+        search = request.GET.get('q', '').strip()
+        clients = get_clients_with_stats()
+
+        if search:
+            clients = [
+                c for c in clients
+                if search.lower() in c['client'].name.lower()
+                or (c['client'].industry and search.lower() in c['client'].industry.lower())
+                or (c['client'].domain and search.lower() in c['client'].domain.lower())
+            ]
+
+        total_count = Client.objects.count()
+        with_summary = Client.objects.filter(ai_summary__isnull=False).exclude(ai_summary='').count()
+
+        context = {
+            'clients': clients,
+            'search': search,
+            'total_count': total_count,
+            'with_summary': with_summary,
+        }
+        return render(request, 'voice/manager/client_list.html', context)
+
+
+class ClientDetailView(SuperuserRequiredMixin, View):
+    """View a single client's full profile, visits, and call history."""
+
+    def get(self, request, client_id):
+        data = get_client_detail(client_id)
+        if data is None:
+            messages.error(request, 'Client not found.')
+            return redirect('voice:client_list')
+
+        return render(request, 'voice/manager/client_detail.html', data)
+
+
+class ClientCreateView(SuperuserRequiredMixin, View):
+    """Create a new client manually."""
+
+    def get(self, request):
+        form = ClientForm()
+        return render(request, 'voice/manager/client_form.html', {'form': form})
+
+    def post(self, request):
+        form = ClientForm(request.POST)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f'Client "{form.instance.name}" created.')
+            return redirect('voice:client_detail', client_id=form.instance.id)
+        return render(request, 'voice/manager/client_form.html', {'form': form})
+
+
+class ClientEditView(SuperuserRequiredMixin, View):
+    """Edit an existing client."""
+
+    def get(self, request, client_id):
+        try:
+            client = Client.objects.get(id=client_id)
+        except Client.DoesNotExist:
+            messages.error(request, 'Client not found.')
+            return redirect('voice:client_list')
+        form = ClientForm(instance=client)
+        return render(request, 'voice/manager/client_form.html', {
+            'form': form, 'client': client, 'editing': True,
+        })
+
+    def post(self, request, client_id):
+        try:
+            client = Client.objects.get(id=client_id)
+        except Client.DoesNotExist:
+            messages.error(request, 'Client not found.')
+            return redirect('voice:client_list')
+        form = ClientForm(request.POST, instance=client)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f'Client "{client.name}" updated.')
+            return redirect('voice:client_detail', client_id=client.id)
+        return render(request, 'voice/manager/client_form.html', {
+            'form': form, 'client': client, 'editing': True,
+        })
+
+
+class ClientDeleteView(SuperuserRequiredMixin, View):
+    """Delete a client."""
+
+    def post(self, request, client_id):
+        try:
+            client = Client.objects.get(id=client_id)
+        except Client.DoesNotExist:
+            messages.error(request, 'Client not found.')
+            return redirect('voice:client_list')
+        name = client.name
+        client.delete()
+        messages.success(request, f'Client "{name}" deleted.')
+        return redirect('voice:client_list')
+
+
+# ============================================================================
+# Live Agent Chat
+# ============================================================================
+
+class LiveAgentView(SuperuserRequiredMixin, View):
+    """Live Agent chat page — conversational data assistant."""
+
+    def get(self, request):
+        from .services.llm import is_configured
+        context = {
+            'llm_configured': is_configured(),
+        }
+        return render(request, 'voice/manager/live_agent.html', context)
+
+
+class LiveAgentChatAPI(SuperuserRequiredMixin, View):
+    """AJAX endpoint for Live Agent chat messages."""
+
+    def post(self, request):
+        import json
+        from django.http import JsonResponse
+        from .services.llm import chat_with_data, is_configured
+        from .services.data_context import assemble_data_context
+
+        try:
+            body = json.loads(request.body)
+        except (json.JSONDecodeError, AttributeError):
+            return JsonResponse({'error': 'Invalid request'}, status=400)
+
+        # Handle clear chat
+        if body.get('clear'):
+            request.session.pop('live_agent_history', None)
+            request.session.modified = True
+            return JsonResponse({'status': 'cleared'})
+
+        if not is_configured():
+            return JsonResponse({
+                'error': 'ANTHROPIC_API_KEY not configured'
+            }, status=503)
+
+        user_message = body.get('message', '').strip()
+        if not user_message:
+            return JsonResponse({'error': 'Empty message'}, status=400)
+
+        # Get or init session conversation history
+        if 'live_agent_history' not in request.session:
+            request.session['live_agent_history'] = []
+
+        history = request.session['live_agent_history']
+
+        # Add user message
+        history.append({'role': 'user', 'content': user_message})
+
+        # Assemble fresh data context
+        data_context = assemble_data_context()
+
+        # Call Claude with full conversation
+        response_text = chat_with_data(history, data_context)
+
+        if response_text is None:
+            history.pop()
+            request.session.modified = True
+            return JsonResponse({
+                'error': 'Failed to get response from AI'
+            }, status=500)
+
+        # Add assistant response
+        history.append({'role': 'assistant', 'content': response_text})
+
+        # Keep history manageable (last 20 messages)
+        if len(history) > 20:
+            history = history[-20:]
+
+        request.session['live_agent_history'] = history
+        request.session.modified = True
+
+        return JsonResponse({'response': response_text})
+
+
+# ============================================================================
+# Visit Calendar View
+# ============================================================================
+
+class VisitCalendarView(SuperuserRequiredMixin, View):
+    """Weekly/monthly calendar view of all visits."""
+
+    def get(self, request):
+        from .selectors import get_visits_for_range
+        from .constants import VisitStatus
+        import calendar as cal_mod
+
+        view_mode = request.GET.get('view', 'week')
+        agent_id = request.GET.get('agent', '')
+        date_str = request.GET.get('date', '')
+
+        if date_str:
+            try:
+                target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+            except ValueError:
+                target_date = timezone.now().date()
+        else:
+            target_date = timezone.now().date()
+
+        agent = None
+        if agent_id:
+            try:
+                agent = User.objects.get(id=agent_id, is_sales_agent=True)
+            except User.DoesNotExist:
+                pass
+
+        if view_mode == 'month':
+            first_day = target_date.replace(day=1)
+            last_day_num = cal_mod.monthrange(target_date.year, target_date.month)[1]
+            last_day = target_date.replace(day=last_day_num)
+            start_date = first_day - timedelta(days=first_day.weekday())
+            end_date = last_day + timedelta(days=6 - last_day.weekday())
+            prev_date = (first_day - timedelta(days=1)).strftime('%Y-%m-%d')
+            next_date = (last_day + timedelta(days=1)).strftime('%Y-%m-%d')
+            title = target_date.strftime('%B %Y')
+        else:
+            start_date = target_date - timedelta(days=target_date.weekday())
+            end_date = start_date + timedelta(days=6)
+            prev_date = (start_date - timedelta(days=7)).strftime('%Y-%m-%d')
+            next_date = (start_date + timedelta(days=7)).strftime('%Y-%m-%d')
+            title = f"{start_date.strftime('%b %d')} - {end_date.strftime('%b %d, %Y')}"
+
+        visits = get_visits_for_range(start_date, end_date, agent=agent)
+
+        visits_by_date = {}
+        for v in visits:
+            day = v.start_time.date()
+            visits_by_date.setdefault(day, []).append(v)
+
+        weeks = []
+        current = start_date
+        while current <= end_date:
+            week = []
+            for _ in range(7):
+                week.append({
+                    'date': current,
+                    'visits': visits_by_date.get(current, []),
+                    'is_today': current == timezone.now().date(),
+                    'is_current_month': current.month == target_date.month,
+                })
+                current += timedelta(days=1)
+            weeks.append(week)
+
+        agents = User.objects.filter(is_sales_agent=True).order_by('username')
+
+        # Period summary stats
+        total_visits = visits.count()
+        from .constants import VisitStatus
+        complete_count = visits.filter(status=VisitStatus.COMPLETE).count()
+        planned_count = visits.filter(status=VisitStatus.PLANNED).count()
+
+        # Per-agent visit counts for this period
+        agent_colors = ['bg-teal-500', 'bg-indigo-500', 'bg-amber-500', 'bg-rose-500', 'bg-violet-500', 'bg-cyan-500', 'bg-lime-500', 'bg-orange-500']
+        agent_text_colors = ['text-teal-700', 'text-indigo-700', 'text-amber-700', 'text-rose-700', 'text-violet-700', 'text-cyan-700', 'text-lime-700', 'text-orange-700']
+        agent_bg_colors = ['bg-teal-100', 'text-teal-800', 'bg-indigo-100', 'text-indigo-800', 'bg-amber-100', 'text-amber-800', 'bg-rose-100', 'text-rose-800', 'bg-violet-100', 'text-violet-800', 'bg-cyan-100', 'text-cyan-800']
+        agent_color_map = {}
+        for i, a in enumerate(agents):
+            color_idx = i % len(agent_colors)
+            agent_color_map[a.id] = {
+                'dot': agent_colors[color_idx],
+                'text': agent_text_colors[color_idx],
+            }
+
+        context = {
+            'weeks': weeks,
+            'view_mode': view_mode,
+            'target_date': target_date,
+            'title': title,
+            'prev_date': prev_date,
+            'next_date': next_date,
+            'agents': agents,
+            'agent_filter': agent_id,
+            'today': timezone.now().date(),
+            'total_visits': total_visits,
+            'complete_count': complete_count,
+            'planned_count': planned_count,
+            'agent_color_map': agent_color_map,
+        }
+        return render(request, 'voice/manager/visit_calendar.html', context)

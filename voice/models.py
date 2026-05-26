@@ -4,7 +4,7 @@ Data models for the voice app.
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.utils.translation import gettext_lazy as _
-from .constants import CallStatus, CallPhase, LogLevel
+from .constants import CallStatus, CallPhase, LogLevel, VisitStatus
 
 
 class User(AbstractUser):
@@ -19,6 +19,14 @@ class User(AbstractUser):
     is_sales_agent = models.BooleanField(
         default=False,
         help_text="Designates whether this user is a sales agent who receives calls"
+    )
+    default_methodology = models.ForeignKey(
+        'Methodology',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='assigned_agents',
+        help_text="Default meeting preparation methodology for this agent"
     )
 
     class Meta:
@@ -123,10 +131,20 @@ class Meeting(models.Model):
 class CallAttempt(models.Model):
     """Individual Call Records - tracks each call attempt."""
     meeting = models.ForeignKey(
-        Meeting, 
-        on_delete=models.CASCADE, 
+        Meeting,
+        on_delete=models.CASCADE,
         related_name='call_attempts',
-        help_text="Meeting this call is associated with"
+        null=True,
+        blank=True,
+        help_text="Meeting this call is associated with (legacy)"
+    )
+    visit = models.ForeignKey(
+        'Visit',
+        on_delete=models.CASCADE,
+        related_name='call_attempts',
+        null=True,
+        blank=True,
+        help_text="Visit this call is associated with"
     )
     phase = models.CharField(
         max_length=20, 
@@ -196,7 +214,13 @@ class CallAttempt(models.Model):
         ]
 
     def __str__(self):
-        return f"{self.get_phase_display()} call for {self.meeting.title} - {self.get_status_display()}"
+        if self.visit:
+            target = self.visit.title
+        elif self.meeting:
+            target = self.meeting.title
+        else:
+            target = "unknown"
+        return f"{self.get_phase_display()} call for {target} - {self.get_status_display()}"
 
 
 class GoogleCalendarWatch(models.Model):
@@ -281,6 +305,262 @@ class ActivityLog(models.Model):
 
     def __str__(self):
         return f"{self.level}: {self.action} at {self.timestamp}"
+
+
+class Client(models.Model):
+    """Client/company synced from CRM. Local copy for AI enrichment and fast access."""
+    crm_id = models.CharField(
+        max_length=100,
+        unique=True,
+        help_text="ID in external CRM (e.g., Pipedrive organization ID)"
+    )
+    name = models.CharField(max_length=255, help_text="Company/organization name")
+    domain = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        db_index=True,
+        help_text="Email domain for matching calendar attendees (e.g., acme.com)"
+    )
+    industry = models.CharField(max_length=255, blank=True, null=True)
+    contacts = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Key contact persons from CRM"
+    )
+    deal_history = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Past and current deals summary"
+    )
+    interaction_history = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Notes, activities, past call summaries from CRM"
+    )
+    ai_summary = models.TextField(
+        blank=True,
+        null=True,
+        help_text="LLM-generated client profile summary"
+    )
+    raw_data = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Full CRM data for reference"
+    )
+    last_synced_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Last time this client was synced from CRM"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = _('Client')
+        verbose_name_plural = _('Clients')
+        ordering = ['name']
+        indexes = [
+            models.Index(fields=['domain']),
+            models.Index(fields=['name']),
+        ]
+
+    def __str__(self):
+        return self.name
+
+
+class Methodology(models.Model):
+    """Meeting preparation methodology (e.g., SPIN Selling, MEDDIC, Challenger)."""
+    name = models.CharField(max_length=255, help_text="Methodology name")
+    description = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Short description of the methodology"
+    )
+    source_material = models.FileField(
+        upload_to='methodologies/',
+        blank=True,
+        null=True,
+        help_text="Uploaded PDF with methodology guide"
+    )
+    ai_summary = models.TextField(
+        blank=True,
+        null=True,
+        help_text="LLM-processed summary of the methodology, editable by manager"
+    )
+    is_active = models.BooleanField(default=True)
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='created_methodologies',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = _('Methodology')
+        verbose_name_plural = _('Methodologies')
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+
+class Visit(models.Model):
+    """Central entity tying together agent, client, calendar event, calls, and CRM deal."""
+    agent = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='visits',
+        help_text="Sales agent for this visit"
+    )
+    client = models.ForeignKey(
+        Client,
+        on_delete=models.CASCADE,
+        related_name='visits',
+        help_text="Client being visited"
+    )
+    calendar_event_id = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text="External calendar event ID"
+    )
+    title = models.CharField(max_length=255)
+    start_time = models.DateTimeField()
+    end_time = models.DateTimeField()
+    attendees = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Attendee emails from calendar event"
+    )
+    crm_deal_id = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text="Linked CRM deal ID"
+    )
+    manager_notes = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Free-text notes from manager for pre-call preparation"
+    )
+    methodology = models.ForeignKey(
+        Methodology,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='visits',
+        help_text="Override methodology; falls back to agent default then system default"
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=VisitStatus.choices,
+        default=VisitStatus.PLANNED,
+    )
+    pre_call_prompt = models.TextField(
+        blank=True,
+        null=True,
+        help_text="LLM-generated prompt used for the pre-call"
+    )
+    post_call_prompt = models.TextField(
+        blank=True,
+        null=True,
+        help_text="LLM-generated prompt used for the post-call"
+    )
+    post_call_summary = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Structured debrief summary from post-call"
+    )
+    crm_synced = models.BooleanField(
+        default=False,
+        help_text="Whether the post-call summary was posted to CRM"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = _('Visit')
+        verbose_name_plural = _('Visits')
+        ordering = ['-start_time']
+        indexes = [
+            models.Index(fields=['start_time']),
+            models.Index(fields=['end_time']),
+            models.Index(fields=['status']),
+            models.Index(fields=['calendar_event_id']),
+            models.Index(fields=['agent', 'start_time']),
+        ]
+
+    def __str__(self):
+        return f"{self.title} - {self.agent.username} @ {self.client.name} ({self.start_time})"
+
+    def get_effective_methodology(self):
+        """Return methodology: visit override > agent default > system default."""
+        if self.methodology:
+            return self.methodology
+        if self.agent.default_methodology:
+            return self.agent.default_methodology
+        # System default from GlobalSettings
+        try:
+            settings = GlobalSettings.load()
+            return settings.default_methodology
+        except GlobalSettings.DoesNotExist:
+            return None
+
+
+class GlobalSettings(models.Model):
+    """Singleton model for system-wide configuration."""
+    pre_call_offset_minutes = models.IntegerField(
+        default=-60,
+        help_text="Minutes before meeting to trigger pre-call (negative value)"
+    )
+    post_call_offset_minutes = models.IntegerField(
+        default=15,
+        help_text="Minutes after meeting to trigger post-call"
+    )
+    retry_interval_minutes = models.IntegerField(
+        default=5,
+        help_text="Minutes between retry attempts for failed calls"
+    )
+    pre_call_meta_prompt = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Meta-prompt template for generating pre-call voice prompts via LLM"
+    )
+    post_call_meta_prompt = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Meta-prompt template for generating post-call voice prompts via LLM"
+    )
+    default_methodology = models.ForeignKey(
+        Methodology,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='+',
+        help_text="System-wide fallback methodology"
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = _('Global Settings')
+        verbose_name_plural = _('Global Settings')
+
+    def __str__(self):
+        return "Global Settings"
+
+    @classmethod
+    def load(cls):
+        """Load the singleton settings instance, creating it if needed."""
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+    def save(self, *args, **kwargs):
+        self.pk = 1
+        super().save(*args, **kwargs)
 
 
 class GoogleOauthCredential(models.Model):

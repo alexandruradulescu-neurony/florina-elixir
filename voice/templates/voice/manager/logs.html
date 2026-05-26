@@ -1,128 +1,107 @@
 {% extends 'voice/base.html' %}
 
-{% block title %}Audit Logs - MES Voice{% endblock %}
+{% block title %}Logs - Sales Assistant{% endblock %}
 
-{% block content %}
-<div class="container mx-auto px-4 py-8">
-    <div class="mb-6">
-        <h1 class="text-4xl font-bold mb-2">Audit Log Explorer</h2>
-        <p class="text-base-content/70">View and filter system activity logs</p>
-    </div>
-
-    <!-- Filters -->
-    <div class="card w-full bg-base-100 shadow-xl mb-6">
-        <div class="card-body">
-            <h2 class="card-title">Filters</h2>
-            <form method="get" class="flex flex-wrap gap-4">
-                <div class="form-control">
-                    <label class="label">
-                        <span class="label-text">Log Level</span>
-                    </label>
-                    <select name="level" class="select select-bordered">
-                        <option value="">All Levels</option>
-                        <option value="DEBUG" {% if selected_level == 'DEBUG' %}selected{% endif %}>DEBUG</option>
-                        <option value="INFO" {% if selected_level == 'INFO' %}selected{% endif %}>INFO</option>
-                        <option value="WARNING" {% if selected_level == 'WARNING' %}selected{% endif %}>WARNING</option>
-                        <option value="ERROR" {% if selected_level == 'ERROR' %}selected{% endif %}>ERROR</option>
-                        <option value="CRITICAL" {% if selected_level == 'CRITICAL' %}selected{% endif %}>CRITICAL</option>
-                    </select>
-                </div>
-                <div class="form-control">
-                    <label class="label">
-                        <span class="label-text">Agent</span>
-                    </label>
-                    <select name="user_id" class="select select-bordered">
-                        <option value="">All Agents</option>
-                        {% for user in users %}
-                        <option value="{{ user.id }}" {% if selected_user_id == user.id|stringformat:"s" %}selected{% endif %}>{{ user.username }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="form-control self-end">
-                    <button type="submit" class="btn btn-primary">Apply Filters</button>
-                    <a href="{% url 'voice:audit_logs' %}" class="btn btn-outline mt-2">Clear</a>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- Logs Table -->
-    <div class="card w-full bg-base-100 shadow-xl">
-        <div class="card-body">
-            <h2 class="card-title">Activity Logs</h2>
-            <div class="overflow-x-auto">
-                <table class="table table-zebra w-full">
-                    <thead>
-                        <tr>
-                            <th>Timestamp</th>
-                            <th>Level</th>
-                            <th>Action</th>
-                            <th>User</th>
-                            <th>Meeting</th>
-                            <th>Details</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for log in logs %}
-                        <tr>
-                            <td>{{ log.timestamp|date:"M d, Y H:i:s" }}</td>
-                            <td>
-                                {% if log.level == 'ERROR' %}
-                                    <span class="badge badge-error gap-2">{{ log.level }}</span>
-                                {% elif log.level == 'WARNING' %}
-                                    <span class="badge badge-warning gap-2">{{ log.level }}</span>
-                                {% elif log.level == 'CRITICAL' %}
-                                    <span class="badge badge-error gap-2">{{ log.level }}</span>
-                                {% elif log.level == 'DEBUG' %}
-                                    <span class="badge badge-ghost gap-2">{{ log.level }}</span>
-                                {% else %}
-                                    <span class="badge badge-info gap-2">{{ log.level }}</span>
-                                {% endif %}
-                            </td>
-                            <td>{{ log.action }}</td>
-                            <td>{{ log.user.username|default:"System" }}</td>
-                            <td>{{ log.meeting.title|default:"-" }}</td>
-                            <td>
-                                <button class="btn btn-sm btn-outline" onclick="document.getElementById('modal_{{ log.id }}').showModal()">View Details</button>
-                                <dialog id="modal_{{ log.id }}" class="modal">
-                                    <div class="modal-box">
-                                        <h3 class="font-bold text-lg mb-4">Log Details</h3>
-                                        <div class="space-y-2">
-                                            <p><strong>Action:</strong> {{ log.action }}</p>
-                                            <p><strong>Level:</strong> {{ log.level }}</p>
-                                            <p><strong>Timestamp:</strong> {{ log.timestamp|date:"M d, Y H:i:s" }}</p>
-                                            {% if log.user %}
-                                            <p><strong>User:</strong> {{ log.user.username }}</p>
-                                            {% endif %}
-                                            {% if log.meeting %}
-                                            <p><strong>Meeting:</strong> {{ log.meeting.title }}</p>
-                                            {% endif %}
-                                            {% if log.details %}
-                                            <div>
-                                                <strong>Details:</strong>
-                                                <pre class="bg-base-200 p-2 rounded mt-2 text-sm overflow-auto">{{ log.details }}</pre>
-                                            </div>
-                                            {% endif %}
-                                        </div>
-                                        <div class="modal-action">
-                                            <form method="dialog">
-                                                <button class="btn">Close</button>
-                                            </form>
-                                        </div>
-                                    </div>
-                                </dialog>
-                            </td>
-                        </tr>
-                        {% empty %}
-                        <tr>
-                            <td colspan="6" class="text-center text-base-content/70">No logs found</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
+{% block page_header %}
+<div>
+    <h1 class="text-xl font-bold text-slate-900">Logs</h1>
+    <p class="text-sm text-slate-500">{{ log_count }} entr{{ log_count|pluralize:"y,ies" }}{% if selected_level %} &middot; filtered by {{ selected_level }}{% endif %}</p>
 </div>
 {% endblock %}
 
+{% block content %}
+
+<!-- Filters -->
+<form method="get" class="flex flex-wrap items-center gap-3 mb-5">
+    <select name="level" class="h-8 rounded-lg border border-slate-200 text-xs text-slate-600 pl-3 pr-8 bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-400" onchange="this.form.submit()">
+        <option value="">All Levels</option>
+        <option value="DEBUG" {% if selected_level == 'DEBUG' %}selected{% endif %}>Debug</option>
+        <option value="INFO" {% if selected_level == 'INFO' %}selected{% endif %}>Info</option>
+        <option value="WARNING" {% if selected_level == 'WARNING' %}selected{% endif %}>Warning</option>
+        <option value="ERROR" {% if selected_level == 'ERROR' %}selected{% endif %}>Error</option>
+        <option value="CRITICAL" {% if selected_level == 'CRITICAL' %}selected{% endif %}>Critical</option>
+    </select>
+    <select name="user_id" class="h-8 rounded-lg border border-slate-200 text-xs text-slate-600 pl-3 pr-8 bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-400" onchange="this.form.submit()">
+        <option value="">All Users</option>
+        {% for user in users %}
+        <option value="{{ user.id }}" {% if selected_user_id == user.id|stringformat:"s" %}selected{% endif %}>{{ user.get_full_name|default:user.username }}</option>
+        {% endfor %}
+    </select>
+    {% if selected_level or selected_user_id %}
+    <a href="{% url 'voice:audit_logs' %}" class="text-xs text-slate-400 hover:text-slate-600 transition-colors">Clear filters</a>
+    {% endif %}
+</form>
+
+<!-- Logs Table -->
+<div class="bg-white rounded-xl border border-slate-200">
+    {% if logs %}
+    <div class="overflow-x-auto">
+        <table class="w-full">
+            <thead>
+                <tr class="text-left text-[10px] uppercase text-slate-400 tracking-wider border-b border-slate-100">
+                    <th class="py-3 px-4 font-medium">Time</th>
+                    <th class="py-3 px-4 font-medium">Level</th>
+                    <th class="py-3 px-4 font-medium">Action</th>
+                    <th class="py-3 px-4 font-medium">User</th>
+                    <th class="py-3 px-4 font-medium">Details</th>
+                </tr>
+            </thead>
+            <tbody class="text-sm">
+                {% for log in logs %}
+                <tr class="border-t border-slate-50 hover:bg-slate-50/50 transition-colors">
+                    <td class="py-2.5 px-4 text-slate-500 whitespace-nowrap text-xs">
+                        {{ log.timestamp|date:"M d, H:i:s" }}
+                    </td>
+                    <td class="py-2.5 px-4">
+                        <span class="inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold
+                            {% if log.level == 'ERROR' or log.level == 'CRITICAL' %}bg-red-100 text-red-700
+                            {% elif log.level == 'WARNING' %}bg-amber-100 text-amber-700
+                            {% elif log.level == 'DEBUG' %}bg-slate-100 text-slate-500
+                            {% else %}bg-blue-100 text-blue-700{% endif %}">
+                            {{ log.level }}
+                        </span>
+                    </td>
+                    <td class="py-2.5 px-4 text-slate-700">{{ log.action }}</td>
+                    <td class="py-2.5 px-4">
+                        {% if log.user %}
+                        <div class="flex items-center gap-1.5">
+                            <div class="w-5 h-5 rounded-full bg-slate-800 flex items-center justify-center text-white text-[9px] font-bold">{{ log.user.username|first|upper }}</div>
+                            <span class="text-xs text-slate-600">{{ log.user.get_full_name|default:log.user.username }}</span>
+                        </div>
+                        {% else %}
+                        <span class="text-xs text-slate-400">System</span>
+                        {% endif %}
+                    </td>
+                    <td class="py-2.5 px-4">
+                        {% if log.details %}
+                        <details>
+                            <summary class="text-xs text-teal-600 cursor-pointer hover:text-teal-700 font-medium">View</summary>
+                            <div class="mt-1 bg-slate-50 rounded-lg p-3 text-xs text-slate-600 font-mono whitespace-pre-wrap max-h-32 overflow-y-auto max-w-md">{{ log.details }}</div>
+                        </details>
+                        {% elif log.meeting %}
+                        <span class="text-xs text-slate-400">{{ log.meeting.title }}</span>
+                        {% else %}
+                        <span class="text-slate-200">&mdash;</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="text-center py-12">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-slate-200 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+        </svg>
+        <p class="text-sm text-slate-500 mb-1">No log entries found</p>
+        {% if selected_level or selected_user_id %}
+        <a href="{% url 'voice:audit_logs' %}" class="text-xs text-teal-600 hover:text-teal-700">Clear filters</a>
+        {% else %}
+        <p class="text-xs text-slate-400">Activity logs appear as the system processes calls and events</p>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+
+{% endblock %}

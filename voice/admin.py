@@ -3,7 +3,11 @@ Django admin configuration for the voice app.
 """
 from django.contrib import admin
 from django.utils.html import format_html
-from .models import User, VoicePrompt, Meeting, CallAttempt, ActivityLog, GoogleOauthCredential, GoogleCalendarWatch
+from .models import (
+    User, VoicePrompt, Meeting, CallAttempt, ActivityLog,
+    GoogleOauthCredential, GoogleCalendarWatch,
+    Client, Methodology, Visit, GlobalSettings,
+)
 
 
 @admin.register(User)
@@ -15,7 +19,7 @@ class UserAdmin(admin.ModelAdmin):
     fieldsets = (
         (None, {'fields': ('username', 'password')}),
         ('Personal info', {'fields': ('first_name', 'last_name', 'email', 'phone_number')}),
-        ('Sales Agent Info', {'fields': ('is_sales_agent', 'pipedrive_user_id')}),
+        ('Sales Agent Info', {'fields': ('is_sales_agent', 'pipedrive_user_id', 'default_methodology')}),
         ('Permissions', {'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')}),
         ('Important dates', {'fields': ('last_login', 'date_joined')}),
     )
@@ -98,7 +102,7 @@ class CallAttemptAdmin(admin.ModelAdmin):
     
     fieldsets = (
         ('Call Information', {
-            'fields': ('meeting', 'phase', 'scheduled_offset_minutes', 'status')
+            'fields': ('meeting', 'visit', 'phase', 'scheduled_offset_minutes', 'status')
         }),
         ('External Integration', {
             'fields': ('external_call_id', 'recording_url')
@@ -183,4 +187,81 @@ class GoogleCalendarWatchAdmin(admin.ModelAdmin):
     
     def has_add_permission(self, request):
         """Watch channels should only be created via API."""
+        return False
+
+
+@admin.register(Client)
+class ClientAdmin(admin.ModelAdmin):
+    list_display = ['name', 'domain', 'industry', 'crm_id', 'last_synced_at']
+    list_filter = ['industry', 'last_synced_at']
+    search_fields = ['name', 'domain', 'crm_id']
+    readonly_fields = ['created_at', 'updated_at', 'last_synced_at']
+    fieldsets = (
+        ('Client Info', {'fields': ('name', 'domain', 'industry', 'crm_id')}),
+        ('CRM Data', {
+            'fields': ('contacts', 'deal_history', 'interaction_history', 'raw_data'),
+            'classes': ('collapse',),
+        }),
+        ('AI', {'fields': ('ai_summary',)}),
+        ('Timestamps', {'fields': ('last_synced_at', 'created_at', 'updated_at')}),
+    )
+
+
+@admin.register(Methodology)
+class MethodologyAdmin(admin.ModelAdmin):
+    list_display = ['name', 'is_active', 'created_by', 'created_at']
+    list_filter = ['is_active']
+    search_fields = ['name', 'description']
+    readonly_fields = ['created_at', 'updated_at']
+    fieldsets = (
+        (None, {'fields': ('name', 'description', 'is_active', 'created_by')}),
+        ('Material', {'fields': ('source_material', 'ai_summary')}),
+        ('Timestamps', {'fields': ('created_at', 'updated_at')}),
+    )
+
+
+@admin.register(Visit)
+class VisitAdmin(admin.ModelAdmin):
+    list_display = ['title', 'agent', 'client', 'start_time', 'status', 'crm_synced']
+    list_filter = ['status', 'crm_synced', 'start_time']
+    search_fields = ['title', 'agent__username', 'client__name']
+    readonly_fields = ['created_at', 'updated_at']
+    date_hierarchy = 'start_time'
+    fieldsets = (
+        ('Visit Info', {
+            'fields': ('agent', 'client', 'title', 'calendar_event_id', 'start_time', 'end_time', 'attendees')
+        }),
+        ('Configuration', {
+            'fields': ('methodology', 'manager_notes', 'crm_deal_id', 'status')
+        }),
+        ('Generated Prompts', {
+            'fields': ('pre_call_prompt', 'post_call_prompt'),
+            'classes': ('collapse',),
+        }),
+        ('Results', {
+            'fields': ('post_call_summary', 'crm_synced')
+        }),
+        ('Timestamps', {'fields': ('created_at', 'updated_at')}),
+    )
+
+
+@admin.register(GlobalSettings)
+class GlobalSettingsAdmin(admin.ModelAdmin):
+    list_display = ['__str__', 'pre_call_offset_minutes', 'post_call_offset_minutes', 'updated_at']
+    readonly_fields = ['updated_at']
+    fieldsets = (
+        ('Call Timing', {
+            'fields': ('pre_call_offset_minutes', 'post_call_offset_minutes', 'retry_interval_minutes')
+        }),
+        ('Meta-Prompts', {
+            'fields': ('pre_call_meta_prompt', 'post_call_meta_prompt'),
+        }),
+        ('Defaults', {'fields': ('default_methodology',)}),
+        ('Timestamps', {'fields': ('updated_at',)}),
+    )
+
+    def has_add_permission(self, request):
+        return not GlobalSettings.objects.exists()
+
+    def has_delete_permission(self, request, obj=None):
         return False

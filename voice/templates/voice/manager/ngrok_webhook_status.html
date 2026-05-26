@@ -2,13 +2,16 @@
 
 {% block title %}Ngrok & Webhook Status - MES Voice{% endblock %}
 
-{% block content %}
-<div class="container mx-auto px-4 py-8">
-    <div class="mb-6">
-        <h1 class="text-4xl font-bold mb-2">Ngrok & Webhook Status</h1>
-        <p class="text-base-content/70">Monitor ngrok tunnel and ElevenLabs webhook configuration</p>
+{% block page_header %}
+<div class="flex items-center justify-between">
+    <div>
+        <h1 class="text-xl font-bold text-slate-900">Ngrok & Webhook Status</h1>
+        <p class="text-sm text-slate-500">Monitor ngrok tunnel and ElevenLabs webhook configuration</p>
     </div>
+</div>
+{% endblock %}
 
+{% block content %}
     <!-- Ngrok Status Card -->
     <div class="card bg-base-100 shadow-lg mb-6">
         <div class="card-body">
@@ -159,9 +162,8 @@
     <!-- Management Command Info -->
     <div class="mt-6 text-center">
         <p class="text-sm text-base-content/70">
-            You can also use the management command: 
+            You can also use the management command:
             <code class="bg-base-200 px-2 py-1 rounded">python manage.py detect_ngrok</code>
         </p>
     </div>
-</div>
 {% endblock %}

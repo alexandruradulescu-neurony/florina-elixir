@@ -25,8 +25,11 @@ class VoiceConfig(AppConfig):
                 from voice.utils import get_ngrok_url, build_webhook_url
                 from voice.services import update_elevenlabs_webhook, get_elevenlabs_webhook_config
                 
-                ngrok_api_url = config('NGROK_API_URL', default='http://localhost:4040/api/tunnels')
-                ngrok_url = get_ngrok_url(ngrok_api_url)
+                # Prefer explicit NGROK_URL from .env over auto-detection
+                ngrok_url = config('NGROK_URL', default='')
+                if not ngrok_url:
+                    ngrok_api_url = config('NGROK_API_URL', default='http://localhost:4040/api/tunnels')
+                    ngrok_url = get_ngrok_url(ngrok_api_url)
                 
                 if ngrok_url:
                     webhook_url = build_webhook_url(ngrok_url)
@@ -47,7 +50,7 @@ class VoiceConfig(AppConfig):
                         logger.info("Run 'python manage.py detect_ngrok' for configuration instructions")
                 else:
                     logger.info("Ngrok not detected. Webhooks will not work until ngrok is started.")
-                    logger.info("To start ngrok: ngrok http 8000")
+                    logger.info("To start ngrok: ngrok http --url=sales-assist.ngrok.app 8003")
             except Exception as e:
                 # Don't fail startup if ngrok detection fails
                 logger.warning(f"Error detecting ngrok URL on startup: {e}")

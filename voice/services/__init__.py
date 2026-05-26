@@ -74,6 +74,46 @@ from .scheduler import (
 )
 
 # ============================================================================
+# CRM Abstraction Layer
+# ============================================================================
+from voice.crm import get_crm_provider
+
+# ============================================================================
+# Calendar Abstraction Layer
+# ============================================================================
+from voice.calendar import get_calendar_provider
+
+# ============================================================================
+# Client Sync
+# ============================================================================
+from .client_sync import sync_all_clients, sync_single_client, enrich_client_from_crm
+
+# ============================================================================
+# Visit Pipeline
+# ============================================================================
+from .visit_pipeline import (
+    detect_visits_for_agent,
+    detect_visits_for_all_agents,
+    match_client_by_attendees,
+)
+
+# ============================================================================
+# LLM Service
+# ============================================================================
+from .llm import (
+    generate_voice_prompt,
+    summarize_methodology_pdf,
+    summarize_call_transcript,
+    generate_client_summary,
+    extract_pdf_text,
+)
+
+# ============================================================================
+# Prompt Builder
+# ============================================================================
+from .prompt_builder import generate_pre_call_prompt, generate_post_call_prompt
+
+# ============================================================================
 # Public API - All exports
 # ============================================================================
 __all__ = [
@@ -111,6 +151,22 @@ __all__ = [
     'stop_google_calendar_watch',
     'handle_google_calendar_notification',
     
+    # CRM
+    'get_crm_provider',
+
+    # Calendar
+    'get_calendar_provider',
+
+    # Client Sync
+    'sync_all_clients',
+    'sync_single_client',
+    'enrich_client_from_crm',
+
+    # Visit Pipeline
+    'detect_visits_for_agent',
+    'detect_visits_for_all_agents',
+    'match_client_by_attendees',
+
     # Scheduler
     'pre_program_meeting_calls',
     'cleanup_cancelled_meeting_calls',
