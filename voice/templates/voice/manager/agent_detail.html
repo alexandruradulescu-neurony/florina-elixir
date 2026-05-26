@@ -1,0 +1,146 @@
+{% extends "voice/base.html" %}
+{% load static %}
+
+{% block title %}{{ agent.get_full_name|default:agent.username }} — Sales Assistant{% endblock %}
+
+{% block header_utility %}
+<nav class="breadcrumb">
+    <a href="{% url 'voice:agent_management' %}">Agents</a>
+    <span class="sep">/</span>
+    <span class="cur">{{ agent.get_full_name|default:agent.username }}</span>
+</nav>
+{% endblock %}
+
+{% block display_title %}{{ agent.get_full_name|default:agent.username }}{% endblock %}
+
+{% block display_subtitle %}
+<div class="metastrip">
+    <span>{{ agent.email|default:"no email" }}</span>
+    <span>·</span>
+    <span>{{ agent.phone_number|default:"no phone" }}</span>
+    <span>·</span>
+    <span class="meth">{{ agent.default_methodology.name|default:"No methodology" }}</span>
+    <span>·</span>
+    <span class="vid">{{ agent_id_code }}</span>
+</div>
+{% endblock %}
+
+{% block header_actions %}
+{% include "voice/partials/status_pill.html" with variant=agent_status_variant label=agent_status_label %}
+<a href="#" class="btn btn-secondary">Edit</a>
+<button type="button" class="icon-btn" aria-label="More"><span class="ic ic-menu-dots ic-16"></span></button>
+{% endblock %}
+
+{% block content %}
+
+{# ─── Stat row ─── #}
+<div class="stats">
+    {% for s in agent_stat_row %}
+    {% include "voice/partials/stat_card.html" with label=s.label value=s.value tone=s.tone %}
+    {% endfor %}
+</div>
+
+{# ─── 70/30 detail grid ─── #}
+<div class="detail-grid">
+    <div class="detail-col">
+
+        {# Meta card #}
+        <div class="dcard">
+            <div class="kv-strip">
+                {% for kv in agent_kv_strip %}
+                <div class="kv">
+                    <div class="label">{{ kv.label }}</div>
+                    <div class="value">{{ kv.value }}</div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        {# Today's load #}
+        <div class="dcard">
+            <h3>Today's load</h3>
+            <div class="agent">
+                <div class="bars">
+                    {% for color in today_load_bars %}<span class="b-{{ color }}"></span>{% endfor %}
+                </div>
+                <div class="footer">
+                    <span class="lbl">Slots</span>
+                    <span class="success">{{ recent_visits|length }} recent visits</span>
+                </div>
+            </div>
+        </div>
+
+        {# Recent Visits #}
+        <div class="dcard">
+            <h3>Recent visits</h3>
+            <table class="tbl">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Client</th>
+                        <th>Methodology</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for v in recent_visits_enriched %}
+                    <tr>
+                        <td>{{ v.visit.start_time|date:"M j H:i" }}</td>
+                        <td>{{ v.client_name }}<span class="meta">{{ v.client_industry }}</span></td>
+                        <td><span class="meth-pill">{{ v.visit.methodology.name|default:"—" }}</span></td>
+                        <td>
+                            {% if v.status == "PLANNED" %}{% include "voice/partials/status_pill.html" with variant="cream" label="Planned" %}
+                            {% elif v.status == "PRE_CALL_DONE" %}{% include "voice/partials/status_pill.html" with variant="cyan" label="Pre-Call" %}
+                            {% elif v.status == "IN_PROGRESS" %}{% include "voice/partials/status_pill.html" with variant="cyan-filled" label="Active" %}
+                            {% elif v.status == "POST_CALL_DONE" %}{% include "voice/partials/status_pill.html" with variant="cream" label="Debrief" %}
+                            {% elif v.status == "COMPLETE" %}{% include "voice/partials/status_pill.html" with variant="green" label="Complete" %}{% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="4" style="text-align:center;padding:24px;color:var(--fg-muted);">No recent visits.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="detail-side">
+
+        {# Configuration #}
+        <div class="dcard">
+            <h3>Configuration</h3>
+            <ul class="status-list">
+                {% for ind in config_indicators %}
+                <li class="{% if not ind.on %}off{% endif %}"><span class="dot {% if ind.on %}on{% else %}off{% endif %}"></span>{{ ind.label }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+
+        {# Recent Calls #}
+        <div class="dcard">
+            <h3>Recent calls</h3>
+            <div style="display:flex;flex-direction:column;gap:12px;">
+                {% for c in recent_calls_enriched %}
+                <div style="display:flex;align-items:center;gap:10px;font-size:13px;">
+                    {% if c.phase == "PRE" %}{% include "voice/partials/call_phase_icon.html" with phase="pre" state="done" %}{% else %}{% include "voice/partials/call_phase_icon.html" with phase="post" state="done" %}{% endif %}
+                    <span style="flex:1;font-weight:700;">{{ c.visit.client.name|default:"—" }}</span>
+                    <span style="font-size:11px;color:var(--fg-muted);">{{ c.ago }}</span>
+                </div>
+                {% empty %}
+                <p style="margin:0;color:var(--fg-muted);font-size:13px;">No recent calls.</p>
+                {% endfor %}
+            </div>
+        </div>
+
+        {# Methodology #}
+        {% if agent.default_methodology %}
+        <div class="dcard">
+            <h3>Methodology</h3>
+            <p style="font-family:var(--font-ui);font-weight:800;font-size:14px;margin:0 0 8px;">{{ agent.default_methodology.name }}</p>
+            <a href="{% url 'voice:methodology_edit' methodology_id=agent.default_methodology.id %}" class="edit-link" style="color:var(--cyan-600);font-weight:700;font-size:13px;">View methodology →</a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% endblock %}

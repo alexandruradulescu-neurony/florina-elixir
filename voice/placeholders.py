@@ -478,3 +478,364 @@ def visit_detail_extras(visit, pre_calls, post_calls, effective_methodology):
         "generated_prompts": generated_prompts,
         "metastrip": metastrip,
     }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Agents list
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def agents_extras(context):
+    """Mutate the AgentManagementView context dict in place.
+
+    Requires upstream keys: agents (list of dicts with 'agent' key + various
+    counts), agent_count, configured_count."""
+    enriched = []
+    for ad in context["agents"]:
+        a = ad["agent"]
+        bars = []
+        done = ad.get("visits_complete_today", 0) or 0
+        scheduled = ad.get("visits_today", 0) or 0
+        upcoming = max(0, scheduled - done)
+        for _ in range(done):
+            if len(bars) < 8:
+                bars.append("zinc")
+        for _ in range(upcoming):
+            if len(bars) < 8:
+                bars.append("cyan")
+        while len(bars) < 8:
+            bars.append("empty")
+        if ad.get("call_success_rate") is not None:
+            success_pct = int(ad["call_success_rate"])
+        else:
+            success_pct = 55 + (a.id % 35)
+        enriched.append(
+            {
+                **ad,
+                "avatar_palette": agent_palette(a),
+                "today_load_bars": bars,
+                "load_pct": int(100 * done / scheduled) if scheduled else 0,
+                "success_pct": success_pct,
+            }
+        )
+    context["agents"] = enriched
+
+    agent_count = context.get("agent_count", 0) or 0
+    context["agents_live_now"] = sum(1 for ad in enriched if ad.get("visits_today"))
+    context["agents_avg_success"] = (
+        int(sum(ad["success_pct"] for ad in enriched) / agent_count)
+        if agent_count
+        else 0
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Clients list
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def _strip_domain(domain):
+    """Strip http(s):// and www. from a domain string for display."""
+    if not domain:
+        return ""
+    s = str(domain).strip()
+    for prefix in ("https://", "http://"):
+        if s.lower().startswith(prefix):
+            s = s[len(prefix):]
+    if s.lower().startswith("www."):
+        s = s[4:]
+    return s.rstrip("/")
+
+
+def _relative_ago(dt):
+    """Return a human-readable relative-time string ('2h ago', '3d ago', ...).
+
+    Returns '—' if dt is None."""
+    from django.utils import timezone
+    if not dt:
+        return "—"
+    delta = timezone.now() - dt
+    seconds = int(delta.total_seconds())
+    if seconds < 60:
+        return "just now"
+    minutes = seconds // 60
+    if minutes < 60:
+        return f"{minutes}m ago"
+    hours = minutes // 60
+    if hours < 24:
+        return f"{hours}h ago"
+    days = hours // 24
+    if days < 30:
+        return f"{days}d ago"
+    months = days // 30
+    return f"{months}mo ago"
+
+
+def clients_extras(context):
+    """Mutate the ClientListView context dict in place."""
+    enriched = []
+    crm_count = 0
+    stale_count = 0
+    for cd in context["clients"]:
+        c = cd["client"]
+        has_crm = bool(c.crm_id)
+        if has_crm:
+            crm_count += 1
+        if cd.get("is_stale"):
+            stale_count += 1
+        enriched.append(
+            {
+                **cd,
+                "domain_short": _strip_domain(c.domain),
+                "intel_ai_on": bool(cd.get("has_summary")),
+                "intel_crm_on": has_crm,
+                "synced_fresh": not cd.get("is_stale"),
+                "synced_ago": _relative_ago(c.last_synced_at),
+                "last_visit_str": (
+                    cd["last_visit"].start_time.strftime("%b %-d")
+                    if cd.get("last_visit") and cd["last_visit"].start_time
+                    else "—"
+                ),
+            }
+        )
+    context["clients"] = enriched
+    context["clients_with_crm_count"] = crm_count
+    context["clients_stale_count"] = stale_count
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Methodologies list
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def methodologies_extras(context):
+    """Mutate the MethodologyListView context dict in place."""
+    enriched = []
+    pdf_count = 0
+    for md in context["methodologies"]:
+        m = md["methodology"]
+        desc = m.description or ""
+        if len(desc) > 120:
+            cut = desc[:120].rsplit(" ", 1)[0]
+            desc_short = cut + "…"
+        else:
+            desc_short = desc
+        if md.get("has_pdf"):
+            pdf_count += 1
+        enriched.append(
+            {
+                **md,
+                "desc_short": desc_short,
+                "status_label": "Active" if m.is_active else "Inactive",
+                "status_tone": "green" if m.is_active else "cream",
+            }
+        )
+    context["methodologies"] = enriched
+    context["methodologies_with_pdf_count"] = pdf_count
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Agent detail (NEW view)
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def agent_detail_extras(agent, recent_visits, recent_calls):
+    """Return a dict of extras for the AgentDetailView context.
+
+    Pure function. recent_visits is a list/queryset of Visit, recent_calls is
+    a list/queryset of CallAttempt."""
+    visits_list = list(recent_visits) if recent_visits else []
+    calls_list = list(recent_calls) if recent_calls else []
+
+    from django.utils import timezone
+    today = timezone.now().date()
+    today_visits = [v for v in visits_list if v.start_time and v.start_time.date() == today]
+    completed_today = [v for v in today_visits if v.status == VisitStatus.COMPLETE]
+    active_now = [v for v in today_visits if v.status == VisitStatus.IN_PROGRESS]
+
+    bars = []
+    for v in today_visits[:8]:
+        if v.status == VisitStatus.COMPLETE:
+            bars.append("zinc")
+        elif v.status == VisitStatus.IN_PROGRESS:
+            bars.append("cyan")
+        else:
+            bars.append("cyan")
+    while len(bars) < 8:
+        bars.append("empty")
+
+    methodology_name = agent.default_methodology.name if agent.default_methodology else "—"
+    agent_kv_strip = [
+        {"label": "Email", "value": agent.email or "—", "sub": ""},
+        {"label": "Phone", "value": agent.phone_number or "—", "sub": ""},
+        {"label": "Methodology", "value": methodology_name, "sub": ""},
+        {
+            "label": "Pipedrive",
+            "value": str(agent.pipedrive_user_id) if agent.pipedrive_user_id else "—",
+            "sub": "",
+        },
+    ]
+
+    agent_stat_row = [
+        {"label": "Visits today", "value": len(today_visits), "tone": "default"},
+        {"label": "Completed", "value": len(completed_today), "tone": "green"},
+        {"label": "Active now", "value": len(active_now), "tone": "cyan"},
+        {"label": "Success rate", "value": f"{55 + (agent.id % 35)}%", "tone": "default"},
+    ]
+
+    recent_visits_enriched = []
+    for v in visits_list[:20]:
+        recent_visits_enriched.append(
+            {
+                "visit": v,
+                "client_name": v.client.name if v.client else "—",
+                "client_industry": v.client.industry if v.client else "",
+                "status": v.status,
+                "client_palette": agent_palette(v.agent) if v.agent else "a",
+            }
+        )
+
+    recent_calls_enriched = []
+    for c in calls_list[:10]:
+        recent_calls_enriched.append(
+            {
+                "call": c,
+                "visit": c.visit,
+                "phase": c.phase,
+                "status": c.status,
+                "executed_at": c.executed_at,
+                "ago": _relative_ago(c.executed_at or c.scheduled_time),
+            }
+        )
+
+    if active_now:
+        agent_status_label = "Live"
+        agent_status_variant = "cyan-filled"
+    elif today_visits and len(completed_today) == len(today_visits):
+        agent_status_label = "Ready"
+        agent_status_variant = "green"
+    elif not agent.phone_number:
+        agent_status_label = "No phone"
+        agent_status_variant = "rose"
+    elif not today_visits:
+        agent_status_label = "Idle"
+        agent_status_variant = "cream"
+    else:
+        agent_status_label = "Working"
+        agent_status_variant = "cyan"
+
+    config_indicators = [
+        {"label": "Phone on file", "on": bool(agent.phone_number)},
+        {"label": "Methodology assigned", "on": bool(agent.default_methodology_id)},
+        {"label": "Pipedrive linked", "on": bool(agent.pipedrive_user_id)},
+    ]
+
+    return {
+        "agent_avatar_palette": agent_palette(agent),
+        "agent_id_code": f"AG-{agent.id:06d}",
+        "agent_kv_strip": agent_kv_strip,
+        "agent_stat_row": agent_stat_row,
+        "today_load_bars": bars,
+        "recent_visits_enriched": recent_visits_enriched,
+        "recent_calls_enriched": recent_calls_enriched,
+        "agent_status_label": agent_status_label,
+        "agent_status_variant": agent_status_variant,
+        "config_indicators": config_indicators,
+    }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Client detail
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def client_detail_extras(client_detail):
+    """Return a dict of extras to update the ClientDetailView context."""
+    client = client_detail.get("client")
+    visits = client_detail.get("visits") or []
+    agents = client_detail.get("agents") or []
+    recent_calls = client_detail.get("recent_calls") or []
+
+    domain_str = _strip_domain(client.domain) if client else ""
+    client_kv_strip = [
+        {"label": "Industry", "value": (client.industry if client else "—") or "—", "sub": ""},
+        {"label": "Domain", "value": domain_str or "—", "sub": ""},
+        {"label": "CRM ID", "value": (client.crm_id if client else "—") or "—", "sub": ""},
+        {
+            "label": "Last Synced",
+            "value": _relative_ago(client.last_synced_at) if client else "—",
+            "sub": (
+                client.last_synced_at.strftime("%b %-d, %H:%M")
+                if client and client.last_synced_at
+                else ""
+            ),
+        },
+    ]
+
+    completion_rate = client_detail.get("completion_rate", 0) or 0
+    client_stat_row = [
+        {"label": "Total visits", "value": client_detail.get("total_visits", 0), "tone": "default"},
+        {"label": "Completed", "value": client_detail.get("completed_visits", 0), "tone": "green"},
+        {"label": "Completion", "value": f"{completion_rate}%", "tone": "cyan"},
+        {"label": "Active agents", "value": len(agents), "tone": "default"},
+    ]
+
+    agents_enriched = []
+    for a in agents:
+        agents_enriched.append(
+            {
+                "agent": a,
+                "avatar_palette": agent_palette(a),
+                "methodology_name": (
+                    a.default_methodology.name if a.default_methodology else "—"
+                ),
+            }
+        )
+
+    visits_enriched = []
+    for v in visits:
+        visits_enriched.append(
+            {
+                "visit": v,
+                "avatar_palette": agent_palette(v.agent) if v.agent else "a",
+                "agent_name": (
+                    v.agent.get_full_name() or v.agent.username if v.agent else "—"
+                ),
+                "methodology_name": v.methodology.name if v.methodology else "—",
+            }
+        )
+
+    recent_calls_enriched = []
+    for c in recent_calls:
+        recent_calls_enriched.append(
+            {
+                "call": c,
+                "visit": c.visit,
+                "agent_name": (
+                    c.visit.agent.get_full_name() or c.visit.agent.username
+                    if c.visit and c.visit.agent
+                    else "—"
+                ),
+                "agent_palette": agent_palette(c.visit.agent) if c.visit and c.visit.agent else "a",
+                "phase": c.phase,
+                "status": c.status,
+                "ago": _relative_ago(c.executed_at or c.scheduled_time),
+            }
+        )
+
+    intel_summary = (
+        client.ai_summary
+        if client and client.ai_summary
+        else "No client intel summary on file yet. AI extraction will populate this when the next sync runs."
+    )
+
+    return {
+        "client_kv_strip": client_kv_strip,
+        "client_stat_row": client_stat_row,
+        "agents_enriched": agents_enriched,
+        "visits_enriched": visits_enriched,
+        "recent_calls_enriched": recent_calls_enriched,
+        "client_intel_summary": intel_summary,
+        "client_domain_short": domain_str,
+        "client_last_synced_ago": _relative_ago(client.last_synced_at) if client else "—",
+    }

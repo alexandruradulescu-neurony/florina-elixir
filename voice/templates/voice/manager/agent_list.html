@@ -1,121 +1,73 @@
-{% extends 'voice/base.html' %}
+{% extends "voice/base.html" %}
+{% load static %}
 
-{% block title %}Agents - Sales Assistant{% endblock %}
+{% block title %}Agents — Sales Assistant{% endblock %}
 
-{% block page_header %}
-<div class="flex items-center justify-between">
-    <div>
-        <h1 class="text-xl font-bold text-slate-900">Agents</h1>
-        <p class="text-sm text-slate-500">{{ agent_count }} agent{{ agent_count|pluralize }} &middot; {{ configured_count }} fully configured</p>
-    </div>
-    <a href="{% url 'voice:agent_add' %}" class="px-4 h-9 rounded-lg bg-teal-500 hover:bg-teal-600 text-white text-sm font-medium inline-flex items-center gap-1.5 transition-colors">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-        Add Agent
-    </a>
+{% block header_utility %}
+<div class="toggle">
+    <button type="button" class="on">All</button>
+    <button type="button">Active</button>
+    <button type="button">Archived</button>
 </div>
+{% endblock %}
+
+{% block display_title %}Agents{% endblock %}
+{% block display_subtitle %}<div class="sub">{{ agent_count }} agents · {{ configured_count }} configured</div>{% endblock %}
+
+{% block header_actions %}
+<a href="{% url 'voice:agent_add' %}" class="btn btn-primary"><span class="ic ic-plus ic-14"></span> New agent</a>
 {% endblock %}
 
 {% block content %}
 
-{% if agents %}
-<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-    {% for item in agents %}
-    <div class="bg-white rounded-xl border border-slate-200 p-5">
-        <!-- Header: avatar + name + status -->
-        <div class="flex items-start justify-between mb-4">
-            <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-white text-sm font-bold">
-                    {{ item.agent.username|first|upper }}
-                </div>
-                <div>
-                    <div class="font-semibold text-slate-900 text-sm">{{ item.agent.get_full_name|default:item.agent.username }}</div>
-                    <div class="text-xs text-slate-400">{{ item.agent.email|default:"No email" }}</div>
-                </div>
-            </div>
-            {% if item.is_configured %}
-            <div class="flex items-center gap-1.5">
-                <div class="w-2 h-2 rounded-full bg-emerald-500"></div>
-                <span class="text-[10px] font-medium text-emerald-700">Ready</span>
-            </div>
-            {% else %}
-            <div class="flex items-center gap-1.5">
-                <div class="w-2 h-2 rounded-full bg-red-500"></div>
-                <span class="text-[10px] font-medium text-red-700">Issues</span>
-            </div>
-            {% endif %}
-        </div>
-
-        <!-- Config issues -->
-        {% if item.issues %}
-        <div class="mb-4 space-y-1">
-            {% for issue in item.issues %}
-            <div class="flex items-center gap-1.5 text-xs text-red-600">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
-                </svg>
-                {{ issue }}
-            </div>
-            {% endfor %}
-        </div>
-        {% endif %}
-
-        <!-- Today's stats -->
-        <div class="grid grid-cols-3 gap-2 mb-4">
-            <div class="bg-slate-50 rounded-lg py-2 text-center">
-                <div class="text-lg font-bold text-slate-800">{{ item.visits_today }}</div>
-                <div class="text-[10px] text-slate-400 uppercase">Today</div>
-            </div>
-            <div class="bg-slate-50 rounded-lg py-2 text-center">
-                <div class="text-lg font-bold text-emerald-600">{{ item.visits_complete_today }}</div>
-                <div class="text-[10px] text-slate-400 uppercase">Done</div>
-            </div>
-            <div class="bg-slate-50 rounded-lg py-2 text-center">
-                <div class="text-lg font-bold text-slate-800">{{ item.call_success_rate }}%</div>
-                <div class="text-[10px] text-slate-400 uppercase">Calls</div>
-            </div>
-        </div>
-
-        <!-- Methodology assignment -->
-        <div class="mb-3">
-            <div class="text-[10px] text-slate-400 uppercase tracking-wider mb-1.5">Methodology</div>
-            <form method="post" action="{% url 'voice:agent_methodology' item.agent.id %}">
-                {% csrf_token %}
-                <select name="default_methodology"
-                    class="w-full h-8 rounded-lg border border-slate-200 text-xs text-slate-600 pl-3 pr-8 bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-400"
-                    onchange="this.form.submit()">
-                    <option value="">None assigned</option>
-                    {% for m in methodologies %}
-                    <option value="{{ m.id }}" {% if item.agent.default_methodology_id == m.id %}selected{% endif %}>{{ m.name }}</option>
-                    {% endfor %}
-                </select>
-            </form>
-        </div>
-
-        <!-- Phone + actions -->
-        <div class="flex items-center justify-between pt-3 border-t border-slate-100">
-            <div class="flex items-center gap-1.5">
-                {% if item.has_phone %}
-                <div class="w-2 h-2 rounded-full bg-emerald-500"></div>
-                <span class="text-xs text-slate-500">{{ item.agent.phone_number }}</span>
-                {% else %}
-                <div class="w-2 h-2 rounded-full bg-red-400"></div>
-                <span class="text-xs text-red-500">No phone</span>
-                {% endif %}
-            </div>
-            <a href="{% url 'voice:visit_list' %}?agent={{ item.agent.id }}"
-               class="text-xs text-teal-600 hover:text-teal-700 font-medium">View Visits</a>
-        </div>
-    </div>
-    {% endfor %}
+{# ─── Stat row ─── #}
+<div class="stats">
+    {% include "voice/partials/stat_card.html" with label="Total agents" value=agent_count %}
+    {% include "voice/partials/stat_card.html" with label="Configured" value=configured_count tone="green" %}
+    {% include "voice/partials/stat_card.html" with label="Live now" value=agents_live_now tone="cyan" %}
+    {% include "voice/partials/stat_card.html" with label="Avg success" value=agents_avg_success|stringformat:"d"|add:"%" %}
 </div>
-{% else %}
-<div class="bg-white rounded-xl border border-slate-200 p-12 text-center">
-    <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-slate-200 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
-    </svg>
-    <p class="text-sm text-slate-500 mb-2">No sales agents yet</p>
-    <a href="{% url 'voice:agent_add' %}" class="text-sm text-teal-600 hover:text-teal-700 font-medium">Add your first agent</a>
-</div>
-{% endif %}
+
+{# ─── Agents table ─── #}
+<table class="tbl atable">
+    <thead>
+        <tr>
+            <th>Agent</th>
+            <th>Methodology</th>
+            <th>Today's load</th>
+            <th style="width: 90px;">Done</th>
+            <th style="width: 90px;">Success</th>
+            <th style="width: 48px;"></th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for ad in agents %}
+        <tr>
+            <td>
+                <div class="who">
+                    {% include "voice/partials/avatar.html" with initial=ad.agent.username|first|upper palette=ad.avatar_palette size=36 %}
+                    <div class="stack">
+                        <span class="nm">{{ ad.agent.get_full_name|default:ad.agent.username }}</span>
+                        <span class="em">{{ ad.agent.email|default:"—" }}</span>
+                    </div>
+                </div>
+            </td>
+            <td>
+                {% if ad.agent.default_methodology %}
+                <span class="meth-pill">{{ ad.agent.default_methodology.name }}</span>
+                {% else %}<span style="color:var(--fg-muted);">—</span>{% endif %}
+            </td>
+            <td>
+                <span class="loadbar"><span class="fill" style="width: {{ ad.load_pct }}%;"></span></span>
+            </td>
+            <td><span class="num">{{ ad.visits_complete_today|default:0 }}<span class="dim">/{{ ad.visits_today|default:0 }}</span></span></td>
+            <td><span class="num">{{ ad.success_pct }}%</span></td>
+            <td><a href="{% url 'voice:agent_detail' agent_id=ad.agent.id %}" class="more" aria-label="View agent"><span class="ic ic-menu-dots"></span></a></td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" style="text-align:center;padding:32px;color:var(--fg-muted);">No agents on file.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
 
 {% endblock %}

@@ -1,166 +1,105 @@
-{% extends 'voice/base.html' %}
+{% extends "voice/base.html" %}
+{% load static %}
 
-{% block title %}Add Agent - Sales Assistant{% endblock %}
+{% block title %}New agent — Sales Assistant{% endblock %}
 
-{% block page_header %}
-<div>
-    <div class="flex items-center gap-2 text-xs text-slate-400 mb-1">
-        <a href="{% url 'voice:agent_management' %}" class="hover:text-teal-600 transition-colors">Agents</a>
-        <span>/</span>
-        <span class="text-slate-500">New Agent</span>
-    </div>
-    <h1 class="text-xl font-bold text-slate-900">Add Agent</h1>
-    <p class="text-sm text-slate-500">Create a new sales agent account</p>
-</div>
+{% block header_utility %}
+<nav class="breadcrumb">
+    <a href="{% url 'voice:agent_management' %}">Agents</a>
+    <span class="sep">/</span>
+    <span class="cur">New agent</span>
+</nav>
 {% endblock %}
+
+{% block display_title %}New agent{% endblock %}
 
 {% block content %}
 
 {% if form.non_field_errors %}
-<div class="mb-5 rounded-xl bg-red-50 border border-red-200 px-4 py-3">
-    {% for error in form.non_field_errors %}
-    <p class="text-sm text-red-700">{{ error }}</p>
-    {% endfor %}
+<div class="toast toast-error" style="margin-bottom:16px;">
+    {% for error in form.non_field_errors %}<span>{{ error }}</span>{% endfor %}
 </div>
 {% endif %}
 
-<form method="post" class="max-w-3xl">
+<form method="post" class="form-layout">
     {% csrf_token %}
+    <div class="form-card">
 
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-        <!-- Left: Form fields -->
-        <div class="lg:col-span-2 space-y-6">
-
-            <!-- Account -->
-            <div class="bg-white rounded-xl border border-slate-200 p-5">
-                <h2 class="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4">Account</h2>
-
-                <div class="mb-4">
-                    <label class="block text-xs font-medium text-slate-700 mb-1.5">Username <span class="text-red-400">*</span></label>
-                    <input type="text" name="username" value="{{ form.username.value|default:'' }}"
-                        class="w-full h-9 rounded-lg border border-slate-200 text-sm text-slate-700 px-3 focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-400 placeholder-slate-300"
-                        placeholder="e.g. jdoe" required>
-                    {% if form.username.errors %}
-                    <p class="text-xs text-red-500 mt-1">{{ form.username.errors.0 }}</p>
-                    {% endif %}
-                </div>
-
-                <div class="grid grid-cols-2 gap-4 mb-4">
-                    <div>
-                        <label class="block text-xs font-medium text-slate-700 mb-1.5">First Name</label>
-                        <input type="text" name="first_name" value="{{ form.first_name.value|default:'' }}"
-                            class="w-full h-9 rounded-lg border border-slate-200 text-sm text-slate-700 px-3 focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-400 placeholder-slate-300"
-                            placeholder="First name">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-medium text-slate-700 mb-1.5">Last Name</label>
-                        <input type="text" name="last_name" value="{{ form.last_name.value|default:'' }}"
-                            class="w-full h-9 rounded-lg border border-slate-200 text-sm text-slate-700 px-3 focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-400 placeholder-slate-300"
-                            placeholder="Last name">
-                    </div>
-                </div>
-
-                <div>
-                    <label class="block text-xs font-medium text-slate-700 mb-1.5">Email</label>
-                    <input type="email" name="email" value="{{ form.email.value|default:'' }}"
-                        class="w-full h-9 rounded-lg border border-slate-200 text-sm text-slate-700 px-3 focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-400 placeholder-slate-300"
-                        placeholder="agent@company.com">
-                    {% if form.email.errors %}
-                    <p class="text-xs text-red-500 mt-1">{{ form.email.errors.0 }}</p>
-                    {% endif %}
-                </div>
+        <fieldset class="form-fieldset">
+            <h3>Account</h3>
+            <div class="form-row">
+                <label for="{{ form.username.id_for_label }}">Username</label>
+                <input type="text" name="{{ form.username.name }}" id="{{ form.username.id_for_label }}" value="{{ form.username.value|default:'' }}" required>
+                {% if form.username.help_text %}<span class="helptext">{{ form.username.help_text }}</span>{% endif %}
+                {% if form.username.errors %}<span class="field-error">{{ form.username.errors.0 }}</span>{% endif %}
             </div>
-
-            <!-- Password -->
-            <div class="bg-white rounded-xl border border-slate-200 p-5">
-                <h2 class="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4">Password</h2>
-
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-xs font-medium text-slate-700 mb-1.5">Password <span class="text-red-400">*</span></label>
-                        <input type="password" name="password1"
-                            class="w-full h-9 rounded-lg border border-slate-200 text-sm text-slate-700 px-3 focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-400 placeholder-slate-300"
-                            placeholder="Enter password" required>
-                        {% if form.password1.errors %}
-                        <p class="text-xs text-red-500 mt-1">{{ form.password1.errors.0 }}</p>
-                        {% endif %}
-                    </div>
-                    <div>
-                        <label class="block text-xs font-medium text-slate-700 mb-1.5">Confirm <span class="text-red-400">*</span></label>
-                        <input type="password" name="password2"
-                            class="w-full h-9 rounded-lg border border-slate-200 text-sm text-slate-700 px-3 focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-400 placeholder-slate-300"
-                            placeholder="Confirm password" required>
-                        {% if form.password2.errors %}
-                        <p class="text-xs text-red-500 mt-1">{{ form.password2.errors.0 }}</p>
-                        {% endif %}
-                    </div>
-                </div>
+            <div class="form-row">
+                <label for="{{ form.first_name.id_for_label }}">First name</label>
+                <input type="text" name="{{ form.first_name.name }}" id="{{ form.first_name.id_for_label }}" value="{{ form.first_name.value|default:'' }}">
+                {% if form.first_name.errors %}<span class="field-error">{{ form.first_name.errors.0 }}</span>{% endif %}
             </div>
-
-            <!-- Configuration -->
-            <div class="bg-white rounded-xl border border-slate-200 p-5">
-                <h2 class="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4">Configuration</h2>
-
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-xs font-medium text-slate-700 mb-1.5">Phone Number</label>
-                        <input type="text" name="phone_number" value="{{ form.phone_number.value|default:'' }}"
-                            class="w-full h-9 rounded-lg border border-slate-200 text-sm text-slate-700 px-3 focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-400 placeholder-slate-300"
-                            placeholder="+1234567890">
-                        {% if form.phone_number.errors %}
-                        <p class="text-xs text-red-500 mt-1">{{ form.phone_number.errors.0 }}</p>
-                        {% else %}
-                        <p class="text-[10px] text-slate-400 mt-1">Required for voice calls (E.164 format)</p>
-                        {% endif %}
-                    </div>
-                    <div>
-                        <label class="block text-xs font-medium text-slate-700 mb-1.5">CRM User ID</label>
-                        <input type="text" name="pipedrive_user_id" value="{{ form.pipedrive_user_id.value|default:'' }}"
-                            class="w-full h-9 rounded-lg border border-slate-200 text-sm text-slate-700 px-3 focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-400 placeholder-slate-300"
-                            placeholder="Optional">
-                        {% if form.pipedrive_user_id.errors %}
-                        <p class="text-xs text-red-500 mt-1">{{ form.pipedrive_user_id.errors.0 }}</p>
-                        {% else %}
-                        <p class="text-[10px] text-slate-400 mt-1">Links agent to CRM account</p>
-                        {% endif %}
-                    </div>
-                </div>
+            <div class="form-row">
+                <label for="{{ form.last_name.id_for_label }}">Last name</label>
+                <input type="text" name="{{ form.last_name.name }}" id="{{ form.last_name.id_for_label }}" value="{{ form.last_name.value|default:'' }}">
+                {% if form.last_name.errors %}<span class="field-error">{{ form.last_name.errors.0 }}</span>{% endif %}
             </div>
-
-        </div>
-
-        <!-- Right: Actions sidebar -->
-        <div>
-            <div class="bg-white rounded-xl border border-slate-200 p-5 sticky top-4">
-                <button type="submit" class="w-full h-10 rounded-lg bg-teal-500 hover:bg-teal-600 text-white text-sm font-medium transition-colors mb-3">
-                    Create Agent
-                </button>
-                <a href="{% url 'voice:agent_management' %}" class="block w-full h-10 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium text-center leading-10 hover:bg-slate-50 transition-colors">
-                    Cancel
-                </a>
-
-                <div class="mt-4 pt-4 border-t border-slate-100">
-                    <div class="text-[10px] text-slate-400 uppercase tracking-wider mb-2">What happens next</div>
-                    <div class="space-y-2 text-xs text-slate-500">
-                        <div class="flex items-start gap-2">
-                            <div class="w-4 h-4 rounded-full bg-slate-100 flex items-center justify-center text-[9px] font-bold text-slate-400 shrink-0 mt-0.5">1</div>
-                            <span>Agent can log in with their credentials</span>
-                        </div>
-                        <div class="flex items-start gap-2">
-                            <div class="w-4 h-4 rounded-full bg-slate-100 flex items-center justify-center text-[9px] font-bold text-slate-400 shrink-0 mt-0.5">2</div>
-                            <span>Assign a methodology from the agents page</span>
-                        </div>
-                        <div class="flex items-start gap-2">
-                            <div class="w-4 h-4 rounded-full bg-slate-100 flex items-center justify-center text-[9px] font-bold text-slate-400 shrink-0 mt-0.5">3</div>
-                            <span>Visits are detected from their calendar</span>
-                        </div>
-                    </div>
-                </div>
+            <div class="form-row">
+                <label for="{{ form.email.id_for_label }}">Email</label>
+                <input type="email" name="{{ form.email.name }}" id="{{ form.email.id_for_label }}" value="{{ form.email.value|default:'' }}" required>
+                {% if form.email.errors %}<span class="field-error">{{ form.email.errors.0 }}</span>{% endif %}
             </div>
-        </div>
+        </fieldset>
+
+        <fieldset class="form-fieldset">
+            <h3>Password</h3>
+            <div class="form-row">
+                <label for="{{ form.password1.id_for_label }}">Password</label>
+                <input type="password" name="{{ form.password1.name }}" id="{{ form.password1.id_for_label }}" required autocomplete="new-password">
+                {% if form.password1.help_text %}<span class="helptext">{{ form.password1.help_text|striptags }}</span>{% endif %}
+                {% if form.password1.errors %}<span class="field-error">{{ form.password1.errors.0 }}</span>{% endif %}
+            </div>
+            <div class="form-row">
+                <label for="{{ form.password2.id_for_label }}">Confirm password</label>
+                <input type="password" name="{{ form.password2.name }}" id="{{ form.password2.id_for_label }}" required autocomplete="new-password">
+                {% if form.password2.errors %}<span class="field-error">{{ form.password2.errors.0 }}</span>{% endif %}
+            </div>
+        </fieldset>
+
+        <fieldset class="form-fieldset">
+            <h3>Configuration</h3>
+            <div class="form-row">
+                <label for="{{ form.phone_number.id_for_label }}">Phone number</label>
+                <input type="tel" name="{{ form.phone_number.name }}" id="{{ form.phone_number.id_for_label }}" value="{{ form.phone_number.value|default:'' }}" placeholder="+1234567890">
+                <span class="helptext">Used to place pre/post-call AI conversations. International format with +.</span>
+                {% if form.phone_number.errors %}<span class="field-error">{{ form.phone_number.errors.0 }}</span>{% endif %}
+            </div>
+            <div class="form-row">
+                <label for="{{ form.pipedrive_user_id.id_for_label }}">Pipedrive user ID</label>
+                <input type="number" name="{{ form.pipedrive_user_id.name }}" id="{{ form.pipedrive_user_id.id_for_label }}" value="{{ form.pipedrive_user_id.value|default:'' }}">
+                <span class="helptext">Maps this agent to a Pipedrive user. Leave blank if not using Pipedrive.</span>
+                {% if form.pipedrive_user_id.errors %}<span class="field-error">{{ form.pipedrive_user_id.errors.0 }}</span>{% endif %}
+            </div>
+        </fieldset>
 
     </div>
+
+    <aside class="form-sidebar">
+        <div class="card">
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">Create agent</button>
+                <a href="{% url 'voice:agent_management' %}" class="btn btn-secondary">Cancel</a>
+            </div>
+        </div>
+        <div class="card">
+            <h3>What happens next</h3>
+            <ol class="checklist">
+                <li>Account is created and marked as a sales agent.</li>
+                <li>Assign a methodology from the agent list.</li>
+                <li>Confirm the phone number is reachable for AI calls.</li>
+                <li>Verify the Pipedrive user ID matches if syncing.</li>
+            </ol>
+        </div>
+    </aside>
 </form>
 
 {% endblock %}

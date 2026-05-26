@@ -54,7 +54,7 @@
 
                 <h4>Manage</h4>
                 <div class="group">
-                    <a href="{% url 'voice:agent_management' %}" class="row {% if request.resolver_match.url_name == 'agent_management' or request.resolver_match.url_name == 'agent_add' or request.resolver_match.url_name == 'agent_methodology' %}active{% endif %}">
+                    <a href="{% url 'voice:agent_management' %}" class="row {% if request.resolver_match.url_name == 'agent_management' or request.resolver_match.url_name == 'agent_add' or request.resolver_match.url_name == 'agent_methodology' or request.resolver_match.url_name == 'agent_detail' %}active{% endif %}">
                         <span class="iconslot"><span class="ic ic-id-badge ic-18"></span></span>
                         <span class="label">Agents</span>
                     </a>

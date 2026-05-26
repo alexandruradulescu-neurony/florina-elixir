@@ -38,6 +38,7 @@ from .selectors import (
     get_visits_for_date,
     get_clients_with_stats,
     get_client_detail,
+    get_agent_visits,
 )
 from .models import Meeting, VoicePrompt, User, CallAttempt, Methodology, GlobalSettings, Visit, Client
 from .decorators import SuperuserRequiredMixin, SalesAgentRequiredMixin
@@ -610,7 +611,29 @@ class AgentManagementView(SuperuserRequiredMixin, View):
             'agent_count': agents.count(),
             'configured_count': sum(1 for a in enriched_agents if a['is_configured']),
         }
+        placeholders.agents_extras(context)
         return render(request, 'voice/manager/agent_list.html', context)
+
+
+class AgentDetailView(SuperuserRequiredMixin, View):
+    """Read-only detail view for a single sales agent."""
+
+    def get(self, request, agent_id):
+        from django.shortcuts import get_object_or_404
+        agent = get_object_or_404(User, id=agent_id, is_sales_agent=True)
+        recent_visits = list(get_agent_visits(agent)[:20])
+        recent_calls = list(
+            CallAttempt.objects.filter(visit__agent=agent)
+            .select_related('visit', 'visit__client')
+            .order_by('-created_at')[:10]
+        )
+        context = {
+            'agent': agent,
+            'recent_visits': recent_visits,
+            'recent_calls': recent_calls,
+        }
+        context.update(placeholders.agent_detail_extras(agent, recent_visits, recent_calls))
+        return render(request, 'voice/manager/agent_detail.html', context)
 
 
 class AgentCreateView(SuperuserRequiredMixin, View):
@@ -1122,6 +1145,7 @@ class MethodologyListView(SuperuserRequiredMixin, View):
             'total_count': len(enriched),
             'active_count': active_count,
         }
+        placeholders.methodologies_extras(context)
         return render(request, 'voice/manager/methodology_list.html', context)
 
 
@@ -1455,6 +1479,7 @@ class ClientListView(SuperuserRequiredMixin, View):
             'total_count': total_count,
             'with_summary': with_summary,
         }
+        placeholders.clients_extras(context)
         return render(request, 'voice/manager/client_list.html', context)
 
 
@@ -1462,12 +1487,13 @@ class ClientDetailView(SuperuserRequiredMixin, View):
     """View a single client's full profile, visits, and call history."""
 
     def get(self, request, client_id):
-        data = get_client_detail(client_id)
-        if data is None:
+        context = get_client_detail(client_id)
+        if context is None:
             messages.error(request, 'Client not found.')
             return redirect('voice:client_list')
 
-        return render(request, 'voice/manager/client_detail.html', data)
+        context.update(placeholders.client_detail_extras(context))
+        return render(request, 'voice/manager/client_detail.html', context)
 
 
 class ClientCreateView(SuperuserRequiredMixin, View):

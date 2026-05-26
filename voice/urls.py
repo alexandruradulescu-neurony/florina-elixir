@@ -22,6 +22,7 @@ urlpatterns = [
     path('manager/prompts/', views.PromptListView.as_view(), name='prompt_list'),
     path('manager/prompts/<int:prompt_id>/edit/', views.PromptEditView.as_view(), name='prompt_edit'),
     path('manager/agents/', views.AgentManagementView.as_view(), name='agent_management'),
+    path('manager/agents/<int:agent_id>/', views.AgentDetailView.as_view(), name='agent_detail'),
     path('manager/agents/add/', views.AgentCreateView.as_view(), name='agent_add'),
     path('manager/logs/', views.AuditLogExplorerView.as_view(), name='audit_logs'),
     path('manager/calls/', views.ProgrammedCallsView.as_view(), name='programmed_calls'),
