@@ -4,25 +4,35 @@
 {% block title %}Calendar — Sales Assistant{% endblock %}
 
 {% block header_utility %}
-<div class="toggle">
-    <a href="?view=week&date={{ target_date|date:'Y-m-d' }}" class="{% if view_mode == 'week' %}on{% endif %}">Week</a>
-    <a href="?view=day&date={{ target_date|date:'Y-m-d' }}" class="{% if view_mode == 'day' %}on{% endif %}">Day</a>
+<div class="cal-view-toggle">
+    <a href="?view=week&date={{ target_date|date:'Y-m-d' }}{% if status_filter and status_filter != 'all' %}&filter={{ status_filter }}{% endif %}" class="{% if view_mode == 'week' %}active{% endif %}">Week</a>
+    <a href="?view=day&date={{ target_date|date:'Y-m-d' }}{% if status_filter and status_filter != 'all' %}&filter={{ status_filter }}{% endif %}" class="{% if view_mode == 'day' %}active{% endif %}">Day</a>
 </div>
 <div class="cal-nav">
-    <a href="?view={{ view_mode }}&date={{ prev_date|date:'Y-m-d' }}" class="icon-btn" aria-label="Previous"><span class="ic ic-angle-left"></span></a>
-    <span class="cal-nav-label">{{ nav_label }}</span>
-    <a href="?view={{ view_mode }}&date={{ next_date|date:'Y-m-d' }}" class="icon-btn" aria-label="Next"><span class="ic ic-angle-right"></span></a>
+    <a href="?view={{ view_mode }}&date={{ prev_date|date:'Y-m-d' }}{% if status_filter and status_filter != 'all' %}&filter={{ status_filter }}{% endif %}" class="nav-btn" aria-label="Previous"><span class="ic ic-angle-left"></span></a>
+    <span class="label-pill">{{ nav_label }}</span>
+    <a href="?view={{ view_mode }}&date={{ next_date|date:'Y-m-d' }}{% if status_filter and status_filter != 'all' %}&filter={{ status_filter }}{% endif %}" class="nav-btn" aria-label="Next"><span class="ic ic-angle-right"></span></a>
 </div>
 {% endblock %}
 
-{% block display_title %}{{ month_label }}{% endblock %}
+{% block display_title %}
+<span class="cal-title-block">
+    {% if view_mode == 'day' %}
+        <span class="month">{{ target_date|date:"l, F j" }}</span>
+        <span class="year">{{ target_date|date:"Y" }}</span>
+    {% else %}
+        <span class="month">{{ target_date|date:"F" }}</span>
+        <span class="year">{{ target_date|date:"Y" }}</span>
+    {% endif %}
+</span>
+{% endblock %}
 
 {% block header_filters %}
-<div class="filters">
-    <a href="?view={{ view_mode }}&date={{ target_date|date:'Y-m-d' }}&filter=all" class="{% if status_filter == 'all' %}on{% endif %}">All</a>
-    <a href="?view={{ view_mode }}&date={{ target_date|date:'Y-m-d' }}&filter=upcoming" class="{% if status_filter == 'upcoming' %}on{% endif %}">Upcoming</a>
-    <a href="?view={{ view_mode }}&date={{ target_date|date:'Y-m-d' }}&filter=completed" class="{% if status_filter == 'completed' %}on{% endif %}">Completed</a>
-    <a href="?view={{ view_mode }}&date={{ target_date|date:'Y-m-d' }}&filter=cancelled" class="{% if status_filter == 'cancelled' %}on{% endif %}">Cancelled</a>
+<div class="cal-filter-pills">
+    <a href="?view={{ view_mode }}&date={{ target_date|date:'Y-m-d' }}&filter=all" class="{% if status_filter == 'all' %}active{% endif %}">All</a>
+    <a href="?view={{ view_mode }}&date={{ target_date|date:'Y-m-d' }}&filter=upcoming" class="upcoming {% if status_filter == 'upcoming' %}active{% endif %}">Upcoming</a>
+    <a href="?view={{ view_mode }}&date={{ target_date|date:'Y-m-d' }}&filter=completed" class="completed {% if status_filter == 'completed' %}active{% endif %}">Completed</a>
+    <a href="?view={{ view_mode }}&date={{ target_date|date:'Y-m-d' }}&filter=cancelled" class="cancelled {% if status_filter == 'cancelled' %}active{% endif %}">Cancelled</a>
 </div>
 {% endblock %}
 
@@ -31,7 +41,7 @@
     <input type="hidden" name="view" value="{{ view_mode }}">
     <input type="hidden" name="date" value="{{ target_date|date:'Y-m-d' }}">
     <input type="hidden" name="filter" value="{{ status_filter }}">
-    <select name="agent" onchange="this.form.submit()" class="fb-pill" style="height:36px;padding:0 14px;border:1px solid var(--border-default);border-radius:var(--radius-pill);background:var(--bg-surface);font-family:var(--font-ui);font-weight:700;font-size:13px;color:var(--fg-strong);">
+    <select name="agent" onchange="this.form.submit()" style="height:36px;padding:0 14px;border:1px solid var(--border-default);border-radius:var(--radius-pill);background:var(--bg-surface);font-family:var(--font-ui);font-weight:700;font-size:13px;color:var(--fg-strong);">
         <option value="">All agents</option>
         {% for a in agents %}<option value="{{ a.id }}" {% if agent_filter == a.id|stringformat:'s' %}selected{% endif %}>{{ a.get_full_name|default:a.username }}</option>{% endfor %}
     </select>
@@ -41,34 +51,34 @@
 {% endblock %}
 
 {% block content %}
-
 <div class="calendar-body" data-filter="{{ status_filter|default:'all' }}">
 
 {% if view_mode == 'week' %}
 
-<div class="week-grid">
+<div class="body-week">
     {% for week in weeks_enriched %}
     <div class="week-row{% if week.is_current_week %} this-week{% endif %}">
-        {% if week.is_current_week %}<span class="this-week-badge">This week</span>{% endif %}
         {% for day in week.days %}
-        <div class="day-cell{% if not day.has_events %} empty{% endif %}">
-            <div class="dow-line">
-                <span class="dow">{{ day.date|date:"D" }}</span>
-                <span class="dnum{% if day.is_today %} today-circle{% endif %}">{{ day.date|date:"j" }}</span>
+        <div class="day-cell">
+            <div class="head">
+                <span>{{ day.date|date:"D"|upper }}</span>
+                <span class="num{% if day.is_today %} today{% endif %}">{{ day.date|date:"j" }}</span>
             </div>
-            <div class="events">
-                {% for ev in day.events_enriched %}
-                <a href="{% url 'voice:visit_detail' visit_id=ev.visit.id %}" class="event-chip event-chip-{{ ev.state }} short">
-                    <div class="top">
+            {% if not day.has_events %}
+            <div class="empty">No events</div>
+            {% else %}
+            {% for ev in day.events_enriched %}
+            <a href="{% url 'voice:visit_detail' visit_id=ev.visit.id %}" class="chip-row">
+                <span class="pre"></span>
+                <span class="chip short {{ ev.state }}">
+                    <span class="top">
                         <span class="time">{{ ev.time_range }}</span>
-                        {% if ev.state == 'completed' %}<span class="state-icon ic ic-check"></span>
-                        {% elif ev.state == 'cancelled' %}<span class="state-icon ic ic-ban"></span>{% endif %}
-                    </div>
-                </a>
-                {% empty %}
-                <span class="no-events">No events</span>
-                {% endfor %}
-            </div>
+                    </span>
+                </span>
+                <span class="post"></span>
+            </a>
+            {% endfor %}
+            {% endif %}
         </div>
         {% endfor %}
     </div>
@@ -77,50 +87,49 @@
 
 {% else %}
 
-<div class="day-layout">
+<div class="body-day">
     <div class="day-stream">
         {% for bucket in hour_buckets %}
-        <div class="hour-row">
-            <span class="time-label">{{ bucket.hour_label }}</span>
+        <div class="hour">
+            <div class="label">{{ bucket.hour_label }}</div>
             <div class="slot">
                 {% for ev in bucket.events %}
-                <a href="{% url 'voice:visit_detail' visit_id=ev.visit.id %}" class="event-chip event-chip-{{ ev.state }}">
-                    <div class="top">
-                        <span class="time">{{ ev.time_range }}</span>
-                        {% if ev.state == 'completed' %}<span class="state-icon ic ic-check"></span>
-                        {% elif ev.state == 'cancelled' %}<span class="state-icon ic ic-ban"></span>{% endif %}
-                    </div>
-                    <div class="title">{{ ev.title }}</div>
+                <a href="{% url 'voice:visit_detail' visit_id=ev.visit.id %}" class="chip-row">
+                    <span class="pre"></span>
+                    <span class="chip {{ ev.state }}">
+                        <span class="top">
+                            <span class="time">{{ ev.time_range }}</span>
+                        </span>
+                        <span class="title">{{ ev.title }}</span>
+                    </span>
                 </a>
                 {% endfor %}
             </div>
         </div>
         {% endfor %}
     </div>
-
-    <aside class="day-aside">
+    <div class="day-aside">
         <div class="mini-cal">
-            <div class="mini-cal-head">
-                <a href="#" class="nav-btn" aria-label="Previous month">←</a>
-                <span class="label">{{ month_label }}</span>
-                <a href="#" class="nav-btn" aria-label="Next month">→</a>
+            <div class="mc-head">
+                <span class="lbl">{{ month_label }}</span>
+                <div class="nav">
+                    <a href="#" aria-label="Previous month">←</a>
+                    <a href="#" aria-label="Next month">→</a>
+                </div>
             </div>
-            <div class="mini-cal-grid">
-                <span class="dow-h">Mon</span><span class="dow-h">Tue</span><span class="dow-h">Wed</span><span class="dow-h">Thu</span><span class="dow-h">Fri</span><span class="dow-h">Sat</span><span class="dow-h">Sun</span>
+            <div class="mc-grid">
+                <span class="c head">Mon</span><span class="c head">Tue</span><span class="c head">Wed</span><span class="c head">Thu</span><span class="c head">Fri</span><span class="c head">Sat</span><span class="c head">Sun</span>
                 {% for day in month_grid %}
-                <a href="?view=day&date={{ day.iso }}&filter={{ status_filter }}" class="mini-cal-day{% if not day.in_month %} dim{% endif %}{% if day.is_today %} today{% endif %}{% if day.is_selected %} selected{% endif %}">{{ day.day_num }}</a>
+                <a href="?view=day&date={{ day.iso }}{% if status_filter and status_filter != 'all' %}&filter={{ status_filter }}{% endif %}" class="c{% if not day.in_month %} dim{% endif %}{% if day.is_today %} today{% endif %}{% if day.is_selected %} sel{% endif %}"><span>{{ day.day_num }}</span></a>
                 {% endfor %}
             </div>
         </div>
-        <div class="day-overview">
-            <h3>Day overview</h3>
-            <p>{{ day_visit_count }} visit{{ day_visit_count|pluralize }} on {{ target_date|date:"l, F j" }}</p>
-        </div>
-    </aside>
+        <h3>Day overview</h3>
+        <div class="stat"><span>Meetings</span><span class="num">{{ day_visit_count }}</span></div>
+    </div>
 </div>
 
 {% endif %}
 
 </div>
-
 {% endblock %}
