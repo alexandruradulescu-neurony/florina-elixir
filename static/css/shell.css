@@ -106,7 +106,7 @@ button {
 }
 
 .sb .group { display: flex; flex-direction: column; gap: 2px; }
-.sb .group h4 {
+.sb h4 {
   margin: 18px 12px 6px;
   font-family: var(--font-ui);
   font-weight: 800;
