@@ -1,32 +1,19 @@
-{% extends 'voice/base.html' %}
+{% extends "voice/base.html" %}
 
-{% block title %}Home - MES Voice{% endblock %}
+{% block title %}Home — Sales Assistant{% endblock %}
+
+{% block display_title %}Welcome, {{ user.get_full_name|default:user.username }}{% endblock %}
 
 {% block content %}
-<div class="min-h-screen bg-base-200">
-    <div class="container mx-auto px-4 py-8">
-        <div class="hero bg-base-100 rounded-lg shadow-xl">
-            <div class="hero-content text-center">
-                <div class="max-w-md">
-                    <h1 class="text-5xl font-bold">Welcome to MES Voice</h1>
-                    <p class="py-6">You have successfully logged in!</p>
-                    {% if user.is_authenticated %}
-                        <div class="card bg-base-200 shadow-xl">
-                            <div class="card-body">
-                                <h2 class="card-title">User Information</h2>
-                                <p><strong>Username:</strong> {{ user.username }}</p>
-                                <p><strong>Email:</strong> {{ user.email|default:"Not provided" }}</p>
-                                <div class="card-actions justify-end mt-4">
-                                    <a href="{% url 'admin:index' %}" class="btn btn-primary">Admin Panel</a>
-                                    <a href="{% url 'voice:logout' %}" class="btn btn-outline">Logout</a>
-                                </div>
-                            </div>
-                        </div>
-                    {% endif %}
-                </div>
-            </div>
-        </div>
+<div class="card">
+    <p class="t-body" style="margin:0 0 16px;">You're signed in to Sales Assistant.</p>
+    <div style="display:flex;gap:8px;">
+        {% if user.is_superuser %}
+            <a class="btn btn-primary" href="{% url 'voice:superuser_dashboard' %}">Go to Dashboard</a>
+        {% elif user.is_sales_agent %}
+            <a class="btn btn-primary" href="{% url 'voice:sales_agent_dashboard' %}">Go to My Schedule</a>
+        {% endif %}
+        <a class="btn btn-secondary" href="{% url 'voice:logout' %}">Log out</a>
     </div>
 </div>
 {% endblock %}
-
