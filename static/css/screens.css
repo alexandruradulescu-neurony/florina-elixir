@@ -1621,3 +1621,301 @@
 .form-sidebar .status-list .dot.on { background: var(--green-700); }
 .form-sidebar .status-list .dot.off { background: var(--zinc-300); }
 .form-sidebar .status-list li.off { color: var(--fg-muted); }
+
+/* ============================================================================
+   Calendar — top bar / filter bar tweaks
+   ============================================================================ */
+.cal-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.cal-nav-label {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 12px;
+  height: 36px;
+  border-radius: var(--radius-pill);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--fg-strong);
+}
+
+/* ============================================================================
+   Event chip — used in both Week and Day modes
+   ============================================================================ */
+.event-chip {
+  display: block;
+  border-radius: 4px;
+  padding: 5px 6px;
+  box-shadow: var(--shadow-tile);
+  font-family: var(--font-tile);
+  text-decoration: none;
+  cursor: pointer;
+  transition: opacity 120ms ease-out;
+}
+.event-chip .top {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-tile);
+  font-weight: 700;
+  font-size: 11px;
+  line-height: 1;
+}
+.event-chip .top .time { flex: 1; }
+.event-chip .top .state-icon { width: 10px; height: 10px; }
+.event-chip .title {
+  display: block;
+  margin-top: 4px;
+  font-family: var(--font-tile);
+  font-weight: 700;
+  font-size: 13px;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.event-chip.short .title { display: none; }
+.event-chip-upcoming  { background: var(--cyan-500); color: #fff; }
+.event-chip-completed { background: var(--green-100); color: var(--green-700); }
+.event-chip-cancelled { background: var(--rose-100);  color: var(--rose-700); }
+.event-chip-replanned { background: var(--amber-100); color: var(--zinc-950); }
+
+/* ============================================================================
+   Week grid
+   ============================================================================ */
+.week-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.week-row {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+  position: relative;
+}
+.week-row.this-week .day-cell {
+  background: var(--cyan-50);
+}
+.this-week-badge {
+  position: absolute;
+  top: -10px;
+  left: 8px;
+  height: 18px;
+  padding: 0 8px;
+  background: var(--zinc-950);
+  color: #fff;
+  border-radius: var(--radius-pill);
+  font-family: var(--font-ui);
+  font-weight: 800;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  display: inline-flex;
+  align-items: center;
+  z-index: 1;
+}
+.day-cell {
+  background: var(--bg-card);
+  border: 1px solid var(--border-hairline);
+  border-radius: 8px;
+  padding: 8px;
+  min-height: 120px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.day-cell .dow-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+}
+.day-cell .dow-line .dow {
+  font-family: var(--font-ui);
+  font-weight: 800;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+}
+.day-cell .dow-line .dnum {
+  font-family: var(--font-ui);
+  font-weight: 800;
+  font-size: 16px;
+  line-height: 1;
+  color: var(--fg-strong);
+}
+.day-cell .dow-line .dnum.today-circle {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--orange-500);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+}
+.day-cell .events {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.day-cell.empty .no-events {
+  display: block;
+  text-align: center;
+  padding-top: 30px;
+  font-family: var(--font-tile);
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--fg-muted);
+}
+
+/* ============================================================================
+   Day mode — hour stream + aside
+   ============================================================================ */
+.day-layout {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 16px;
+}
+.day-stream {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-card);
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+.hour-row {
+  display: grid;
+  grid-template-columns: 60px 1fr;
+  min-height: 56px;
+  border-top: 1px solid var(--border-hairline);
+}
+.hour-row:first-child { border-top: none; }
+.hour-row .time-label {
+  text-align: right;
+  padding: 8px 8px 0 0;
+  font-family: var(--font-tile);
+  font-weight: 700;
+  font-size: 11px;
+  color: var(--fg-muted);
+  font-feature-settings: 'tnum';
+}
+.hour-row .slot {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px 8px;
+}
+
+/* ─────────── Day aside ─────────── */
+.day-aside {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  position: sticky;
+  top: 24px;
+  align-self: start;
+}
+.mini-cal {
+  background: var(--bg-card);
+  border: 1px solid var(--border-hairline);
+  border-radius: 12px;
+  padding: 16px;
+}
+.mini-cal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.mini-cal-head .label {
+  font-family: var(--font-ui);
+  font-weight: 800;
+  font-size: 14px;
+  color: var(--fg-strong);
+}
+.mini-cal-head .nav-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: transparent;
+  border: 1px solid var(--border-default);
+  color: var(--fg-strong);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  text-decoration: none;
+}
+.mini-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+.mini-cal-grid .dow-h {
+  font-family: var(--font-ui);
+  font-weight: 800;
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+  text-align: center;
+  padding-bottom: 6px;
+}
+.mini-cal-day {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto;
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 12px;
+  color: var(--fg-strong);
+  text-decoration: none;
+}
+.mini-cal-day:hover {
+  background: var(--zinc-100);
+}
+.mini-cal-day.dim { color: var(--fg-faint); }
+.mini-cal-day.today { background: var(--cyan-200); }
+.mini-cal-day.selected { background: var(--cyan-500); color: #fff; }
+.day-overview {
+  background: var(--bg-card);
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+}
+.day-overview h3 {
+  margin: 0 0 12px;
+  font-family: var(--font-ui);
+  font-weight: 800;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+}
+.day-overview p {
+  margin: 0;
+  font-family: var(--font-tile);
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--fg);
+}
+
+/* ============================================================================
+   Filter dimming (CSS-only, via data-filter attribute on .calendar-body)
+   ============================================================================ */
+.calendar-body[data-filter="upcoming"]  .event-chip:not(.event-chip-upcoming)  { opacity: 0.35; }
+.calendar-body[data-filter="completed"] .event-chip:not(.event-chip-completed) { opacity: 0.35; }
+.calendar-body[data-filter="cancelled"] .event-chip:not(.event-chip-cancelled):not(.event-chip-replanned) { opacity: 0.35; }

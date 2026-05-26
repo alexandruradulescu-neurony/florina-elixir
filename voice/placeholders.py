@@ -839,3 +839,154 @@ def client_detail_extras(client_detail):
         "client_domain_short": domain_str,
         "client_last_synced_ago": _relative_ago(client.last_synced_at) if client else "—",
     }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Calendar
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def _visit_state(visit):
+    """Return the design's event state for a visit: upcoming/completed/cancelled/replanned.
+
+    Real source: when CANCELLED is added to VisitStatus, drop the placeholder
+    branches. Until then we fake variety with PK-based rules."""
+    if visit.status == VisitStatus.COMPLETE:
+        return "completed"
+    if (visit.id % 13) == 0:
+        return "cancelled"
+    if (visit.id % 17) == 0:
+        return "replanned"
+    return "upcoming"
+
+
+def _enrich_event(visit, short=False):
+    """Return the dict shape consumed by the calendar template's event chip."""
+    time_range = "—"
+    if visit.start_time and visit.end_time:
+        time_range = f"{visit.start_time.strftime('%H:%M')}-{visit.end_time.strftime('%H:%M')}"
+    client_name = visit.client.name if visit.client else ""
+    raw_title = visit.title or ""
+    if client_name and raw_title:
+        title = f"{client_name} – {raw_title}"
+    else:
+        title = client_name or raw_title or "Visit"
+    if len(title) > 40:
+        title = title[:39] + "…"
+    return {
+        "visit": visit,
+        "state": _visit_state(visit),
+        "time_range": time_range,
+        "title": title,
+        "short": short,
+    }
+
+
+def _build_hour_buckets(visits, default_start=9, default_end=18):
+    """Build a list of hour buckets for the Day view.
+
+    Each bucket: {hour: int, hour_label: str, events: list of enriched events}.
+    Extends past default_start..default_end if any visit falls outside that
+    range."""
+    hours_with_events = set()
+    for v in visits:
+        if v.start_time:
+            hours_with_events.add(v.start_time.hour)
+    start_hour = min([default_start] + list(hours_with_events))
+    end_hour = max([default_end] + list(hours_with_events))
+    buckets = []
+    for h in range(start_hour, end_hour + 1):
+        events = [
+            _enrich_event(v, short=False)
+            for v in visits
+            if v.start_time and v.start_time.hour == h
+        ]
+        buckets.append(
+            {
+                "hour": h,
+                "hour_label": f"{h:02d}:00",
+                "events": events,
+            }
+        )
+    return buckets
+
+
+def _build_mini_cal_month(target_date):
+    """Build a 6×7 month grid for the mini-calendar on Day mode.
+
+    Returns a list of 42 cell dicts: {day_num, iso, in_month, is_today, is_selected}."""
+    from datetime import timedelta
+    from django.utils import timezone
+
+    today = timezone.now().date()
+    first_of_month = target_date.replace(day=1)
+    offset = first_of_month.weekday()
+    grid_start = first_of_month - timedelta(days=offset)
+
+    cells = []
+    for i in range(42):
+        d = grid_start + timedelta(days=i)
+        cells.append(
+            {
+                "day_num": d.day,
+                "iso": d.isoformat(),
+                "in_month": d.month == target_date.month,
+                "is_today": d == today,
+                "is_selected": d == target_date,
+            }
+        )
+    return cells
+
+
+def calendar_extras(context):
+    """Mutate the VisitCalendarView context dict in place.
+
+    Branches on context['view_mode'] ('week' or 'day'). Required upstream keys:
+    target_date, view_mode, and either 'weeks' (week mode) or 'visits_for_day'
+    (day mode)."""
+    target_date = context["target_date"]
+    view_mode = context.get("view_mode", "week")
+
+    context["month_label"] = target_date.strftime("%B %Y")
+    if view_mode == "day":
+        from django.utils import timezone
+        today = timezone.now().date()
+        context["nav_label"] = "Today" if target_date == today else target_date.strftime("%A")
+    else:
+        context["nav_label"] = "This week"
+
+    context.setdefault("status_filter", "all")
+
+    if view_mode == "day":
+        visits_for_day = context.get("visits_for_day") or []
+        context["hour_buckets"] = _build_hour_buckets(visits_for_day)
+        context["month_grid"] = _build_mini_cal_month(target_date)
+        context["day_visit_count"] = len(visits_for_day)
+    else:
+        from django.utils import timezone
+        today = timezone.now().date()
+        enriched_weeks = []
+        for week in context.get("weeks", []):
+            days = []
+            week_dates = []
+            for day in week:
+                d_date = day.get("date")
+                week_dates.append(d_date)
+                events_enriched = [
+                    _enrich_event(v, short=True) for v in (day.get("visits") or [])
+                ]
+                days.append(
+                    {
+                        **day,
+                        "events_enriched": events_enriched,
+                        "has_events": bool(events_enriched),
+                    }
+                )
+            is_current_week = today in week_dates
+            enriched_weeks.append(
+                {
+                    "days": days,
+                    "is_current_week": is_current_week,
+                }
+            )
+        context["weeks_enriched"] = enriched_weeks

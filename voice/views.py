@@ -1652,6 +1652,17 @@ class VisitCalendarView(SuperuserRequiredMixin, View):
         agent_id = request.GET.get('agent', '')
         date_str = request.GET.get('date', '')
 
+        if view_mode == 'month':
+            # Old bookmark — redirect to week
+            target_iso = request.GET.get('date') or ''
+            return redirect(f"{request.path}?view=week&date={target_iso}")
+        if view_mode not in ('week', 'day'):
+            view_mode = 'week'
+
+        status_filter = request.GET.get('filter', 'all')
+        if status_filter not in ('all', 'upcoming', 'completed', 'cancelled'):
+            status_filter = 'all'
+
         if date_str:
             try:
                 target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
@@ -1667,42 +1678,40 @@ class VisitCalendarView(SuperuserRequiredMixin, View):
             except User.DoesNotExist:
                 pass
 
-        if view_mode == 'month':
-            first_day = target_date.replace(day=1)
-            last_day_num = cal_mod.monthrange(target_date.year, target_date.month)[1]
-            last_day = target_date.replace(day=last_day_num)
-            start_date = first_day - timedelta(days=first_day.weekday())
-            end_date = last_day + timedelta(days=6 - last_day.weekday())
-            prev_date = (first_day - timedelta(days=1)).strftime('%Y-%m-%d')
-            next_date = (last_day + timedelta(days=1)).strftime('%Y-%m-%d')
-            title = target_date.strftime('%B %Y')
-        else:
+        if view_mode == 'day':
+            visits_for_day = list(get_visits_for_range(target_date, target_date, agent=agent))
+            prev_date = (target_date - timedelta(days=1)).strftime('%Y-%m-%d')
+            next_date = (target_date + timedelta(days=1)).strftime('%Y-%m-%d')
+            title = target_date.strftime('%A, %B %d, %Y')
+            weeks = []
+            visits = get_visits_for_range(target_date, target_date, agent=agent)
+        else:  # week (default)
             start_date = target_date - timedelta(days=target_date.weekday())
             end_date = start_date + timedelta(days=6)
             prev_date = (start_date - timedelta(days=7)).strftime('%Y-%m-%d')
             next_date = (start_date + timedelta(days=7)).strftime('%Y-%m-%d')
             title = f"{start_date.strftime('%b %d')} - {end_date.strftime('%b %d, %Y')}"
+            visits = get_visits_for_range(start_date, end_date, agent=agent)
 
-        visits = get_visits_for_range(start_date, end_date, agent=agent)
+            visits_by_date = {}
+            for v in visits:
+                day = v.start_time.date()
+                visits_by_date.setdefault(day, []).append(v)
 
-        visits_by_date = {}
-        for v in visits:
-            day = v.start_time.date()
-            visits_by_date.setdefault(day, []).append(v)
-
-        weeks = []
-        current = start_date
-        while current <= end_date:
-            week = []
-            for _ in range(7):
-                week.append({
-                    'date': current,
-                    'visits': visits_by_date.get(current, []),
-                    'is_today': current == timezone.now().date(),
-                    'is_current_month': current.month == target_date.month,
-                })
-                current += timedelta(days=1)
-            weeks.append(week)
+            weeks = []
+            current = start_date
+            while current <= end_date:
+                week = []
+                for _ in range(7):
+                    week.append({
+                        'date': current,
+                        'visits': visits_by_date.get(current, []),
+                        'is_today': current == timezone.now().date(),
+                        'is_current_month': current.month == target_date.month,
+                    })
+                    current += timedelta(days=1)
+                weeks.append(week)
+            visits_for_day = []
 
         agents = User.objects.filter(is_sales_agent=True).order_by('username')
 
@@ -1726,6 +1735,7 @@ class VisitCalendarView(SuperuserRequiredMixin, View):
 
         context = {
             'weeks': weeks,
+            'visits_for_day': visits_for_day,
             'view_mode': view_mode,
             'target_date': target_date,
             'title': title,
@@ -1738,5 +1748,7 @@ class VisitCalendarView(SuperuserRequiredMixin, View):
             'complete_count': complete_count,
             'planned_count': planned_count,
             'agent_color_map': agent_color_map,
+            'status_filter': status_filter,
         }
+        placeholders.calendar_extras(context)
         return render(request, 'voice/manager/visit_calendar.html', context)

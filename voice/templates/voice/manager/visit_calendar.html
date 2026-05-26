@@ -1,118 +1,126 @@
-{% extends 'voice/base.html' %}
+{% extends "voice/base.html" %}
+{% load static %}
 
-{% block title %}Calendar - Sales Assistant{% endblock %}
+{% block title %}Calendar — Sales Assistant{% endblock %}
 
-{% block page_header %}
-<div class="flex items-center justify-between">
-    <div>
-        <h1 class="text-xl font-bold text-slate-900">{{ title }}</h1>
-        <p class="text-sm text-slate-500">
-            {{ total_visits }} visit{{ total_visits|pluralize }}
-            {% if complete_count %}&middot; {{ complete_count }} complete{% endif %}
-            {% if planned_count %}&middot; {{ planned_count }} planned{% endif %}
-        </p>
-    </div>
-    <div class="flex items-center gap-2">
-        <!-- View toggle -->
-        <div class="flex rounded-lg border border-slate-200 overflow-hidden">
-            <a href="?view=week&date={{ target_date|date:'Y-m-d' }}{% if agent_filter %}&agent={{ agent_filter }}{% endif %}"
-               class="px-3 py-1.5 text-xs font-medium transition-colors {% if view_mode == 'week' %}bg-slate-800 text-white{% else %}bg-white text-slate-600 hover:bg-slate-50{% endif %}">Week</a>
-            <a href="?view=month&date={{ target_date|date:'Y-m-d' }}{% if agent_filter %}&agent={{ agent_filter }}{% endif %}"
-               class="px-3 py-1.5 text-xs font-medium transition-colors {% if view_mode == 'month' %}bg-slate-800 text-white{% else %}bg-white text-slate-600 hover:bg-slate-50{% endif %}">Month</a>
-        </div>
-        <!-- Navigation -->
-        <div class="flex items-center gap-1">
-            <a href="?view={{ view_mode }}&date={{ prev_date }}{% if agent_filter %}&agent={{ agent_filter }}{% endif %}"
-               class="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center hover:bg-slate-50 transition-colors">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
-            </a>
-            <a href="?view={{ view_mode }}&date={{ today|date:'Y-m-d' }}{% if agent_filter %}&agent={{ agent_filter }}{% endif %}"
-               class="px-3 h-8 rounded-lg border border-slate-200 flex items-center text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors">Today</a>
-            <a href="?view={{ view_mode }}&date={{ next_date }}{% if agent_filter %}&agent={{ agent_filter }}{% endif %}"
-               class="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center hover:bg-slate-50 transition-colors">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-            </a>
-        </div>
-    </div>
+{% block header_utility %}
+<div class="toggle">
+    <a href="?view=week&date={{ target_date|date:'Y-m-d' }}" class="{% if view_mode == 'week' %}on{% endif %}">Week</a>
+    <a href="?view=day&date={{ target_date|date:'Y-m-d' }}" class="{% if view_mode == 'day' %}on{% endif %}">Day</a>
 </div>
+<div class="cal-nav">
+    <a href="?view={{ view_mode }}&date={{ prev_date|date:'Y-m-d' }}" class="icon-btn" aria-label="Previous"><span class="ic ic-angle-left"></span></a>
+    <span class="cal-nav-label">{{ nav_label }}</span>
+    <a href="?view={{ view_mode }}&date={{ next_date|date:'Y-m-d' }}" class="icon-btn" aria-label="Next"><span class="ic ic-angle-right"></span></a>
+</div>
+{% endblock %}
+
+{% block display_title %}{{ month_label }}{% endblock %}
+
+{% block header_filters %}
+<div class="filters">
+    <a href="?view={{ view_mode }}&date={{ target_date|date:'Y-m-d' }}&filter=all" class="{% if status_filter == 'all' %}on{% endif %}">All</a>
+    <a href="?view={{ view_mode }}&date={{ target_date|date:'Y-m-d' }}&filter=upcoming" class="{% if status_filter == 'upcoming' %}on{% endif %}">Upcoming</a>
+    <a href="?view={{ view_mode }}&date={{ target_date|date:'Y-m-d' }}&filter=completed" class="{% if status_filter == 'completed' %}on{% endif %}">Completed</a>
+    <a href="?view={{ view_mode }}&date={{ target_date|date:'Y-m-d' }}&filter=cancelled" class="{% if status_filter == 'cancelled' %}on{% endif %}">Cancelled</a>
+</div>
+{% endblock %}
+
+{% block header_actions %}
+<form method="get" style="display:inline-flex;align-items:center;">
+    <input type="hidden" name="view" value="{{ view_mode }}">
+    <input type="hidden" name="date" value="{{ target_date|date:'Y-m-d' }}">
+    <input type="hidden" name="filter" value="{{ status_filter }}">
+    <select name="agent" onchange="this.form.submit()" class="fb-pill" style="height:36px;padding:0 14px;border:1px solid var(--border-default);border-radius:var(--radius-pill);background:var(--bg-surface);font-family:var(--font-ui);font-weight:700;font-size:13px;color:var(--fg-strong);">
+        <option value="">All agents</option>
+        {% for a in agents %}<option value="{{ a.id }}" {% if agent_filter == a.id|stringformat:'s' %}selected{% endif %}>{{ a.get_full_name|default:a.username }}</option>{% endfor %}
+    </select>
+</form>
+<a href="#" class="btn btn-primary"><span class="ic ic-plus ic-14"></span> New</a>
+<button class="icon-btn" type="button" aria-label="Search"><span class="ic ic-search ic-16"></span></button>
 {% endblock %}
 
 {% block content %}
 
-<!-- Agent filter + Legend row -->
-<div class="flex flex-wrap items-center justify-between gap-3 mb-4">
-    <form method="get" class="flex items-center gap-2">
-        <input type="hidden" name="view" value="{{ view_mode }}">
-        <input type="hidden" name="date" value="{{ target_date|date:'Y-m-d' }}">
-        <select name="agent" class="h-8 rounded-lg border border-slate-200 text-xs text-slate-600 pl-3 pr-8 bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-400" onchange="this.form.submit()">
-            <option value="">All Agents</option>
-            {% for a in agents %}
-            <option value="{{ a.id }}" {% if agent_filter == a.id|stringformat:"d" %}selected{% endif %}>
-                {{ a.get_full_name|default:a.username }}
-            </option>
-            {% endfor %}
-        </select>
-    </form>
-    <div class="flex items-center gap-4 text-[10px] text-slate-400">
-        <div class="flex items-center gap-1"><div class="w-2.5 h-2.5 rounded-full bg-slate-200"></div> Planned</div>
-        <div class="flex items-center gap-1"><div class="w-2.5 h-2.5 rounded-full bg-teal-400"></div> Pre-Call</div>
-        <div class="flex items-center gap-1"><div class="w-2.5 h-2.5 rounded-full bg-blue-400"></div> Active</div>
-        <div class="flex items-center gap-1"><div class="w-2.5 h-2.5 rounded-full bg-indigo-400"></div> Debriefed</div>
-        <div class="flex items-center gap-1"><div class="w-2.5 h-2.5 rounded-full bg-emerald-400"></div> Complete</div>
-    </div>
-</div>
+<div class="calendar-body" data-filter="{{ status_filter|default:'all' }}">
 
-<!-- Calendar Grid -->
-<div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
-    <!-- Day headers -->
-    <div class="grid grid-cols-7 border-b border-slate-100">
-        <div class="text-center text-[10px] font-semibold text-slate-400 uppercase tracking-wider py-2.5">Mon</div>
-        <div class="text-center text-[10px] font-semibold text-slate-400 uppercase tracking-wider py-2.5">Tue</div>
-        <div class="text-center text-[10px] font-semibold text-slate-400 uppercase tracking-wider py-2.5">Wed</div>
-        <div class="text-center text-[10px] font-semibold text-slate-400 uppercase tracking-wider py-2.5">Thu</div>
-        <div class="text-center text-[10px] font-semibold text-slate-400 uppercase tracking-wider py-2.5">Fri</div>
-        <div class="text-center text-[10px] font-semibold text-slate-400 uppercase tracking-wider py-2.5 text-slate-300">Sat</div>
-        <div class="text-center text-[10px] font-semibold text-slate-400 uppercase tracking-wider py-2.5 text-slate-300">Sun</div>
-    </div>
+{% if view_mode == 'week' %}
 
-    <!-- Weeks -->
-    {% for week in weeks %}
-    <div class="grid grid-cols-7 {% if not forloop.last %}border-b border-slate-50{% endif %}">
-        {% for day in week %}
-        <div class="border-r border-slate-50 last:border-r-0 {% if view_mode == 'week' %}min-h-[140px]{% else %}min-h-[100px]{% endif %} p-1.5 {% if day.is_today %}bg-teal-50/50{% endif %} {% if not day.is_current_month %}opacity-30{% endif %}">
-            <!-- Date number -->
-            <div class="flex items-center justify-between mb-1">
-                {% if day.is_today %}
-                <div class="w-6 h-6 rounded-full bg-teal-500 flex items-center justify-center">
-                    <span class="text-[10px] font-bold text-white">{{ day.date.day }}</span>
-                </div>
-                {% else %}
-                <span class="text-[10px] text-slate-400 pl-0.5">{{ day.date.day }}</span>
-                {% endif %}
-                {% if day.visits %}
-                <span class="text-[9px] text-slate-300">{{ day.visits|length }}</span>
-                {% endif %}
+<div class="week-grid">
+    {% for week in weeks_enriched %}
+    <div class="week-row{% if week.is_current_week %} this-week{% endif %}">
+        {% if week.is_current_week %}<span class="this-week-badge">This week</span>{% endif %}
+        {% for day in week.days %}
+        <div class="day-cell{% if not day.has_events %} empty{% endif %}">
+            <div class="dow-line">
+                <span class="dow">{{ day.date|date:"D" }}</span>
+                <span class="dnum{% if day.is_today %} today-circle{% endif %}">{{ day.date|date:"j" }}</span>
             </div>
-            <!-- Visits -->
-            {% for visit in day.visits %}
-            <a href="{% url 'voice:visit_detail' visit.id %}"
-               class="block mb-0.5 rounded-md px-1.5 py-1 text-[10px] truncate transition-colors hover:ring-1 hover:ring-slate-300
-                      {% if visit.status == 'COMPLETE' %}bg-emerald-50 text-emerald-700 border-l-2 border-emerald-400
-                      {% elif visit.status == 'POST_CALL_DONE' %}bg-indigo-50 text-indigo-700 border-l-2 border-indigo-400
-                      {% elif visit.status == 'PRE_CALL_DONE' %}bg-teal-50 text-teal-700 border-l-2 border-teal-400
-                      {% elif visit.status == 'IN_PROGRESS' %}bg-blue-50 text-blue-700 border-l-2 border-blue-400
-                      {% else %}bg-slate-50 text-slate-600 border-l-2 border-slate-300{% endif %}">
-                <span class="font-semibold">{{ visit.start_time|date:"H:i" }}</span>
-                {% if visit.client %}{{ visit.client.name|truncatewords:2 }}{% else %}{{ visit.title|truncatewords:2 }}{% endif %}
-                {% if not agent_filter %}
-                <span class="opacity-50">{{ visit.agent.username|first|upper }}{{ visit.agent.username|make_list|last }}</span>
-                {% endif %}
-            </a>
-            {% endfor %}
+            <div class="events">
+                {% for ev in day.events_enriched %}
+                <a href="{% url 'voice:visit_detail' visit_id=ev.visit.id %}" class="event-chip event-chip-{{ ev.state }} short">
+                    <div class="top">
+                        <span class="time">{{ ev.time_range }}</span>
+                        {% if ev.state == 'completed' %}<span class="state-icon ic ic-check"></span>
+                        {% elif ev.state == 'cancelled' %}<span class="state-icon ic ic-ban"></span>{% endif %}
+                    </div>
+                </a>
+                {% empty %}
+                <span class="no-events">No events</span>
+                {% endfor %}
+            </div>
         </div>
         {% endfor %}
     </div>
     {% endfor %}
+</div>
+
+{% else %}
+
+<div class="day-layout">
+    <div class="day-stream">
+        {% for bucket in hour_buckets %}
+        <div class="hour-row">
+            <span class="time-label">{{ bucket.hour_label }}</span>
+            <div class="slot">
+                {% for ev in bucket.events %}
+                <a href="{% url 'voice:visit_detail' visit_id=ev.visit.id %}" class="event-chip event-chip-{{ ev.state }}">
+                    <div class="top">
+                        <span class="time">{{ ev.time_range }}</span>
+                        {% if ev.state == 'completed' %}<span class="state-icon ic ic-check"></span>
+                        {% elif ev.state == 'cancelled' %}<span class="state-icon ic ic-ban"></span>{% endif %}
+                    </div>
+                    <div class="title">{{ ev.title }}</div>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <aside class="day-aside">
+        <div class="mini-cal">
+            <div class="mini-cal-head">
+                <a href="#" class="nav-btn" aria-label="Previous month">←</a>
+                <span class="label">{{ month_label }}</span>
+                <a href="#" class="nav-btn" aria-label="Next month">→</a>
+            </div>
+            <div class="mini-cal-grid">
+                <span class="dow-h">Mon</span><span class="dow-h">Tue</span><span class="dow-h">Wed</span><span class="dow-h">Thu</span><span class="dow-h">Fri</span><span class="dow-h">Sat</span><span class="dow-h">Sun</span>
+                {% for day in month_grid %}
+                <a href="?view=day&date={{ day.iso }}&filter={{ status_filter }}" class="mini-cal-day{% if not day.in_month %} dim{% endif %}{% if day.is_today %} today{% endif %}{% if day.is_selected %} selected{% endif %}">{{ day.day_num }}</a>
+                {% endfor %}
+            </div>
+        </div>
+        <div class="day-overview">
+            <h3>Day overview</h3>
+            <p>{{ day_visit_count }} visit{{ day_visit_count|pluralize }} on {{ target_date|date:"l, F j" }}</p>
+        </div>
+    </aside>
+</div>
+
+{% endif %}
+
 </div>
 
 {% endblock %}
