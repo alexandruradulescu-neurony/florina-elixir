@@ -108,7 +108,7 @@
                         <span class="acct">{{ s.visit.client.name|default:"—" }}</span>
                         <span class="when">{{ s.visit.end_time|date:"D H:i" }}</span>
                     </div>
-                    <div class="txt">{{ s.visit.post_call_summary|default:"Summary pending." }}</div>
+                    <div class="txt">{{ s.visit.recent_summary_text|default:s.visit.post_call_summary|default:"Sumar în curs de generare." }}</div>
                     <div class="chips">
                         {% for chip in s.chips %}{% include "voice/partials/outcome_chip.html" with label=chip.0 tone=chip.1 %}{% endfor %}
                     </div>
@@ -136,9 +136,9 @@
     </div>
 </div>
 
-{# ─── Today's Timeline ─── #}
+{# ─── Today's Timeline (or Upcoming if today is empty) ─── #}
 <div>
-    <div class="section-head"><h2>Today's Timeline</h2></div>
+    <div class="section-head"><h2>{{ timeline_heading|default:"Today's Timeline" }}</h2>{% if timeline_is_fallback %}<span class="t-caption">Astăzi nu sunt vizite — afișăm următoarele programate.</span>{% endif %}</div>
     <table class="tbl">
         <thead>
             <tr>
@@ -156,8 +156,8 @@
                 <td class="time-cell">
                     <div class="time">{{ tv.visit.start_time|date:"H:i" }}–{{ tv.visit.end_time|date:"H:i" }}</div>
                     <div class="marks">
-                        {% include "voice/partials/call_phase_icon.html" with phase="pre" state="done" %}
-                        {% include "voice/partials/call_phase_icon.html" with phase="post" state="todo" %}
+                        {% include "voice/partials/call_phase_icon.html" with phase="pre" state=tv.pre_state %}
+                        {% include "voice/partials/call_phase_icon.html" with phase="post" state=tv.post_state %}
                     </div>
                 </td>
                 <td class="agent-cell">
@@ -181,7 +181,7 @@
                 <td><a class="kebab-btn" href="{% url 'voice:visit_detail' visit_id=tv.visit.id %}"><span class="ic ic-menu-dots"></span></a></td>
             </tr>
             {% empty %}
-            <tr><td colspan="6" style="text-align:center;padding:32px;color:var(--fg-muted);">No visits scheduled today.</td></tr>
+            <tr><td colspan="6" style="text-align:center;padding:32px;color:var(--fg-muted);">Nicio vizită programată.</td></tr>
             {% endfor %}
         </tbody>
     </table>

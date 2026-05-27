@@ -948,12 +948,54 @@ def get_weekly_summary(target_date=None):
 
 
 def get_recent_post_call_summaries(limit=5):
-    """Get the most recent post-call summaries from completed visits."""
-    return Visit.objects.filter(
+    """Get the most recent post-call summaries.
+
+    Sources, in priority order:
+      1. CallAttempt(phase=POST, status=COMPLETED) with non-empty summary
+         (this is where Claude writes the Romanian summary).
+      2. Visit.post_call_summary (legacy field) as a fallback.
+
+    Returns a list of Visit objects, each with `.recent_summary_text`
+    attached for display (the actual summary string the template should
+    show)."""
+    from .constants import CallPhase, CallStatus
+
+    # Recent CallAttempts with summary
+    ca_qs = CallAttempt.objects.filter(
+        phase=CallPhase.POST_MEETING,
+        status=CallStatus.COMPLETED,
+        visit__isnull=False,
+    ).exclude(summary='').select_related(
+        'visit', 'visit__agent', 'visit__client'
+    ).order_by('-executed_at', '-created_at')
+
+    seen_visit_ids = set()
+    results = []
+    for ca in ca_qs:
+        if ca.visit_id in seen_visit_ids:
+            continue
+        seen_visit_ids.add(ca.visit_id)
+        visit = ca.visit
+        visit.recent_summary_text = ca.summary
+        results.append(visit)
+        if len(results) >= limit:
+            return results
+
+    # Fall back to legacy Visit.post_call_summary
+    legacy_qs = Visit.objects.filter(
         post_call_summary__isnull=False,
     ).exclude(
         post_call_summary='',
-    ).select_related('agent', 'client').order_by('-end_time')[:limit]
+    ).exclude(
+        id__in=seen_visit_ids,
+    ).select_related('agent', 'client').order_by('-end_time')
+
+    for v in legacy_qs:
+        v.recent_summary_text = v.post_call_summary
+        results.append(v)
+        if len(results) >= limit:
+            break
+    return results
 
 
 def get_next_upcoming_visit():

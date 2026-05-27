@@ -44,19 +44,58 @@ def visit_ministats(visit):
 def outcome_chips_for_summary(visit):
     """Return a list of (label, tone) for a Recent Summaries row.
 
-    Real source: LLM extraction of outcome signals from
-    visit.post_call_summary."""
-    pool = [
-        ("WIN SIGNAL", "green"),
-        ("NEXT: PROPOSAL", "cream"),
-        ("RISK: BUDGET", "rose"),
-        ("NEXT: DEMO", "cream"),
-        ("CHAMPION: STRONG", "green"),
-        ("RISK: COMPETITOR", "rose"),
-    ]
-    n_chips = 1 + (visit.id % 2)
-    start = visit.id % len(pool)
-    return [pool[(start + i) % len(pool)] for i in range(n_chips)]
+    Derived from the latest post-call CallAttempt's Claude analysis:
+      - objective_attained → 'Obiectiv atins' (green) / 'Obiectiv parțial'
+        (cream) / 'Obiectiv ratat' (rose)
+      - no_go.is_no_go → 'NO-GO' (rose)
+      - champion_strength in (strong, champion) → 'Sprijin client puternic' (green)
+      - len(risks) >= 1 → 'X riscuri' (cream)
+
+    Returns [] if no analysis is available — caller hides the chip strip.
+    """
+    try:
+        from voice.models import CallAttempt
+    except Exception:
+        return []
+    ca = (
+        CallAttempt.objects
+        .filter(visit=visit, phase='POST', status='COMPLETED')
+        .exclude(analysis={})
+        .order_by('-executed_at', '-created_at')
+        .first()
+    )
+    if not ca or not ca.analysis:
+        return []
+
+    a = ca.analysis
+    chips = []
+
+    obj = (a.get('objective_attained') or '').lower()
+    if obj == 'attained':
+        chips.append(("Obiectiv atins", "green"))
+    elif obj == 'partial':
+        chips.append(("Obiectiv parțial", "cream"))
+    elif obj == 'missed':
+        chips.append(("Obiectiv ratat", "rose"))
+
+    no_go = a.get('no_go') or {}
+    if no_go.get('is_no_go'):
+        chips.append(("NO-GO", "rose"))
+
+    champ = (a.get('champion_strength') or '').lower()
+    if champ in ('strong', 'champion'):
+        chips.append(("Sprijin client puternic", "green"))
+
+    risks = a.get('risks') or []
+    if len(risks) >= 1:
+        chips.append((f"{len(risks)} risc{'uri' if len(risks) > 1 else ''}", "cream"))
+
+    consistency = a.get('consistency_check') or {}
+    if consistency.get('has_pre_call_summary') and not consistency.get('consistent'):
+        n = len(consistency.get('discrepancies') or [])
+        chips.append((f"{n} inconsecvențe pre↔post", "rose"))
+
+    return chips[:3]  # cap to keep the row tidy
 
 
 def crm_state(visit):
@@ -70,13 +109,13 @@ def crm_state(visit):
 
 
 def agent_success_rate(agent, completed=None, total=None):
-    """Return a string like '78%'.
+    """Return a real success-rate string, or '—' when there's no data yet.
 
-    Uses real ratio when both completed and total are provided; falls back to
-    a stable mock derived from agent.id otherwise."""
+    Uses completed/total if both are provided; otherwise returns '—' instead
+    of fabricating a number from agent.id."""
     if total and total > 0:
         return f"{int(100 * (completed or 0) / total)}%"
-    return f"{55 + (agent.id % 35)}%"
+    return "—"
 
 
 def agent_readiness_bars(agent_card):
@@ -201,15 +240,34 @@ def dashboard_extras(context):
     else:
         context["next_visit_chip"] = None
 
-    # Today's visits — enrich with palette + active flag
+    # Today's visits — enrich with palette + active flag + real pre/post call state.
+    # If today is empty but upcoming visits exist, fall back to the next non-empty
+    # day so the section is never just "No visits scheduled today" during the demo.
+    todays = list(context["todays_visits"])
+    fell_back = False
+    if not todays:
+        from voice.models import Visit as _V
+        from django.utils import timezone as _tz
+        upcoming = _V.objects.filter(
+            start_time__gte=_tz.now()
+        ).select_related('agent', 'client', 'methodology').order_by('start_time')[:5]
+        todays = list(upcoming)
+        fell_back = bool(todays)
+
     context["todays_visits_enriched"] = [
         {
             "visit": v,
             "avatar_palette": agent_palette(v.agent),
             "is_active": v.status == VisitStatus.IN_PROGRESS,
+            "pre_state":  _call_state_for_phase(v, 'PRE'),
+            "post_state": _call_state_for_phase(v, 'POST'),
         }
-        for v in context["todays_visits"]
+        for v in todays
     ]
+    context["timeline_is_fallback"] = fell_back
+    context["timeline_heading"] = (
+        "Vizite ce urmează" if fell_back else "Vizitele de astăzi"
+    )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
