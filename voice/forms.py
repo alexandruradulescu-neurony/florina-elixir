@@ -148,7 +148,9 @@ class VisitManagerNotesForm(forms.ModelForm):
 
     class Meta:
         model = Visit
-        fields = ['manager_notes', 'methodology', 'pre_call_prompt', 'post_call_prompt']
+        fields = ['manager_notes', 'methodology',
+                  'pre_call_prompt', 'pre_call_first_message',
+                  'post_call_prompt', 'post_call_first_message']
         widgets = {
             'manager_notes': forms.Textarea(attrs={
                 'placeholder': 'Special requirements for this visit (e.g., "Push for Q3 close", "Ask about new CTO")...',
@@ -158,9 +160,17 @@ class VisitManagerNotesForm(forms.ModelForm):
                 'placeholder': 'Paste the pre-call AI prompt here. Sent verbatim to ElevenLabs.',
                 'style': 'min-height:180px;font-family:ui-monospace,Menlo,monospace;font-size:12px;line-height:1.5;',
             }),
+            'pre_call_first_message': forms.Textarea(attrs={
+                'placeholder': 'Paste the first message the AI should say on the pre-call.',
+                'style': 'min-height:80px;font-family:ui-monospace,Menlo,monospace;font-size:12px;line-height:1.5;',
+            }),
             'post_call_prompt': forms.Textarea(attrs={
                 'placeholder': 'Paste the post-call AI prompt here. Sent verbatim to ElevenLabs.',
                 'style': 'min-height:180px;font-family:ui-monospace,Menlo,monospace;font-size:12px;line-height:1.5;',
+            }),
+            'post_call_first_message': forms.Textarea(attrs={
+                'placeholder': 'Paste the first message the AI should say on the post-call.',
+                'style': 'min-height:80px;font-family:ui-monospace,Menlo,monospace;font-size:12px;line-height:1.5;',
             }),
         }
 

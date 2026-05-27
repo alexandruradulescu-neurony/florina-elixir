@@ -188,7 +188,12 @@ class CallAttempt(models.Model):
         null=True,
         help_text="Title of the call summary from ElevenLabs"
     )
-    
+    analysis = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Structured analysis of the call transcript, produced by Claude after a post-call."
+    )
+
     scheduled_time = models.DateTimeField(
         null=True,
         blank=True,
@@ -465,10 +470,20 @@ class Visit(models.Model):
         null=True,
         help_text="LLM-generated prompt used for the pre-call"
     )
+    pre_call_first_message = models.TextField(
+        blank=True,
+        default="",
+        help_text="First message the AI says on the pre-call (override). Sent verbatim to ElevenLabs."
+    )
     post_call_prompt = models.TextField(
         blank=True,
         null=True,
         help_text="LLM-generated prompt used for the post-call"
+    )
+    post_call_first_message = models.TextField(
+        blank=True,
+        default="",
+        help_text="First message the AI says on the post-call (override). Sent verbatim to ElevenLabs."
     )
     post_call_summary = models.TextField(
         blank=True,

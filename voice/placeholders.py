@@ -413,7 +413,25 @@ def visit_detail_extras(visit, pre_calls, post_calls, effective_methodology):
             "has_recording": False,
         }
 
-    post_call_ministats = visit_ministats(visit)
+    # Prefer real Claude analysis from the latest post-call if present
+    last_post_with_analysis = None
+    for c in (post_calls or []):
+        if c.analysis:
+            last_post_with_analysis = c
+    if last_post_with_analysis:
+        a = last_post_with_analysis.analysis
+        tr = a.get('talk_ratio') or {}
+        post_call_ministats = {
+            'sentiment': a.get('sentiment_score', 0),
+            'sentiment_delta': a.get('sentiment', 'neutral'),
+            'talk_ratio': tr.get('agent', 0),
+            'objections': len(a.get('objections_raised') or []),
+            'champion': (a.get('champion_strength') or 'unknown').title(),
+        }
+        post_call_analysis = a
+    else:
+        post_call_ministats = visit_ministats(visit)
+        post_call_analysis = None
 
     # ─── client_intel ───
     intel_chip_pool = [
@@ -472,6 +490,7 @@ def visit_detail_extras(visit, pre_calls, post_calls, effective_methodology):
         "pre_call_panel": pre_call_panel,
         "post_call_panel": post_call_panel,
         "post_call_ministats": post_call_ministats,
+        "post_call_analysis": post_call_analysis,
         "client_intel_summary": client_intel_summary,
         "intel_chips": intel_chips,
         "intel_kpis": intel_kpis,

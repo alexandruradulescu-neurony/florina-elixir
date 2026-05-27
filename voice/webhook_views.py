@@ -174,7 +174,42 @@ class ElevenLabsWebhookView(View):
                     call_attempt.status = CallStatus.FAILED
             
             call_attempt.save()
-            
+
+            # Synchronous Claude analysis on post-call transcripts.
+            # Failures are logged but do not break the webhook response.
+            if (call_attempt.phase == CallPhase.POST_MEETING
+                    and call_attempt.transcript
+                    and call_attempt.transcript.strip()):
+                try:
+                    from voice.services.llm import analyze_post_call
+                    visit = call_attempt.visit
+                    post_prompt = visit.post_call_prompt if visit else ''
+                    visit_ctx_parts = []
+                    if visit:
+                        if visit.client:
+                            visit_ctx_parts.append(f"Client: {visit.client.name} ({visit.client.industry or 'industry unknown'})")
+                        if visit.agent:
+                            agent_name = visit.agent.get_full_name() or visit.agent.username
+                            visit_ctx_parts.append(f"Agent: {agent_name}")
+                        if visit.methodology:
+                            visit_ctx_parts.append(f"Methodology: {visit.methodology.name}")
+                        if visit.title:
+                            visit_ctx_parts.append(f"Meeting: {visit.title}")
+                    visit_context = " | ".join(visit_ctx_parts)
+                    analysis = analyze_post_call(
+                        transcript=call_attempt.transcript,
+                        post_call_prompt=post_prompt or '',
+                        visit_context=visit_context,
+                    )
+                    if analysis:
+                        call_attempt.analysis = analysis
+                        call_attempt.save(update_fields=['analysis'])
+                        logger.info(f"Claude analysis saved for CallAttempt #{call_attempt.id}")
+                    else:
+                        logger.warning(f"Claude analysis returned None for CallAttempt #{call_attempt.id}")
+                except Exception as e:
+                    logger.error(f"Claude analysis failed for CallAttempt #{call_attempt.id}: {e}", exc_info=True)
+
             # Update meeting completion status if call was successful
             if call_attempt.status == CallStatus.COMPLETED:
                 meeting = call_attempt.meeting

@@ -40,11 +40,11 @@ class Command(BaseCommand):
         Client.objects.filter(crm_id__startswith='DEMO-').delete()
         User.objects.filter(username__startswith='demo_').delete()
 
-        # Create 3 sales agents (user fills in phone via admin)
+        # Create 3 sales agents with Romanian names (user fills in phone via admin)
         AGENTS = [
-            ('demo_alex',   'Alex',   'Chen'),
-            ('demo_robyn',  'Robyn',  'Carter'),
-            ('demo_marcus', 'Marcus', 'Lee'),
+            ('demo_andrei', 'Andrei', 'Popescu'),
+            ('demo_mihai',  'Mihai',  'Ionescu'),
+            ('demo_vlad',   'Vlad',   'Marin'),
         ]
         agents = []
         for username, first, last in AGENTS:
@@ -92,7 +92,7 @@ class Command(BaseCommand):
 
         self.stdout.write(self.style.SUCCESS(f'Demo data seeded for {target_date}.'))
         self.stdout.write('Next steps:')
-        self.stdout.write('  1. Set phone numbers for demo_alex, demo_robyn, demo_marcus in /admin/')
+        self.stdout.write('  1. Set phone numbers for demo_andrei, demo_mihai, demo_vlad in /admin/')
         self.stdout.write('  2. Update ELEVENLABS_AGENT_ID env var to new agent ID')
         self.stdout.write('  3. Open each visit URL above and paste pre/post prompts')
         self.stdout.write('  4. Click "Run pre-call" / "Run post-call" on demo day')

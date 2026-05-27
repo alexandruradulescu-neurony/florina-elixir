@@ -835,9 +835,11 @@ def trigger_visit_call(visit, phase: str) -> Dict[str, Any]:
     # Phase mapping
     if phase == 'pre':
         prompt_text = visit.pre_call_prompt
+        first_message_text = visit.pre_call_first_message or ''
         call_phase = CallPhase.PRE_MEETING
     elif phase == 'post':
         prompt_text = visit.post_call_prompt
+        first_message_text = visit.post_call_first_message or ''
         call_phase = CallPhase.POST_MEETING
     else:
         result['error'] = f"Invalid phase '{phase}'. Expected 'pre' or 'post'."
@@ -885,7 +887,10 @@ def trigger_visit_call(visit, phase: str) -> Dict[str, Any]:
         status=CallStatus.INITIATED,
     )
 
-    # Build EL payload
+    # Build EL payload — matches recruitflow's payload exactly. EL requires
+    # both `prompt` and `first_message` keys present for the override to be
+    # honored; omitting first_message causes EL to silently fall back to the
+    # agent's dashboard-configured default prompt.
     payload = {
         'agent_id': agent_id,
         'agent_phone_number_id': phone_number_id,
@@ -894,6 +899,7 @@ def trigger_visit_call(visit, phase: str) -> Dict[str, Any]:
             'conversation_config_override': {
                 'agent': {
                     'prompt': {'prompt': prompt_text.strip()},
+                    'first_message': first_message_text.strip(),
                 },
             },
         },

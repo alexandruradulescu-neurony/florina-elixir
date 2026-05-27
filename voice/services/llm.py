@@ -168,6 +168,102 @@ def extract_pdf_text(file_path: str) -> str:
     return '\n\n'.join(text_parts)
 
 
+def analyze_post_call(transcript: str, post_call_prompt: str = '', visit_context: str = '') -> Optional[dict]:
+    """
+    Analyze a post-call transcript and return structured fields for CRM/Visit Detail.
+
+    Args:
+        transcript: Full call transcript text (Agent/User turns).
+        post_call_prompt: The prompt the AI used during the debrief — gives Claude
+                          context on what the agent was probing for.
+        visit_context: Free-form context about the visit (client, agent, methodology).
+
+    Returns:
+        dict matching the agreed schema, or None on failure.
+    """
+    import json
+
+    schema = '''
+{
+  "summary": "<3-5 sentence CRM-ready paragraph in neutral business tone>",
+  "objective_attained": "attained" | "partial" | "missed",
+  "objective_assessment": "<one paragraph explaining whether the meeting objective was hit and why>",
+  "actionables": [
+    {"owner": "agent" | "client" | "other", "action": "<verb-led action>", "due": "<YYYY-MM-DD or null>"}
+  ],
+  "recommendations": ["<short string, what the agent should do differently or better next time>"],
+  "next_best_actions": [
+    {"action": "<concrete next step to drive the deal>", "rationale": "<why>", "timing": "today" | "within 7 days" | "within 30 days" | "<custom>"}
+  ],
+  "no_go": {
+    "is_no_go": true | false,
+    "reason": "<why the deal is dead, or null>",
+    "salvage_path": "<what could revive it, or null, or 'abandoned'>"
+  },
+  "sentiment": "positive" | "neutral" | "negative" | "mixed",
+  "sentiment_score": <integer 0-100>,
+  "talk_ratio": {"agent": <integer 0-100>, "client": <integer 0-100>},
+  "objections_raised": ["<short string>"],
+  "objections_handled": ["<short string with how it was addressed>"],
+  "champion_strength": "weak" | "moderate" | "strong" | "champion",
+  "risks": ["<short string>"]
+}
+'''.strip()
+
+    system = (
+        "You are an expert sales operations analyst. You will read a post-meeting "
+        "debrief transcript between an AI coach and a sales agent. The agent was "
+        "asked specific questions about a recent client meeting. Your job is to "
+        "extract structured analysis suitable for a CRM and a sales manager "
+        "dashboard.\n\n"
+        "Return ONLY a single JSON object matching this schema, with no prose, "
+        "no markdown fences, no commentary:\n\n"
+        f"{schema}\n\n"
+        "Rules:\n"
+        "- talk_ratio.agent + talk_ratio.client must sum to 100.\n"
+        "- sentiment_score must be an integer 0-100.\n"
+        "- objective_attained must be exactly one of: 'attained', 'partial', 'missed'.\n"
+        "- If is_no_go is false, reason and salvage_path may be null.\n"
+        "- Use empty arrays for missing list fields, not null.\n"
+        "- Be specific and concrete in actionables and next_best_actions — avoid vague verbs.\n"
+        "- If the transcript is too short or empty to analyze, return all-empty defaults but valid JSON."
+    )
+
+    parts = []
+    if visit_context:
+        parts.append(f"## Visit context\n{visit_context}")
+    if post_call_prompt:
+        parts.append(f"## Original debrief prompt (what the AI was probing for)\n{post_call_prompt}")
+    parts.append(f"## Transcript\n{transcript}")
+    user_msg = "\n\n".join(parts)
+
+    raw = _call_claude(system, user_msg, max_tokens=4096)
+    if not raw:
+        return None
+
+    # Strip optional markdown fences if Claude added them anyway
+    text = raw.strip()
+    if text.startswith("```"):
+        # Remove leading ```json or ``` and trailing ```
+        text = text.split("```", 2)
+        if len(text) >= 3:
+            text = text[1]
+            if text.startswith("json"):
+                text = text[4:]
+            text = text.strip()
+        else:
+            text = raw.strip()
+
+    try:
+        data = json.loads(text)
+        if not isinstance(data, dict):
+            raise ValueError("Expected JSON object")
+        return data
+    except (json.JSONDecodeError, ValueError) as e:
+        logger.error(f"Claude returned invalid JSON for post-call analysis: {e}\nRaw: {raw[:500]}")
+        return None
+
+
 def chat_with_data(messages: list, data_context: str) -> Optional[str]:
     """
     Multi-turn chat with database context for the Live Agent feature.

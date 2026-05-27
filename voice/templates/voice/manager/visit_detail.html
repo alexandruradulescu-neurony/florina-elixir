@@ -122,6 +122,125 @@
             </div>
         </div>
 
+        {% if post_call_analysis %}
+
+        {# ─── No-go banner (only when AI flagged this conversation as killing the deal) ─── #}
+        {% if post_call_analysis.no_go.is_no_go %}
+        <div class="no-go-banner">
+            <h3>⚠ No-go signal</h3>
+            {% if post_call_analysis.no_go.reason %}
+            <div class="body">{{ post_call_analysis.no_go.reason }}</div>
+            {% endif %}
+            {% if post_call_analysis.no_go.salvage_path %}
+            <div class="salvage">Salvage path: {{ post_call_analysis.no_go.salvage_path }}</div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        {# ─── Objective attainment ─── #}
+        <div class="dcard objective-card">
+            <h3>Objective attainment</h3>
+            <div class="pill-row">
+                {% if post_call_analysis.objective_attained == 'attained' %}
+                    {% include "voice/partials/status_pill.html" with variant="green" label="Attained" %}
+                {% elif post_call_analysis.objective_attained == 'partial' %}
+                    {% include "voice/partials/status_pill.html" with variant="cream" label="Partial" %}
+                {% elif post_call_analysis.objective_attained == 'missed' %}
+                    {% include "voice/partials/status_pill.html" with variant="rose" label="Missed" %}
+                {% else %}
+                    {% include "voice/partials/status_pill.html" with variant="cream" label="Unknown" %}
+                {% endif %}
+            </div>
+            {% if post_call_analysis.objective_assessment %}
+            <p class="assessment">{{ post_call_analysis.objective_assessment }}</p>
+            {% endif %}
+        </div>
+
+        {# ─── Actionables ─── #}
+        {% if post_call_analysis.actionables %}
+        <div class="dcard">
+            <h3>Actionables</h3>
+            <div class="actionables-list">
+                {% for a in post_call_analysis.actionables %}
+                <div class="actionable">
+                    <span class="owner-pill {{ a.owner|default:'other' }}">{{ a.owner|default:'other' }}</span>
+                    <span class="action-text">{{ a.action }}</span>
+                    <span class="due">{% if a.due %}{{ a.due }}{% else %}—{% endif %}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {# ─── Recommendations ─── #}
+        {% if post_call_analysis.recommendations %}
+        <div class="dcard">
+            <h3>Recommendations</h3>
+            <div class="reco-list">
+                {% for r in post_call_analysis.recommendations %}
+                <div class="reco-item">{{ r }}</div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {# ─── Next Best Actions ─── #}
+        {% if post_call_analysis.next_best_actions %}
+        <div class="dcard">
+            <h3>Next Best Actions</h3>
+            <div class="nba-list">
+                {% for n in post_call_analysis.next_best_actions %}
+                <div class="nba-card">
+                    <div>
+                        <div class="action">{{ n.action }}</div>
+                        {% if n.rationale %}<div class="rationale">{{ n.rationale }}</div>{% endif %}
+                    </div>
+                    {% if n.timing %}<span class="timing">{{ n.timing }}</span>{% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {# ─── Objections + Risks (compact tag groups) ─── #}
+        {% if post_call_analysis.objections_raised or post_call_analysis.risks %}
+        <div class="dcard">
+            <h3>Objections &amp; risks</h3>
+            {% if post_call_analysis.objections_raised %}
+            <div style="margin-bottom:12px;">
+                <div class="t-meta" style="text-transform:uppercase;color:var(--fg-muted);font-weight:800;font-size:10px;letter-spacing:0.1em;margin-bottom:6px;">Objections raised</div>
+                <div class="tag-group">
+                    {% for o in post_call_analysis.objections_raised %}
+                    <span class="tag">{{ o }}</span>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+            {% if post_call_analysis.objections_handled %}
+            <div style="margin-bottom:12px;">
+                <div class="t-meta" style="text-transform:uppercase;color:var(--fg-muted);font-weight:800;font-size:10px;letter-spacing:0.1em;margin-bottom:6px;">Handled</div>
+                <div class="tag-group">
+                    {% for o in post_call_analysis.objections_handled %}
+                    <span class="tag handled">{{ o }}</span>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+            {% if post_call_analysis.risks %}
+            <div>
+                <div class="t-meta" style="text-transform:uppercase;color:var(--fg-muted);font-weight:800;font-size:10px;letter-spacing:0.1em;margin-bottom:6px;">Risks</div>
+                <div class="tag-group">
+                    {% for r in post_call_analysis.risks %}
+                    <span class="tag risk">{{ r }}</span>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        {% endif %}
+
         {# Debrief #}
         {% if visit.post_call_summary %}
         <div class="dcard">
@@ -151,8 +270,16 @@
                     <textarea name="pre_call_prompt" placeholder="Paste the pre-call AI prompt here. Sent verbatim to ElevenLabs.">{{ form.pre_call_prompt.value|default:'' }}</textarea>
                 </details>
                 <details class="prompt-accordion">
+                    <summary>Pre-call first message</summary>
+                    <textarea name="pre_call_first_message" placeholder="Paste the first message the AI should say on the pre-call.">{{ form.pre_call_first_message.value|default:'' }}</textarea>
+                </details>
+                <details class="prompt-accordion">
                     <summary>Post-call prompt</summary>
                     <textarea name="post_call_prompt" placeholder="Paste the post-call AI prompt here. Sent verbatim to ElevenLabs.">{{ form.post_call_prompt.value|default:'' }}</textarea>
+                </details>
+                <details class="prompt-accordion">
+                    <summary>Post-call first message</summary>
+                    <textarea name="post_call_first_message" placeholder="Paste the first message the AI should say on the post-call.">{{ form.post_call_first_message.value|default:'' }}</textarea>
                 </details>
 
                 <div class="fieldrow" style="margin-top:12px;">
