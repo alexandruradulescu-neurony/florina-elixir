@@ -15,6 +15,9 @@
 
 {% block display_subtitle %}
 <div class="metastrip">
+    {% if client_status_label %}
+    <span class="client-status-badge {{ client_status_class }}">{{ client_status_label }}</span>
+    {% endif %}
     <span>{{ client.industry|default:"No industry" }}</span>
     <span>·</span>
     <span>{{ client_domain_short|default:"No domain" }}</span>

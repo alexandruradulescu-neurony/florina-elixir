@@ -21,6 +21,9 @@
         {% include "voice/partials/avatar.html" with initial=metastrip.agent_initial palette=metastrip.agent_palette size=22 %}
         {{ metastrip.agent_name }}
     </span>
+    {% if client_status_label %}
+    <span class="client-status-badge {{ client_status_class }}">{{ client_status_label }}</span>
+    {% endif %}
     <span>·</span>
     <span>{{ metastrip.date_str }}, {{ metastrip.time_range }}</span>
     <span>·</span>

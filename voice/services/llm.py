@@ -185,56 +185,68 @@ def analyze_post_call(transcript: str, post_call_prompt: str = '', visit_context
 
     schema = '''
 {
-  "summary": "<3-5 sentence CRM-ready paragraph in neutral business tone>",
+  "summary": "<3-5 fraze în română, ton de notă CRM curată: ce s-a întâmplat, ce s-a aflat, ce urmează. Fără jargon corporate.>",
   "objective_attained": "attained" | "partial" | "missed",
-  "objective_assessment": "<one paragraph explaining whether the meeting objective was hit and why>",
+  "objective_assessment": "<un paragraf în română care explică dacă obiectivul vizitei a fost atins și de ce>",
   "actionables": [
-    {"owner": "agent" | "client" | "other", "action": "<verb-led action>", "due": "<YYYY-MM-DD or null>"}
+    {"owner": "agent" | "client" | "other", "action": "<acțiune concretă în română, începe cu un verb la imperativ>", "due": "<YYYY-MM-DD sau null>"}
   ],
-  "recommendations": ["<short string, what the agent should do differently or better next time>"],
+  "recommendations": ["<recomandare în română — ce ar trebui agentul să facă diferit sau mai bine data viitoare>"],
   "next_best_actions": [
-    {"action": "<concrete next step to drive the deal>", "rationale": "<why>", "timing": "today" | "within 7 days" | "within 30 days" | "<custom>"}
+    {"action": "<următorul pas concret în relația cu clientul, în română>", "rationale": "<de ce, în română>", "timing": "today" | "within 7 days" | "within 30 days" | "<custom>"}
   ],
   "no_go": {
     "is_no_go": true | false,
-    "reason": "<why the deal is dead, or null>",
-    "salvage_path": "<what could revive it, or null, or 'abandoned'>"
+    "reason": "<de ce nu mergem mai departe, în română, sau null>",
+    "salvage_path": "<cum ar putea totuși fi salvată relația, în română, sau null, sau 'abandoned'>"
   },
   "sentiment": "positive" | "neutral" | "negative" | "mixed",
   "sentiment_score": <integer 0-100>,
   "talk_ratio": {"agent": <integer 0-100>, "client": <integer 0-100>},
-  "objections_raised": ["<short string>"],
-  "objections_handled": ["<short string with how it was addressed>"],
+  "objections_raised": ["<obiecție ridicată de client, formulare scurtă în română>"],
+  "objections_handled": ["<cum a fost gestionată obiecția, în română>"],
   "champion_strength": "weak" | "moderate" | "strong" | "champion",
-  "risks": ["<short string>"]
+  "risks": ["<risc concret pentru deal, în română>"]
 }
 '''.strip()
 
     system = (
-        "You are an expert sales operations analyst. You will read a post-meeting "
-        "debrief transcript between an AI coach and a sales agent. The agent was "
-        "asked specific questions about a recent client meeting. Your job is to "
-        "extract structured analysis suitable for a CRM and a sales manager "
-        "dashboard.\n\n"
-        "Return ONLY a single JSON object matching this schema, with no prose, "
-        "no markdown fences, no commentary:\n\n"
+        "Ești un analist senior de vânzări B2B în România. Vei citi transcriptul unui apel "
+        "de debrief între un asistent AI (Florina) și un agent de vânzări care tocmai s-a "
+        "întors de la o întâlnire cu un client. Promptul folosit în apelul de debrief îți "
+        "este oferit ca ghid contextual — îți spune ce voia agentul să afle.\n\n"
+        "Sarcina ta: extragi din transcript o analiză structurată, gata de pus în CRM și "
+        "într-un dashboard de sales manager. Câmpul `summary` se va folosi DIRECT ca notă CRM "
+        "— scrie-l clar, concret, util pentru un manager care nu a fost la întâlnire.\n\n"
+        "Important: TOATE CÂMPURILE DE TEXT TREBUIE SĂ FIE ÎN ROMÂNĂ. Doar enumerările "
+        "(values precum 'attained', 'positive', 'within 7 days', 'agent', 'client') rămân "
+        "în engleză așa cum sunt în schemă.\n\n"
+        "Întoarci EXCLUSIV un singur obiect JSON valid care respectă schema de mai jos, "
+        "fără proză, fără markdown fences, fără comentarii:\n\n"
         f"{schema}\n\n"
-        "Rules:\n"
-        "- talk_ratio.agent + talk_ratio.client must sum to 100.\n"
-        "- sentiment_score must be an integer 0-100.\n"
-        "- objective_attained must be exactly one of: 'attained', 'partial', 'missed'.\n"
-        "- If is_no_go is false, reason and salvage_path may be null.\n"
-        "- Use empty arrays for missing list fields, not null.\n"
-        "- Be specific and concrete in actionables and next_best_actions — avoid vague verbs.\n"
-        "- If the transcript is too short or empty to analyze, return all-empty defaults but valid JSON."
+        "Reguli:\n"
+        "- talk_ratio.agent + talk_ratio.client trebuie să dea exact 100.\n"
+        "- sentiment_score este un întreg între 0 și 100.\n"
+        "- objective_attained este exact una din: 'attained', 'partial', 'missed'.\n"
+        "- Dacă is_no_go e false, reason și salvage_path pot fi null.\n"
+        "- Pentru câmpurile lista, folosește array gol [] dacă nu există date, nu null.\n"
+        "- În actionables și next_best_actions fii specific și concret — evită verbe vagi "
+        "('a urmări', 'a verifica') fără context. Formulări ca 'trimite oferta pentru ciment "
+        "BCA până vineri' sau 'programează vizită la fabrică săptămâna viitoare' sunt bune.\n"
+        "- Detectează semnale de NO-GO real (refuz categoric, probleme financiare grave la "
+        "client, schimbare de strategie) și marchează corect.\n"
+        "- Nu inventa detalii care nu apar în transcript. Dacă agentul nu a confirmat un "
+        "lucru, nu pune în CRM ca și cum ar fi confirmat.\n"
+        "- Dacă transcriptul e prea scurt sau gol ca să tragi concluzii, întoarce valori "
+        "default goale dar JSON valid."
     )
 
     parts = []
     if visit_context:
-        parts.append(f"## Visit context\n{visit_context}")
+        parts.append(f"## Context vizită\n{visit_context}")
     if post_call_prompt:
-        parts.append(f"## Original debrief prompt (what the AI was probing for)\n{post_call_prompt}")
-    parts.append(f"## Transcript\n{transcript}")
+        parts.append(f"## Promptul folosit de Florina în debrief (ce voia agentul să afle)\n{post_call_prompt}")
+    parts.append(f"## Transcript apel\n{transcript}")
     user_msg = "\n\n".join(parts)
 
     raw = _call_claude(system, user_msg, max_tokens=4096)

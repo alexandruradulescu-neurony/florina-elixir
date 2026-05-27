@@ -289,6 +289,19 @@ def _initials(name):
     return (parts[0][0] + parts[-1][0]).upper()
 
 
+def _client_status_badge(client):
+    """Return (css_class, label) for the client status badge.
+
+    Returns ('is-new', 'Client nou') / ('is-existing', 'Client existent') / (None, None).
+    """
+    if not client or not getattr(client, "status", None):
+        return (None, None)
+    if client.status == "existent":
+        return ("is-existing", "Client existent")
+    # default to 'nou' for any non-existing value (including the enum default)
+    return ("is-new", "Client nou")
+
+
 def visit_detail_extras(visit, pre_calls, post_calls, effective_methodology):
     """Return a dict of extras to merge into the VisitDetailView context.
 
@@ -484,6 +497,9 @@ def visit_detail_extras(visit, pre_calls, post_calls, effective_methodology):
         "visit_id_code": visit_id_code(visit),
     }
 
+    # ─── Client status badge (nou / existent) ───
+    client_status_class, client_status_label = _client_status_badge(client)
+
     return {
         "kv_strip": kv_strip,
         "attendees_list": attendees_list,
@@ -496,6 +512,8 @@ def visit_detail_extras(visit, pre_calls, post_calls, effective_methodology):
         "intel_kpis": intel_kpis,
         "generated_prompts": generated_prompts,
         "metastrip": metastrip,
+        "client_status_class": client_status_class,
+        "client_status_label": client_status_label,
     }
 
 
@@ -848,6 +866,8 @@ def client_detail_extras(client_detail):
         else "No client intel summary on file yet. AI extraction will populate this when the next sync runs."
     )
 
+    client_status_class, client_status_label = _client_status_badge(client)
+
     return {
         "client_kv_strip": client_kv_strip,
         "client_stat_row": client_stat_row,
@@ -857,6 +877,8 @@ def client_detail_extras(client_detail):
         "client_intel_summary": intel_summary,
         "client_domain_short": domain_str,
         "client_last_synced_ago": _relative_ago(client.last_synced_at) if client else "—",
+        "client_status_class": client_status_class,
+        "client_status_label": client_status_label,
     }
 
 

@@ -30,6 +30,12 @@ class VisitStatus(models.TextChoices):
     COMPLETE = 'COMPLETE', 'Complete'
 
 
+class ClientStatus(models.TextChoices):
+    """Whether this client is new (no prior history) or existing (prior orders/visits)."""
+    NEW = 'nou', 'Client nou'
+    EXISTING = 'existent', 'Client existent'
+
+
 # Timing constants (in minutes)
 PRE_MEETING_OFFSETS = [-60, -30]  # 1 hour before, 30 mins before
 POST_MEETING_OFFSETS = [15, 30]   # 15 mins after, 30 mins after

@@ -37,13 +37,33 @@ Run `python manage.py seed_demo --date 2026-05-28` to create:
 
 (All three share the same phone number — they all ring the demo handset.)
 
-| Visit ID | Client | Industry | Agent |
-|---|---|---|---|
-| 36 | Acme Corporation | SaaS / B2B | Andrei Popescu |
-| 37 | Quorum Industries | Manufacturing | Mihai Ionescu |
-| 38 | Clearwater Holdings | Financial services | Vlad Marin |
+| Visit ID | Client | Status | Industry | Agent | Methodology |
+|---|---|---|---|---|---|
+| 36 | Domus Imobiliare | **nou** | Imobiliare / dezvoltare rezidențială | Andrei Popescu | Vânzări B2B materiale de construcții — client nou |
+| 37 | Farmaciile Vitalis | **existent** | Farmaceutic / lanț de farmacii | Mihai Ionescu | Vânzări farma către farmacii — gestionare cont existent |
+| 38 | Logix Transport | **existent** | Transport / logistică | Vlad Marin | Vânzări consultative servicii HR |
 
 (IDs may differ on a re-seed — check the seed_demo output.)
+
+## Demo content (Romanian prompts)
+
+All 12 prompts (pre/post system prompt + pre/post first message per visit) plus 3 methodologies and the client renames live in `voice/management/commands/seed_demo_content.py`. Run it after `seed_demo`:
+
+```bash
+python manage.py seed_demo --date 2026-05-28   # creates agents/clients/visits
+python manage.py seed_demo_content              # renames, statuses, methodologies, prompts
+```
+
+**AI persona for all 6 calls:** Florina (femeie) — asistent AI de pregătire pentru vânzări. Same persona pre + post, same persona across all 3 agents. Tone: colleague-to-colleague, no AI-disclosure rule (agent already knows it's AI).
+
+**Demo cases:**
+- **V36 Domus Imobiliare (Andrei, CLIENT NOU):** pre-call verifies solvabilitate (listafirme), istoric proiecte, mapare stakeholderi (beneficiar/constructor/proiectant), parametri proiect (suprafață, urban/extravilan, cantități, stocare on-site). Post-call extracts financiar/decizional/competitiv risks.
+- **V37 Farmaciile Vitalis (Mihai, CLIENT EXISTENT — parte de rețea):** pre-call verifies status rețea (decizia de listare e centralizată), istoric comenzi, listare produse curente, push 3 produse noi, merchandising, **training materials for pharmacists** (key insight: train them to recommend our products at the counter). Post-call notes which listing decisions need escalation to the chain buyer.
+- **V38 Logix Transport (Vlad, CLIENT EXISTENT — buyer de servicii HR):** pre-call insists on **discovery > pitch**, frames the 3-layer needs framework (declarate / nedeclarate / emoționale), forces the headcount-trajectory question (industry under pressure → if Logix is cutting staff, the whole pitch changes). Post-call surfaces NO-GO signals if budget frozen.
+
+## Claude post-call analysis prompt
+
+`voice/services/llm.py::analyze_post_call` rewritten in Romanian. System prompt instructs Claude (claude-sonnet-4) that ALL text fields in the output JSON must be in Romanian (only the enum values stay English). The `summary` field is written CRM-ready in Romanian. The visit's `post_call_prompt` is injected as contextual guidance so per-case nuance flows into the analysis.
 
 ## Architecture: how a call fires end-to-end
 
@@ -77,6 +97,7 @@ Run `python manage.py seed_demo --date 2026-05-28` to create:
 - `CallAttempt.analysis = JSONField(default=dict, blank=True)` — Claude's structured output (migration `0013_callattempt_analysis`)
 - `Visit.pre_call_first_message = TextField(blank=True, default='')` (migration `0012_visit_post_call_first_message_and_more`)
 - `Visit.post_call_first_message = TextField(blank=True, default='')` (same migration)
+- `Client.status = CharField(choices=ClientStatus, default='nou')` — visible badge "Client nou" / "Client existent" on Visit Detail and Client Detail metastrip (migration `0014_client_status`). Enum lives in `voice/constants.py::ClientStatus`.
 
 ## Claude analysis schema (returned by `analyze_post_call`)
 
@@ -112,7 +133,11 @@ Implemented in `voice/services/llm.py::analyze_post_call(transcript, post_call_p
 - `voice/urls.py` — `voice:visit_call_now` URL
 - `voice/templates/voice/manager/visit_detail.html` — 4 accordions (one per prompt/first_message), Run AI Call card, new analysis sections (No-go, Objective, Actionables, Recommendations, NBA, Objections & Risks)
 - `voice/management/commands/seed_demo.py` — Romanian names, --date argument
-- `static/css/screens.css` — calendar primitives, form chrome, accordion styling, analysis section styling (~2300 lines total)
+- `voice/management/commands/seed_demo_content.py` — **NEW**: Romanian renames (Domus Imobiliare / Farmaciile Vitalis / Logix Transport), `Client.status` setters, 3 Methodology rows, all 12 Romanian prompts written onto V36/V37/V38. Idempotent.
+- `voice/constants.py` — added `ClientStatus` TextChoices (`nou` / `existent`)
+- `voice/placeholders.py` — `_client_status_badge(client)` helper; `client_status_class` + `client_status_label` exposed by both `visit_detail_extras` and `client_detail_extras`
+- `voice/templates/voice/manager/client_detail.html` — `.client-status-badge` rendered in metastrip
+- `static/css/screens.css` — calendar primitives, form chrome, accordion styling, analysis section styling, **`.client-status-badge` pill** (~2320 lines total)
 - `voice/templates/voice/base.html` — sidebar Agents row active-state extended to agent_detail
 
 ## Known gaps / explicit out-of-scope for tomorrow

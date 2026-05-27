@@ -2296,3 +2296,27 @@
 }
 .tag-group .tag.risk    { background: var(--rose-100); color: var(--rose-700); }
 .tag-group .tag.handled { background: var(--green-100); color: var(--green-700); }
+
+/* ─── Client status badge (nou / existent) ─── */
+.client-status-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 10px;
+  border-radius: var(--radius-pill);
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  border: 1px solid transparent;
+}
+.client-status-badge.is-new {
+  background: var(--amber-100);
+  color: var(--amber-800);
+  border-color: var(--amber-100);
+}
+.client-status-badge.is-existing {
+  background: var(--green-100);
+  color: var(--green-700);
+  border-color: var(--green-100);
+}

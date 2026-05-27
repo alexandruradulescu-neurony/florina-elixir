@@ -4,7 +4,7 @@ Data models for the voice app.
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.utils.translation import gettext_lazy as _
-from .constants import CallStatus, CallPhase, LogLevel, VisitStatus
+from .constants import CallStatus, CallPhase, ClientStatus, LogLevel, VisitStatus
 
 
 class User(AbstractUser):
@@ -328,6 +328,13 @@ class Client(models.Model):
         help_text="Email domain for matching calendar attendees (e.g., acme.com)"
     )
     industry = models.CharField(max_length=255, blank=True, null=True)
+    status = models.CharField(
+        max_length=20,
+        choices=ClientStatus.choices,
+        default=ClientStatus.NEW,
+        db_index=True,
+        help_text="Whether this is a new client (no prior history) or existing (prior orders/visits)."
+    )
     contacts = models.JSONField(
         default=list,
         blank=True,
