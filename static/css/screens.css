@@ -102,22 +102,57 @@
   font-weight: 600;
 }
 
-/* ─── Datetime inputs in Manager Notes form ─── */
-.fieldrow.datetime-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  margin-bottom: 12px;
+/* ─── Schedule block in Manager Notes form (3 inputs: date, time, duration) ─── */
+.schedule-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-hairline);
 }
-.fieldrow.datetime-row .datetime-cell { display: flex; flex-direction: column; gap: 4px; }
-.fieldrow.datetime-row .t-meta { font-size: 11px; }
-.fieldrow.datetime-row input[type="datetime-local"] {
+.schedule-block .schedule-label {
+  font-size: 11px;
+  margin-bottom: 2px;
+}
+.schedule-block .schedule-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.schedule-block .schedule-cell {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.schedule-block .schedule-cell.schedule-date  { flex: 2 1 0; }
+.schedule-block .schedule-cell.schedule-time  { flex: 1 1 0; }
+.schedule-block .schedule-cell.schedule-duration .suffix-label {
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 11px;
+  color: var(--fg-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.schedule-block input[type="date"],
+.schedule-block input[type="time"],
+.schedule-block input[type="number"] {
+  width: 100%;
   border: 1px solid var(--border-default);
   border-radius: var(--radius-sm);
   padding: 8px 10px;
   font-family: var(--font-tile);
   font-size: 13px;
   background: #fff;
+  box-sizing: border-box;
+}
+.schedule-block input[type="number"] {
+  width: 70px;
+  text-align: center;
 }
 
 /* ─────────── Call-phase icon (pre = circle, post = diamond) ─────────── */

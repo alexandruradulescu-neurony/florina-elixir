@@ -144,21 +144,38 @@ class GlobalSettingsForm(forms.ModelForm):
 
 
 class VisitManagerNotesForm(forms.ModelForm):
-    """Form for manager to add notes, override methodology, schedule, and paste AI prompts."""
+    """Form for manager to add notes, override methodology, schedule, and paste AI prompts.
+
+    Schedule is exposed as 3 separate browser-friendly inputs (date / time / duration_minutes)
+    instead of two datetime-local fields, because:
+      - some browsers (older Safari, certain mobile webviews) render datetime-local as
+        text-only or date-only, dropping the time picker silently;
+      - a duration field is easier to reason about than picking the exact end time.
+    On save() we combine them back into Visit.start_time and Visit.end_time.
+    """
+
+    # Three browser-native pickers, all populated from instance in __init__.
+    visit_date = forms.DateField(
+        required=False,
+        widget=forms.DateInput(attrs={'type': 'date'}),
+    )
+    visit_start_time = forms.TimeField(
+        required=False,
+        widget=forms.TimeInput(attrs={'type': 'time', 'step': '60'}),
+    )
+    visit_duration_minutes = forms.IntegerField(
+        required=False,
+        min_value=5,
+        max_value=480,
+        widget=forms.NumberInput(attrs={'step': '5', 'min': '5', 'max': '480'}),
+    )
 
     class Meta:
         model = Visit
-        fields = ['start_time', 'end_time',
-                  'manager_notes', 'methodology',
+        fields = ['manager_notes', 'methodology',
                   'pre_call_prompt', 'pre_call_first_message',
                   'post_call_prompt', 'post_call_first_message']
         widgets = {
-            'start_time': forms.DateTimeInput(attrs={
-                'type': 'datetime-local',
-            }, format='%Y-%m-%dT%H:%M'),
-            'end_time': forms.DateTimeInput(attrs={
-                'type': 'datetime-local',
-            }, format='%Y-%m-%dT%H:%M'),
             'manager_notes': forms.Textarea(attrs={
                 'placeholder': 'Special requirements for this visit (e.g., "Push for Q3 close", "Ask about new CTO")...',
             }),
@@ -183,11 +200,38 @@ class VisitManagerNotesForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # datetime-local needs ISO format without seconds for the browser picker
-        self.fields['start_time'].input_formats = ['%Y-%m-%dT%H:%M']
-        self.fields['end_time'].input_formats = ['%Y-%m-%dT%H:%M']
-        self.fields['start_time'].required = False
-        self.fields['end_time'].required = False
+        # Populate the three schedule pickers from the instance.
+        instance = kwargs.get('instance') or self.instance
+        if instance and instance.pk and instance.start_time:
+            self.fields['visit_date'].initial = instance.start_time.date()
+            self.fields['visit_start_time'].initial = instance.start_time.time().replace(microsecond=0, second=0)
+            if instance.end_time:
+                delta = instance.end_time - instance.start_time
+                minutes = int(delta.total_seconds() // 60)
+                if minutes > 0:
+                    self.fields['visit_duration_minutes'].initial = minutes
+
+    def save(self, commit=True):
+        from datetime import datetime as _dt, timedelta as _td
+        from django.utils import timezone as _tz
+
+        instance = super().save(commit=False)
+
+        d = self.cleaned_data.get('visit_date')
+        t = self.cleaned_data.get('visit_start_time')
+        dur = self.cleaned_data.get('visit_duration_minutes')
+
+        if d and t:
+            naive = _dt.combine(d, t)
+            current_tz = _tz.get_current_timezone()
+            instance.start_time = _tz.make_aware(naive, current_tz)
+            if dur and dur > 0:
+                instance.end_time = instance.start_time + _td(minutes=int(dur))
+
+        if commit:
+            instance.save()
+            self.save_m2m()
+        return instance
 
 
 class ClientForm(forms.ModelForm):

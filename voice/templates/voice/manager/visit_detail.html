@@ -324,14 +324,22 @@
             <form method="post">
                 {% csrf_token %}
 
-                <div class="fieldrow datetime-row">
-                    <div class="datetime-cell">
-                        <label class="t-meta">Start vizită</label>
-                        {{ form.start_time }}
+                <div class="schedule-block">
+                    <label class="t-meta schedule-label">Data și ora vizitei</label>
+                    <div class="schedule-row">
+                        <div class="schedule-cell schedule-date">
+                            {{ form.visit_date }}
+                        </div>
+                        <div class="schedule-cell schedule-time">
+                            {{ form.visit_start_time }}
+                        </div>
                     </div>
-                    <div class="datetime-cell">
-                        <label class="t-meta">Sfârșit vizită</label>
-                        {{ form.end_time }}
+                    <div class="schedule-row">
+                        <div class="schedule-cell schedule-duration">
+                            <span class="suffix-label">Durata</span>
+                            {{ form.visit_duration_minutes }}
+                            <span class="suffix-label">minute</span>
+                        </div>
                     </div>
                 </div>
 
