@@ -918,6 +918,26 @@ def _visit_state(visit):
     return "upcoming"
 
 
+def _call_state_for_phase(visit, phase_code):
+    """Return one of: 'done', 'failed', 'active', 'pending' for a visit's call phase.
+
+    Mirrors the same buckets used in VisitDetailView for pre/post-call status pills,
+    but local to the calendar so we don't import Django querysets transitively.
+    """
+    try:
+        from voice.models import CallAttempt
+    except Exception:
+        return "pending"
+    qs = CallAttempt.objects.filter(visit=visit, phase=phase_code)
+    if qs.filter(status='COMPLETED').exists():
+        return "done"
+    if qs.filter(status__in=['FAILED', 'NO_ANSWER']).exists():
+        return "failed"
+    if qs.filter(status__in=['INITIATED', 'IN_PROGRESS']).exists():
+        return "active"
+    return "pending"
+
+
 def _enrich_event(visit, short=False):
     """Return the dict shape consumed by the calendar template's event chip."""
     time_range = "—"
@@ -937,6 +957,8 @@ def _enrich_event(visit, short=False):
         "time_range": time_range,
         "title": title,
         "short": short,
+        "pre_state":  _call_state_for_phase(visit, 'PRE'),
+        "post_state": _call_state_for_phase(visit, 'POST'),
     }
 
 

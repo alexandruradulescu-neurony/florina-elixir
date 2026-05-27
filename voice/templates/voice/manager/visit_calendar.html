@@ -69,13 +69,13 @@
             {% else %}
             {% for ev in day.events_enriched %}
             <a href="{% url 'voice:visit_detail' visit_id=ev.visit.id %}" class="chip-row">
-                <span class="pre"></span>
+                <span class="pre {{ ev.pre_state|default:'pending' }}" title="Pre-call: {{ ev.pre_state|default:'pending' }}"></span>
                 <span class="chip short {{ ev.state }}">
                     <span class="top">
                         <span class="time">{{ ev.time_range }}</span>
                     </span>
                 </span>
-                <span class="post"></span>
+                <span class="post {{ ev.post_state|default:'pending' }}" title="Post-call: {{ ev.post_state|default:'pending' }}"></span>
             </a>
             {% endfor %}
             {% endif %}
@@ -95,13 +95,14 @@
             <div class="slot">
                 {% for ev in bucket.events %}
                 <a href="{% url 'voice:visit_detail' visit_id=ev.visit.id %}" class="chip-row">
-                    <span class="pre"></span>
+                    <span class="pre {{ ev.pre_state|default:'pending' }}" title="Pre-call: {{ ev.pre_state|default:'pending' }}"></span>
                     <span class="chip {{ ev.state }}">
                         <span class="top">
                             <span class="time">{{ ev.time_range }}</span>
                         </span>
                         <span class="title">{{ ev.title }}</span>
                     </span>
+                    <span class="post {{ ev.post_state|default:'pending' }}" title="Post-call: {{ ev.post_state|default:'pending' }}"></span>
                 </a>
                 {% endfor %}
             </div>
