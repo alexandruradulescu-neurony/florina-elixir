@@ -148,10 +148,28 @@ For visit-linked calls, transcript/summary/recording_url still get saved to the 
 
 ### `seed_demo` management command
 
+Accepts an optional `--date YYYY-MM-DD` argument. Defaults to the date the command is run. Visits are scheduled at 11:00, 12:00, and 13:00 local time on the chosen date so they appear in today's Dashboard / Visits / Calendar default views.
+
 ```python
+from datetime import date as date_cls, datetime, time, timedelta
+from django.core.management.base import BaseCommand
+from django.utils import timezone
+
 class Command(BaseCommand):
+    help = "Seed 3 demo agents + 3 clients + 3 visits for the live-calls demo."
+
+    def add_arguments(self, parser):
+        parser.add_argument('--date', type=str, default=None,
+                            help='Date for the demo visits (YYYY-MM-DD). Defaults to today.')
+
     def handle(self, *args, **opts):
-        # Wipe existing seeded demo data (idempotent)
+        # Resolve target date
+        if opts['date']:
+            target_date = date_cls.fromisoformat(opts['date'])
+        else:
+            target_date = timezone.now().date()
+
+        # Wipe existing seeded demo data (idempotent — safe to re-run)
         Visit.objects.filter(client__crm_id__startswith='DEMO-').delete()
         Client.objects.filter(crm_id__startswith='DEMO-').delete()
         User.objects.filter(username__startswith='demo_').delete()
@@ -191,10 +209,10 @@ class Command(BaseCommand):
             )
             clients.append(client)
 
-        # Create 3 visits — one per agent, paired with a client; scheduled today
-        now = timezone.now()
+        # Create 3 visits — one per agent, paired with a client; scheduled on target_date
+        tz = timezone.get_current_timezone()
         for i, (agent, client) in enumerate(zip(agents, clients), start=1):
-            start = now.replace(hour=10 + i, minute=0, second=0, microsecond=0)
+            start = datetime.combine(target_date, time(10 + i, 0)).replace(tzinfo=tz)
             end = start + timedelta(hours=1)
             visit = Visit.objects.create(
                 agent=agent,
@@ -206,13 +224,15 @@ class Command(BaseCommand):
             )
             self.stdout.write(f"Visit {visit.id}: /manager/visits/{visit.id}/")
 
-        self.stdout.write(self.style.SUCCESS('Demo data seeded.'))
+        self.stdout.write(self.style.SUCCESS(f'Demo data seeded for {target_date}.'))
         self.stdout.write('Next steps:')
         self.stdout.write('  1. Set phone numbers for demo_alex, demo_robyn, demo_marcus in /admin/')
         self.stdout.write('  2. Update ELEVENLABS_AGENT_ID env var to new agent ID')
         self.stdout.write('  3. Open each visit URL above and paste pre/post prompts')
         self.stdout.write('  4. Click "Run pre-call" / "Run post-call" on demo day')
 ```
+
+**Note on date:** because Dashboard, Visits, and Calendar default to "today", run the seed command the morning of the demo, or pass `--date` matching the demo day. Re-running the command wipes and re-creates demo data idempotently.
 
 ## Demo runbook (for tomorrow)
 
@@ -230,6 +250,27 @@ class Command(BaseCommand):
    - Click "Run pre-call" → phone rings, AI talks, you can answer/listen
    - (Optionally) refresh Visit Detail post-call to show transcript/summary appearing
    - Repeat for post-call
+
+## End-to-end visibility checklist
+
+After running `seed_demo` (with `--date` matching the demo day), verify that the seeded data shows up everywhere it should. This works because all three screens default to "today" and the seed schedules visits at 11:00, 12:00, 13:00 on the target date. No new code is needed for this — the existing views already pull from `Visit`, `User(is_sales_agent=True)`, and `Client`.
+
+| Screen | What you should see |
+|---|---|
+| `/dashboard/admin/` — **Needs Attention** | Possibly populated with placeholder action items derived from the 3 demo visits |
+| `/dashboard/admin/` — **Stat row** | `Active`, `Complete today`, `Pre-call done`, `Post-call done` all reflect the 3 demo visits |
+| `/dashboard/admin/` — **Agent Readiness** | One card per demo agent (Alex Chen, Robyn Carter, Marcus Lee), each showing the agent's avatar, methodology label ("No methodology" if you haven't assigned one), live/ready/idle pill, 8-tile bar-stack with the demo visit, success rate |
+| `/dashboard/admin/` — **Today's Timeline** | 3 rows, one per demo visit, with time (11:00, 12:00, 13:00), agent avatar, client name + industry, status pill, kebab → visit detail |
+| `/manager/visits/` | Stat row reflects 3 visits; table shows 3 rows; clicking the kebab → visit detail |
+| `/manager/calendar/?view=week` | Today's row highlighted with "THIS WEEK" badge; today's column shows the 3 demo events stacked as cyan chips |
+| `/manager/calendar/?view=day&date=<demo-date>` | Hour stream shows the 3 events at 11:00, 12:00, 13:00 buckets; mini-cal sidebar highlights today |
+| `/manager/agents/` | 3 demo agents in the `.atable` with their methodology (or "—"), today's load bar, success % |
+| `/manager/agents/<id>/` | Agent Detail page for each demo agent — meta card, today's load bar, recent visits table containing the demo visit |
+| `/manager/clients/` | 3 demo clients (Acme, Quorum, Clearwater) with industries and 1 visit each |
+| `/manager/clients/<id>/` | Client Detail page showing the single demo visit in visit history |
+| `/manager/visits/<id>/` | Visit Detail with metastrip, stepper at "Planned", Manager Notes form with the two new accordion textareas for prompts, Run AI Call card with two buttons |
+
+If any of these screens shows empty / no demo data, the date-of-seed-vs-demo-day is the most likely culprit — re-run `seed_demo --date <demo-day>`.
 
 ## Out of scope
 
