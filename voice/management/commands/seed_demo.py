@@ -40,7 +40,9 @@ class Command(BaseCommand):
         Client.objects.filter(crm_id__startswith='DEMO-').delete()
         User.objects.filter(username__startswith='demo_').delete()
 
-        # Create 3 sales agents with Romanian names (user fills in phone via admin)
+        # Create 3 sales agents with Romanian names + the shared demo phone.
+        # All 3 share +40722322358 (the demo handset that rings during the demo).
+        DEMO_PHONE = '+40722322358'
         AGENTS = [
             ('demo_andrei', 'Andrei', 'Popescu'),
             ('demo_mihai',  'Mihai',  'Ionescu'),
@@ -53,6 +55,7 @@ class Command(BaseCommand):
                 first_name=first,
                 last_name=last,
                 email=f"{username}@demo.local",
+                phone_number=DEMO_PHONE,
                 is_sales_agent=True,
             )
             agent.set_password('demo')
