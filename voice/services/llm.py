@@ -124,6 +124,63 @@ def summarize_call_transcript(transcript: str, visit_context: str = '') -> Optio
     return _call_claude(system, user_msg, max_tokens=1024)
 
 
+def summarize_call_transcript_ro(
+    transcript: str,
+    phase: str = 'pre',
+    visit_context: str = '',
+    original_prompt: str = '',
+) -> Optional[str]:
+    """
+    Summarize a call transcript in Romanian, suitable for the Visit Detail panel.
+
+    Used for BOTH pre-call (preparation) and post-call (debrief) transcripts. The
+    result overwrites the English summary that ElevenLabs returns in its analysis
+    block, so the UI shows Romanian everywhere.
+
+    Args:
+        transcript: Full call transcript text.
+        phase: 'pre' for pre-call (preparation), 'post' for post-call (debrief).
+        visit_context: Optional context about the visit (client, agent, methodology).
+        original_prompt: The prompt the AI used during the call (for context).
+
+    Returns:
+        2-4 sentence Romanian summary string, or None on failure.
+    """
+    if phase == 'post':
+        phase_word = "apelului de debrief (după întâlnire)"
+        guidance = (
+            "Cum a decurs întâlnirea, ce intel nou avem despre client, dacă obiectivul a fost "
+            "atins sau ratat, ce s-a promis și care sunt pașii imediat următori."
+        )
+    else:
+        phase_word = "apelului de pregătire (înainte de întâlnire)"
+        guidance = (
+            "Ce am verificat împreună cu agentul, ce a confirmat că are pregătit, ce gap-uri "
+            "am identificat și ce-i trimite Florina pe email înainte de întâlnire."
+        )
+    system = (
+        f"Ești un asistent senior de vânzări B2B în România. Vei rezuma transcriptul {phase_word} "
+        "într-un paragraf clar, în română, de 2-4 fraze. Acest sumar se afișează direct în "
+        "interfața de vizită — așa că trebuie să fie concret, util și ușor de citit la o "
+        "scanare rapidă de către un manager de vânzări care nu a participat la apel.\n\n"
+        f"Focus: {guidance}\n\n"
+        "Reguli stricte:\n"
+        "- Întoarce DOAR textul sumarului. Fără titluri, fără markdown, fără bulleturi.\n"
+        "- Maxim 4 fraze.\n"
+        "- Folosește limba română pe tot textul.\n"
+        "- Nu inventa detalii care nu apar în transcript. Dacă transcriptul e foarte scurt sau "
+        "neclar, spune scurt asta în loc să fabrici."
+    )
+    parts = []
+    if visit_context:
+        parts.append(f"## Context vizită\n{visit_context}")
+    if original_prompt:
+        parts.append(f"## Promptul folosit de Florina în apel (referință)\n{original_prompt}")
+    parts.append(f"## Transcript apel\n{transcript}")
+    user_msg = "\n\n".join(parts)
+    return _call_claude(system, user_msg, max_tokens=512)
+
+
 def generate_client_summary(client_data: dict) -> Optional[str]:
     """
     Generate an AI summary of a client from CRM data.

@@ -395,13 +395,23 @@ def visit_detail_extras(visit, pre_calls, post_calls, effective_methodology):
             meta_tags.append(call.status.title())
         snippet = None
         if call.transcript:
+            full = call.transcript.strip()
+            preview = full[:280]
+            if len(full) > 280:
+                # cut on word boundary so the preview reads cleanly
+                cut = preview.rsplit(' ', 1)[0] or preview
+                preview = cut.rstrip('.,;:') + '…'
             snippet = {
-                "ts": "00:24",
-                "text": call.transcript[:280].strip(),
+                "ts": "00:00",
+                "preview": preview,
+                "full": full,
+                "has_more": len(full) > len(preview),
+                # legacy key for backward compat (template may still read .text)
+                "text": preview,
             }
         return {
-            "title": f"{phase_label} — {call.summary_title or 'Conversation'}",
-            "description": call.summary or "Summary pending.",
+            "title": f"{phase_label} — {call.summary_title or 'Conversație'}",
+            "description": call.summary or "Sumar în curs de generare.",
             "meta_tags": meta_tags,
             "snippet": snippet,
             "has_recording": bool(call.recording_url),

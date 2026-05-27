@@ -1456,6 +1456,29 @@ class VisitCallNowView(SuperuserRequiredMixin, View):
         return redirect('voice:visit_detail', visit_id=visit_id)
 
 
+class VisitStatusUpdateView(SuperuserRequiredMixin, View):
+    """Manually advance Visit.status (used by the 'Marchează întâlnirea...' buttons)."""
+
+    def post(self, request, visit_id, status):
+        from django.shortcuts import get_object_or_404
+        from .constants import VisitStatus
+
+        visit = get_object_or_404(Visit, id=visit_id)
+        valid_values = {choice[0] for choice in VisitStatus.choices}
+        if status not in valid_values:
+            messages.error(request, f"Status invalid: {status}")
+            return redirect('voice:visit_detail', visit_id=visit_id)
+
+        visit.status = status
+        visit.save(update_fields=['status', 'updated_at'])
+        messages.success(
+            request,
+            f"Vizita {visit.client.name if visit.client else ''} a fost marcată ca "
+            f"{dict(VisitStatus.choices).get(status, status)}."
+        )
+        return redirect('voice:visit_detail', visit_id=visit_id)
+
+
 class AgentMethodologyView(SuperuserRequiredMixin, View):
     """Assign default methodology to an agent."""
 

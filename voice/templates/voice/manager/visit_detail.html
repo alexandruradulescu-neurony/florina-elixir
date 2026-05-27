@@ -51,6 +51,23 @@
     {% endfor %}
 </div>
 
+{# ─── Manual status advance buttons (visible only on relevant transitions) ─── #}
+{% if visit.status == 'PRE_CALL_DONE' or visit.status == 'POST_CALL_DONE' %}
+<div class="status-advance">
+    {% if visit.status == 'PRE_CALL_DONE' %}
+    <form method="post" action="{% url 'voice:visit_status_update' visit_id=visit.id status='IN_PROGRESS' %}">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-primary">Marchează întâlnirea ca având loc</button>
+    </form>
+    {% elif visit.status == 'POST_CALL_DONE' %}
+    <form method="post" action="{% url 'voice:visit_status_update' visit_id=visit.id status='COMPLETE' %}">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-primary">Marchează vizita ca finalizată</button>
+    </form>
+    {% endif %}
+</div>
+{% endif %}
+
 {# ─── 70/30 detail grid ─── #}
 <div class="detail-grid">
     <div class="detail-col">
@@ -97,9 +114,14 @@
                 {% if pre_call_panel.has_recording %}<button type="button" class="replay">Replay</button>{% endif %}
             </div>
             {% if pre_call_panel.snippet %}
-            <div class="snippet">
-                <span class="ts">{{ pre_call_panel.snippet.ts }}</span>{{ pre_call_panel.snippet.text }}
-            </div>
+            <details class="snippet">
+                <summary>
+                    <span class="ts">{{ pre_call_panel.snippet.ts }}</span>
+                    <span class="preview">{{ pre_call_panel.snippet.preview }}</span>
+                    {% if pre_call_panel.snippet.has_more %}<span class="toggle">Vezi tot transcriptul</span>{% endif %}
+                </summary>
+                <pre class="full-transcript">{{ pre_call_panel.snippet.full }}</pre>
+            </details>
             {% endif %}
         </div>
 
@@ -117,6 +139,16 @@
                 </div>
                 {% if post_call_panel.has_recording %}<button type="button" class="replay">Replay</button>{% endif %}
             </div>
+            {% if post_call_panel.snippet %}
+            <details class="snippet">
+                <summary>
+                    <span class="ts">{{ post_call_panel.snippet.ts }}</span>
+                    <span class="preview">{{ post_call_panel.snippet.preview }}</span>
+                    {% if post_call_panel.snippet.has_more %}<span class="toggle">Vezi tot transcriptul</span>{% endif %}
+                </summary>
+                <pre class="full-transcript">{{ post_call_panel.snippet.full }}</pre>
+            </details>
+            {% endif %}
             <div class="ministats">
                 <div class="ministat"><div class="l">Sentiment</div><div class="v">{{ post_call_ministats.sentiment }}%<span class="delta">{{ post_call_ministats.sentiment_delta }}</span></div></div>
                 <div class="ministat"><div class="l">Talk ratio</div><div class="v">{{ post_call_ministats.talk_ratio }}%</div></div>
@@ -319,22 +351,6 @@
             </div>
         </div>
 
-        {# Generated Prompts #}
-        {% if generated_prompts %}
-        <div class="dcard">
-            <h3>Generated Prompts</h3>
-            {% for p in generated_prompts %}
-            <div class="prompt-row">
-                <div class="head">
-                    <span class="kind">{{ p.id|upper }}</span>
-                    <span class="lbl">{{ p.label }}</span>
-                    <button type="button" class="copy">Copy</button>
-                </div>
-                <pre>{{ p.body }}</pre>
-            </div>
-            {% endfor %}
-        </div>
-        {% endif %}
     </div>
 </div>
 

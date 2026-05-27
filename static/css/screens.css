@@ -915,6 +915,65 @@
   margin-right: 8px;
 }
 
+/* ─── Expandable transcript snippet (HTML <details>) ─── */
+details.snippet > summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+details.snippet > summary::-webkit-details-marker { display: none; }
+details.snippet > summary .preview {
+  flex: 1;
+  min-width: 0;
+}
+details.snippet > summary .toggle {
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 11px;
+  color: var(--cyan-600);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  padding: 2px 8px;
+  border: 1px solid var(--cyan-500);
+  border-radius: var(--radius-pill);
+  background: #fff;
+}
+details.snippet[open] > summary .toggle::after {
+  content: " ▴";
+}
+details.snippet:not([open]) > summary .toggle::after {
+  content: " ▾";
+}
+details.snippet > .full-transcript {
+  margin-top: 12px;
+  padding: 12px;
+  background: #fff;
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-sm);
+  max-height: 420px;
+  overflow-y: auto;
+  font-family: var(--font-tile);
+  font-weight: 500;
+  font-size: 13px;
+  color: var(--fg-strong);
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+/* ─── Status-advance buttons (manual stepper progression) ─── */
+.status-advance {
+  display: flex;
+  gap: 12px;
+  margin-top: 12px;
+  justify-content: flex-end;
+}
+.status-advance form { display: inline; }
+
 /* ─── Ministats (post-call 4-up) ─── */
 .ministats {
   display: grid;

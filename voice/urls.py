@@ -38,6 +38,7 @@ urlpatterns = [
     path('manager/visits/', views.VisitListView.as_view(), name='visit_list'),
     path('manager/visits/<int:visit_id>/', views.VisitDetailView.as_view(), name='visit_detail'),
     path('manager/visits/<int:visit_id>/call/<str:phase>/', views.VisitCallNowView.as_view(), name='visit_call_now'),
+    path('manager/visits/<int:visit_id>/status/<str:status>/', views.VisitStatusUpdateView.as_view(), name='visit_status_update'),
     path('manager/calendar/', views.VisitCalendarView.as_view(), name='visit_calendar'),
     # Agent methodology assignment
     path('manager/agents/<int:agent_id>/methodology/', views.AgentMethodologyView.as_view(), name='agent_methodology'),

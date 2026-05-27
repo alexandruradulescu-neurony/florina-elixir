@@ -175,40 +175,107 @@ class ElevenLabsWebhookView(View):
             
             call_attempt.save()
 
-            # Synchronous Claude analysis on post-call transcripts.
-            # Failures are logged but do not break the webhook response.
-            if (call_attempt.phase == CallPhase.POST_MEETING
+            # ─── Romanian summary + structured analysis on completed calls ───
+            # Always runs for any COMPLETED call with a transcript. Overwrites the
+            # English summary ElevenLabs sends in its analysis block.
+            # Failures are logged but never break the webhook response.
+            if (call_attempt.status == CallStatus.COMPLETED
                     and call_attempt.transcript
                     and call_attempt.transcript.strip()):
                 try:
-                    from voice.services.llm import analyze_post_call
+                    from voice.services.llm import (
+                        analyze_post_call,
+                        summarize_call_transcript_ro,
+                    )
                     visit = call_attempt.visit
-                    post_prompt = visit.post_call_prompt if visit else ''
+                    is_post = call_attempt.phase == CallPhase.POST_MEETING
+                    phase_str = 'post' if is_post else 'pre'
+
+                    # Build context blob for Claude.
+                    original_prompt = ''
                     visit_ctx_parts = []
                     if visit:
+                        original_prompt = (
+                            visit.post_call_prompt if is_post else visit.pre_call_prompt
+                        ) or ''
                         if visit.client:
-                            visit_ctx_parts.append(f"Client: {visit.client.name} ({visit.client.industry or 'industry unknown'})")
+                            visit_ctx_parts.append(
+                                f"Client: {visit.client.name} "
+                                f"({visit.client.industry or 'industrie necunoscută'}) — "
+                                f"{visit.client.get_status_display()}"
+                            )
                         if visit.agent:
                             agent_name = visit.agent.get_full_name() or visit.agent.username
                             visit_ctx_parts.append(f"Agent: {agent_name}")
                         if visit.methodology:
-                            visit_ctx_parts.append(f"Methodology: {visit.methodology.name}")
+                            visit_ctx_parts.append(f"Metodologie: {visit.methodology.name}")
                         if visit.title:
-                            visit_ctx_parts.append(f"Meeting: {visit.title}")
+                            visit_ctx_parts.append(f"Vizită: {visit.title}")
                     visit_context = " | ".join(visit_ctx_parts)
-                    analysis = analyze_post_call(
-                        transcript=call_attempt.transcript,
-                        post_call_prompt=post_prompt or '',
-                        visit_context=visit_context,
-                    )
-                    if analysis:
-                        call_attempt.analysis = analysis
-                        call_attempt.save(update_fields=['analysis'])
-                        logger.info(f"Claude analysis saved for CallAttempt #{call_attempt.id}")
-                    else:
-                        logger.warning(f"Claude analysis returned None for CallAttempt #{call_attempt.id}")
+
+                    # Post-call: run full structured analysis. The analysis 'summary'
+                    # is already Romanian and CRM-ready, so we reuse it for .summary
+                    # to avoid a second Claude call.
+                    ro_summary = None
+                    if is_post:
+                        analysis = analyze_post_call(
+                            transcript=call_attempt.transcript,
+                            post_call_prompt=original_prompt,
+                            visit_context=visit_context,
+                        )
+                        if analysis:
+                            call_attempt.analysis = analysis
+                            ro_summary = analysis.get('summary') or None
+                            logger.info(f"Claude analysis saved for CallAttempt #{call_attempt.id}")
+                        else:
+                            logger.warning(f"Claude analysis returned None for CallAttempt #{call_attempt.id}")
+
+                    # Pre-call (or post-call without usable analysis summary):
+                    # generate a 2-4 sentence Romanian summary.
+                    if not ro_summary:
+                        ro_summary = summarize_call_transcript_ro(
+                            transcript=call_attempt.transcript,
+                            phase=phase_str,
+                            visit_context=visit_context,
+                            original_prompt=original_prompt,
+                        )
+
+                    if ro_summary:
+                        call_attempt.summary = ro_summary.strip()
+                        logger.info(
+                            f"Romanian summary saved for CallAttempt #{call_attempt.id} "
+                            f"({len(ro_summary)} chars)"
+                        )
+
+                    # Persist whatever changed.
+                    update_fields = ['summary']
+                    if is_post:
+                        update_fields.append('analysis')
+                    call_attempt.save(update_fields=update_fields)
                 except Exception as e:
-                    logger.error(f"Claude analysis failed for CallAttempt #{call_attempt.id}: {e}", exc_info=True)
+                    logger.error(
+                        f"Romanian summary / analysis failed for CallAttempt "
+                        f"#{call_attempt.id}: {e}",
+                        exc_info=True,
+                    )
+
+            # ─── Advance Visit.status on visit-linked completed calls ───
+            # Pre-call completed → PRE_CALL_DONE (if still PLANNED).
+            # Post-call completed → POST_CALL_DONE (regardless of intermediate state).
+            if call_attempt.status == CallStatus.COMPLETED and call_attempt.visit:
+                from .constants import VisitStatus as VS
+                visit = call_attempt.visit
+                new_status = None
+                if call_attempt.phase == CallPhase.PRE_MEETING:
+                    if visit.status == VS.PLANNED:
+                        new_status = VS.PRE_CALL_DONE
+                elif call_attempt.phase == CallPhase.POST_MEETING:
+                    if visit.status in (VS.PLANNED, VS.PRE_CALL_DONE, VS.IN_PROGRESS):
+                        new_status = VS.POST_CALL_DONE
+                if new_status:
+                    visit.status = new_status
+                    visit.save(update_fields=['status', 'updated_at'])
+                    logger.info(f"Visit #{visit.id} advanced to {new_status}")
 
             # Update meeting completion status if call was successful
             if call_attempt.status == CallStatus.COMPLETED:
