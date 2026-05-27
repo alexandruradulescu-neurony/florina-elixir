@@ -1,130 +1,105 @@
-{% extends 'voice/base.html' %}
+{% extends "voice/base.html" %}
+{% load static %}
 
-{% block title %}Settings - Sales Assistant{% endblock %}
+{% block title %}Settings — Sales Assistant{% endblock %}
 
-{% block page_header %}
-<div>
-    <h1 class="text-xl font-bold text-slate-900">Settings</h1>
-    <p class="text-sm text-slate-500">Call timing, defaults, and AI meta-prompts</p>
-</div>
+{% block header_utility %}
+<nav class="breadcrumb">
+    <span class="cur">Settings</span>
+</nav>
 {% endblock %}
+
+{% block display_title %}Settings{% endblock %}
+{% block display_subtitle %}<div class="sub">Call timing, defaults, and AI meta-prompts</div>{% endblock %}
 
 {% block content %}
 
 {% if form.non_field_errors %}
-<div class="mb-5 rounded-xl bg-red-50 border border-red-200 px-4 py-3">
-    {% for error in form.non_field_errors %}
-    <p class="text-sm text-red-700">{{ error }}</p>
-    {% endfor %}
+<div class="toast toast-error" style="margin-bottom:16px;">
+    {% for error in form.non_field_errors %}<span>{{ error }}</span>{% endfor %}
 </div>
 {% endif %}
 
-<form method="post" class="max-w-5xl">
+<form method="post" class="form-layout">
     {% csrf_token %}
+    <div class="form-card">
 
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-        <!-- Left: Timing + Defaults + Meta-Prompts -->
-        <div class="lg:col-span-2 space-y-6">
-
-            <!-- Call Timing -->
-            <div class="bg-white rounded-xl border border-slate-200 p-5">
-                <h2 class="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4">Call Timing</h2>
-                <div class="grid grid-cols-3 gap-4">
-                    <div>
-                        <label class="block text-xs font-medium text-slate-700 mb-1.5">Pre-call offset</label>
-                        <div class="flex items-center gap-2">
-                            <input type="number" name="pre_call_offset_minutes" value="{{ form.pre_call_offset_minutes.value }}"
-                                class="w-full h-9 rounded-lg border border-slate-200 text-sm text-slate-700 px-3 focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-400 text-center">
-                            <span class="text-xs text-slate-400 whitespace-nowrap">min</span>
-                        </div>
-                        <p class="text-[10px] text-slate-400 mt-1">Before meeting (e.g. -60)</p>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-medium text-slate-700 mb-1.5">Post-call offset</label>
-                        <div class="flex items-center gap-2">
-                            <input type="number" name="post_call_offset_minutes" value="{{ form.post_call_offset_minutes.value }}"
-                                class="w-full h-9 rounded-lg border border-slate-200 text-sm text-slate-700 px-3 focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-400 text-center">
-                            <span class="text-xs text-slate-400 whitespace-nowrap">min</span>
-                        </div>
-                        <p class="text-[10px] text-slate-400 mt-1">After meeting (e.g. 15)</p>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-medium text-slate-700 mb-1.5">Retry interval</label>
-                        <div class="flex items-center gap-2">
-                            <input type="number" name="retry_interval_minutes" value="{{ form.retry_interval_minutes.value }}"
-                                class="w-full h-9 rounded-lg border border-slate-200 text-sm text-slate-700 px-3 focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-400 text-center">
-                            <span class="text-xs text-slate-400 whitespace-nowrap">min</span>
-                        </div>
-                        <p class="text-[10px] text-slate-400 mt-1">Between retries</p>
-                    </div>
+        <fieldset class="form-fieldset">
+            <h3>Call timing</h3>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;">
+                <div class="form-row">
+                    <label for="{{ form.pre_call_offset_minutes.id_for_label }}">Pre-call offset (min)</label>
+                    <input type="number" name="{{ form.pre_call_offset_minutes.name }}" id="{{ form.pre_call_offset_minutes.id_for_label }}" value="{{ form.pre_call_offset_minutes.value|default:'' }}">
+                    <span class="helptext">Before meeting (e.g. -60)</span>
+                    {% if form.pre_call_offset_minutes.errors %}<span class="field-error">{{ form.pre_call_offset_minutes.errors.0 }}</span>{% endif %}
+                </div>
+                <div class="form-row">
+                    <label for="{{ form.post_call_offset_minutes.id_for_label }}">Post-call offset (min)</label>
+                    <input type="number" name="{{ form.post_call_offset_minutes.name }}" id="{{ form.post_call_offset_minutes.id_for_label }}" value="{{ form.post_call_offset_minutes.value|default:'' }}">
+                    <span class="helptext">After meeting (e.g. 15)</span>
+                    {% if form.post_call_offset_minutes.errors %}<span class="field-error">{{ form.post_call_offset_minutes.errors.0 }}</span>{% endif %}
+                </div>
+                <div class="form-row">
+                    <label for="{{ form.retry_interval_minutes.id_for_label }}">Retry interval (min)</label>
+                    <input type="number" name="{{ form.retry_interval_minutes.name }}" id="{{ form.retry_interval_minutes.id_for_label }}" value="{{ form.retry_interval_minutes.value|default:'' }}">
+                    <span class="helptext">Between retries</span>
+                    {% if form.retry_interval_minutes.errors %}<span class="field-error">{{ form.retry_interval_minutes.errors.0 }}</span>{% endif %}
                 </div>
             </div>
+        </fieldset>
 
-            <!-- Default Methodology -->
-            <div class="bg-white rounded-xl border border-slate-200 p-5">
-                <h2 class="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4">Defaults</h2>
-                <div>
-                    <label class="block text-xs font-medium text-slate-700 mb-1.5">Default Methodology</label>
-                    <select name="default_methodology"
-                        class="w-full sm:w-64 h-9 rounded-lg border border-slate-200 text-sm text-slate-600 pl-3 pr-8 bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-400">
-                        <option value="">None</option>
-                        {% for m in form.fields.default_methodology.queryset %}
-                        <option value="{{ m.id }}" {% if form.instance.default_methodology_id == m.id %}selected{% endif %}>{{ m.name }}</option>
-                        {% endfor %}
-                    </select>
-                    <p class="text-[10px] text-slate-400 mt-1.5">System-wide fallback when no agent or visit override is set</p>
-                </div>
+        <fieldset class="form-fieldset">
+            <h3>Defaults</h3>
+            <div class="form-row">
+                <label for="{{ form.default_methodology.id_for_label }}">Default methodology</label>
+                <select name="{{ form.default_methodology.name }}" id="{{ form.default_methodology.id_for_label }}">
+                    <option value="">None</option>
+                    {% for m in form.fields.default_methodology.queryset %}
+                    <option value="{{ m.id }}" {% if form.instance.default_methodology_id == m.id %}selected{% endif %}>{{ m.name }}</option>
+                    {% endfor %}
+                </select>
+                <span class="helptext">System-wide fallback when no agent or visit override is set.</span>
+                {% if form.default_methodology.errors %}<span class="field-error">{{ form.default_methodology.errors.0 }}</span>{% endif %}
             </div>
+        </fieldset>
 
-            <!-- Pre-Call Meta-Prompt -->
-            <div class="bg-white rounded-xl border border-slate-200 p-5">
-                <h2 class="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4">Pre-Call Meta-Prompt</h2>
-                <textarea name="pre_call_meta_prompt" rows="8"
-                    class="w-full rounded-lg border border-slate-200 text-sm text-slate-700 p-3 focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-400 font-mono text-xs leading-relaxed resize-y"
-                    placeholder="Instructions for the LLM on how to generate pre-call voice prompts...">{{ form.pre_call_meta_prompt.value|default:'' }}</textarea>
-                <p class="text-[10px] text-slate-400 mt-1.5">Tells the AI how to build pre-call coaching prompts. Leave empty for default.</p>
+        <fieldset class="form-fieldset">
+            <h3>Pre-call meta-prompt</h3>
+            <div class="form-row">
+                <label for="{{ form.pre_call_meta_prompt.id_for_label }}">Instructions for the LLM</label>
+                <textarea name="{{ form.pre_call_meta_prompt.name }}" id="{{ form.pre_call_meta_prompt.id_for_label }}" style="min-height:200px;font-family:ui-monospace,Menlo,monospace;font-size:12px;line-height:1.5;" placeholder="Instructions for the LLM on how to generate pre-call voice prompts…">{{ form.pre_call_meta_prompt.value|default:'' }}</textarea>
+                <span class="helptext">Tells the AI how to build pre-call coaching prompts. Leave empty for default.</span>
+                {% if form.pre_call_meta_prompt.errors %}<span class="field-error">{{ form.pre_call_meta_prompt.errors.0 }}</span>{% endif %}
             </div>
+        </fieldset>
 
-            <!-- Post-Call Meta-Prompt -->
-            <div class="bg-white rounded-xl border border-slate-200 p-5">
-                <h2 class="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4">Post-Call Meta-Prompt</h2>
-                <textarea name="post_call_meta_prompt" rows="8"
-                    class="w-full rounded-lg border border-slate-200 text-sm text-slate-700 p-3 focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-400 font-mono text-xs leading-relaxed resize-y"
-                    placeholder="Instructions for the LLM on how to generate post-call voice prompts...">{{ form.post_call_meta_prompt.value|default:'' }}</textarea>
-                <p class="text-[10px] text-slate-400 mt-1.5">Tells the AI how to build post-call debrief prompts. Leave empty for default.</p>
+        <fieldset class="form-fieldset">
+            <h3>Post-call meta-prompt</h3>
+            <div class="form-row">
+                <label for="{{ form.post_call_meta_prompt.id_for_label }}">Instructions for the LLM</label>
+                <textarea name="{{ form.post_call_meta_prompt.name }}" id="{{ form.post_call_meta_prompt.id_for_label }}" style="min-height:200px;font-family:ui-monospace,Menlo,monospace;font-size:12px;line-height:1.5;" placeholder="Instructions for the LLM on how to generate post-call debrief prompts…">{{ form.post_call_meta_prompt.value|default:'' }}</textarea>
+                <span class="helptext">Tells the AI how to build post-call debrief prompts. Leave empty for default.</span>
+                {% if form.post_call_meta_prompt.errors %}<span class="field-error">{{ form.post_call_meta_prompt.errors.0 }}</span>{% endif %}
             </div>
-
-        </div>
-
-        <!-- Right: Actions -->
-        <div>
-            <div class="bg-white rounded-xl border border-slate-200 p-5 sticky top-4">
-                <button type="submit" class="w-full h-10 rounded-lg bg-teal-500 hover:bg-teal-600 text-white text-sm font-medium transition-colors">
-                    Save Settings
-                </button>
-
-                <div class="mt-4 pt-4 border-t border-slate-100">
-                    <div class="text-[10px] text-slate-400 uppercase tracking-wider mb-2">How settings apply</div>
-                    <div class="space-y-2 text-xs text-slate-500">
-                        <div class="flex items-start gap-2">
-                            <div class="w-2 h-2 rounded-full bg-teal-500 shrink-0 mt-1"></div>
-                            <span>Timing affects when calls are triggered relative to meetings</span>
-                        </div>
-                        <div class="flex items-start gap-2">
-                            <div class="w-2 h-2 rounded-full bg-teal-500 shrink-0 mt-1"></div>
-                            <span>Default methodology is used when agent has none set</span>
-                        </div>
-                        <div class="flex items-start gap-2">
-                            <div class="w-2 h-2 rounded-full bg-teal-500 shrink-0 mt-1"></div>
-                            <span>Meta-prompts control how the AI generates call scripts</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+        </fieldset>
 
     </div>
+
+    <aside class="form-sidebar">
+        <div class="card">
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">Save settings</button>
+            </div>
+        </div>
+        <div class="card">
+            <h3>How settings apply</h3>
+            <ul class="status-list">
+                <li><span class="dot on"></span>Timing affects when calls fire relative to meetings</li>
+                <li><span class="dot on"></span>Default methodology is used when an agent has none set</li>
+                <li><span class="dot on"></span>Meta-prompts control how the AI generates call scripts</li>
+            </ul>
+        </div>
+    </aside>
 </form>
 
 {% endblock %}
