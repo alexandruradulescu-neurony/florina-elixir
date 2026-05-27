@@ -46,6 +46,7 @@
 .outcome-chip-green { background: var(--green-100); color: var(--green-700); }
 .outcome-chip-cream { background: var(--amber-100); color: var(--amber-800); }
 .outcome-chip-rose  { background: var(--rose-100);  color: var(--rose-700); }
+.outcome-chip-default { background: var(--zinc-100); color: var(--zinc-700); }
 
 /* ─────────── Call-phase icon (pre = circle, post = diamond) ─────────── */
 .call-icon {

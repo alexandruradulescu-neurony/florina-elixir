@@ -17,12 +17,38 @@ logger = logging.getLogger(__name__)
 _client = None
 
 
+def _resolve_anthropic_key() -> str:
+    """Resolve ANTHROPIC_API_KEY robustly.
+
+    decouple.config picks up the value from os.environ first. If a parent shell
+    exported the variable as an empty string (e.g. another tool stub), decouple
+    returns that empty string and ignores the real value in .env. This breaks
+    the webhook silently in production-like setups. As a fallback, when
+    decouple yields an empty value, we read .env directly.
+    """
+    key = config('ANTHROPIC_API_KEY', default='') or ''
+    if key.strip():
+        return key.strip()
+    try:
+        from decouple import RepositoryEnv
+        import os
+        env_path = os.path.join(os.getcwd(), '.env')
+        if os.path.exists(env_path):
+            data = RepositoryEnv(env_path).data
+            fallback = (data.get('ANTHROPIC_API_KEY') or '').strip()
+            if fallback:
+                return fallback
+    except Exception as e:
+        logger.warning(f"Could not read ANTHROPIC_API_KEY from .env file: {e}")
+    return ''
+
+
 def _get_client():
     """Lazy-init the Anthropic client."""
     global _client
     if _client is None:
         import anthropic
-        api_key = config('ANTHROPIC_API_KEY', default='')
+        api_key = _resolve_anthropic_key()
         if not api_key:
             raise ValueError("ANTHROPIC_API_KEY not configured in .env")
         _client = anthropic.Anthropic(api_key=api_key)
@@ -31,7 +57,7 @@ def _get_client():
 
 def is_configured() -> bool:
     """Check if the LLM service has a valid API key."""
-    return bool(config('ANTHROPIC_API_KEY', default=''))
+    return bool(_resolve_anthropic_key())
 
 
 def _call_claude(system_prompt: str, user_message: str, max_tokens: int = 4096) -> Optional[str]:

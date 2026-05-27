@@ -149,41 +149,35 @@
                 <pre class="full-transcript">{{ post_call_panel.snippet.full }}</pre>
             </details>
             {% endif %}
-            <div class="ministats">
-                <div class="ministat"><div class="l">Sentiment</div><div class="v">{{ post_call_ministats.sentiment }}%<span class="delta">{{ post_call_ministats.sentiment_delta }}</span></div></div>
-                <div class="ministat"><div class="l">Talk ratio</div><div class="v">{{ post_call_ministats.talk_ratio }}%</div></div>
-                <div class="ministat"><div class="l">Objections</div><div class="v">{{ post_call_ministats.objections }}</div></div>
-                <div class="ministat"><div class="l">Champion</div><div class="v" style="font-size:14px;">{{ post_call_ministats.champion }}</div></div>
-            </div>
         </div>
 
         {% if post_call_analysis %}
 
-        {# ─── No-go banner (only when AI flagged this conversation as killing the deal) ─── #}
+        {# ─── Semnal NO-GO (apare doar dacă AI a marcat deal-ul ca pe drum mort) ─── #}
         {% if post_call_analysis.no_go.is_no_go %}
         <div class="no-go-banner">
-            <h3>⚠ No-go signal</h3>
+            <h3>⚠ Semnal NO-GO</h3>
             {% if post_call_analysis.no_go.reason %}
             <div class="body">{{ post_call_analysis.no_go.reason }}</div>
             {% endif %}
             {% if post_call_analysis.no_go.salvage_path %}
-            <div class="salvage">Salvage path: {{ post_call_analysis.no_go.salvage_path }}</div>
+            <div class="salvage">Cale de salvare: {{ post_call_analysis.no_go.salvage_path }}</div>
             {% endif %}
         </div>
         {% endif %}
 
-        {# ─── Objective attainment ─── #}
+        {# ─── Atingere obiectiv ─── #}
         <div class="dcard objective-card">
-            <h3>Objective attainment</h3>
+            <h3>Atingere obiectiv</h3>
             <div class="pill-row">
                 {% if post_call_analysis.objective_attained == 'attained' %}
-                    {% include "voice/partials/status_pill.html" with variant="green" label="Attained" %}
+                    {% include "voice/partials/status_pill.html" with variant="green" label="Atins" %}
                 {% elif post_call_analysis.objective_attained == 'partial' %}
-                    {% include "voice/partials/status_pill.html" with variant="cream" label="Partial" %}
+                    {% include "voice/partials/status_pill.html" with variant="cream" label="Parțial" %}
                 {% elif post_call_analysis.objective_attained == 'missed' %}
-                    {% include "voice/partials/status_pill.html" with variant="rose" label="Missed" %}
+                    {% include "voice/partials/status_pill.html" with variant="rose" label="Ratat" %}
                 {% else %}
-                    {% include "voice/partials/status_pill.html" with variant="cream" label="Unknown" %}
+                    {% include "voice/partials/status_pill.html" with variant="cream" label="Necunoscut" %}
                 {% endif %}
             </div>
             {% if post_call_analysis.objective_assessment %}
@@ -191,10 +185,10 @@
             {% endif %}
         </div>
 
-        {# ─── Actionables ─── #}
+        {# ─── Acțiuni de făcut (CRM) ─── #}
         {% if post_call_analysis.actionables %}
         <div class="dcard">
-            <h3>Actionables</h3>
+            <h3>Acțiuni de făcut</h3>
             <div class="actionables-list">
                 {% for a in post_call_analysis.actionables %}
                 <div class="actionable">
@@ -207,10 +201,10 @@
         </div>
         {% endif %}
 
-        {# ─── Recommendations ─── #}
+        {# ─── Recomandări pentru agent ─── #}
         {% if post_call_analysis.recommendations %}
         <div class="dcard">
-            <h3>Recommendations</h3>
+            <h3>Recomandări pentru agent</h3>
             <div class="reco-list">
                 {% for r in post_call_analysis.recommendations %}
                 <div class="reco-item">{{ r }}</div>
@@ -219,10 +213,10 @@
         </div>
         {% endif %}
 
-        {# ─── Next Best Actions ─── #}
+        {# ─── Următorii pași (Next Best Actions) ─── #}
         {% if post_call_analysis.next_best_actions %}
         <div class="dcard">
-            <h3>Next Best Actions</h3>
+            <h3>Următorii pași pentru deal</h3>
             <div class="nba-list">
                 {% for n in post_call_analysis.next_best_actions %}
                 <div class="nba-card">
@@ -237,13 +231,13 @@
         </div>
         {% endif %}
 
-        {# ─── Objections + Risks (compact tag groups) ─── #}
-        {% if post_call_analysis.objections_raised or post_call_analysis.risks %}
+        {# ─── Obiecții și riscuri (tag groups) ─── #}
+        {% if post_call_analysis.objections_raised or post_call_analysis.objections_handled or post_call_analysis.risks %}
         <div class="dcard">
-            <h3>Objections &amp; risks</h3>
+            <h3>Obiecții și riscuri</h3>
             {% if post_call_analysis.objections_raised %}
             <div style="margin-bottom:12px;">
-                <div class="t-meta" style="text-transform:uppercase;color:var(--fg-muted);font-weight:800;font-size:10px;letter-spacing:0.1em;margin-bottom:6px;">Objections raised</div>
+                <div class="t-meta" style="text-transform:uppercase;color:var(--fg-muted);font-weight:800;font-size:10px;letter-spacing:0.1em;margin-bottom:6px;">Obiecții ridicate</div>
                 <div class="tag-group">
                     {% for o in post_call_analysis.objections_raised %}
                     <span class="tag">{{ o }}</span>
@@ -253,7 +247,7 @@
             {% endif %}
             {% if post_call_analysis.objections_handled %}
             <div style="margin-bottom:12px;">
-                <div class="t-meta" style="text-transform:uppercase;color:var(--fg-muted);font-weight:800;font-size:10px;letter-spacing:0.1em;margin-bottom:6px;">Handled</div>
+                <div class="t-meta" style="text-transform:uppercase;color:var(--fg-muted);font-weight:800;font-size:10px;letter-spacing:0.1em;margin-bottom:6px;">Gestionate</div>
                 <div class="tag-group">
                     {% for o in post_call_analysis.objections_handled %}
                     <span class="tag handled">{{ o }}</span>
@@ -263,7 +257,7 @@
             {% endif %}
             {% if post_call_analysis.risks %}
             <div>
-                <div class="t-meta" style="text-transform:uppercase;color:var(--fg-muted);font-weight:800;font-size:10px;letter-spacing:0.1em;margin-bottom:6px;">Risks</div>
+                <div class="t-meta" style="text-transform:uppercase;color:var(--fg-muted);font-weight:800;font-size:10px;letter-spacing:0.1em;margin-bottom:6px;">Riscuri</div>
                 <div class="tag-group">
                     {% for r in post_call_analysis.risks %}
                     <span class="tag risk">{{ r }}</span>
@@ -271,6 +265,16 @@
                 </div>
             </div>
             {% endif %}
+        </div>
+        {% endif %}
+
+        {# ─── Metrici (sentiment, talk ratio, champion) — la final, ca info secundar ─── #}
+        {% if post_call_ministats %}
+        <div class="ministats">
+            <div class="ministat"><div class="l">Sentiment</div><div class="v">{{ post_call_ministats.sentiment }}%<span class="delta">{{ post_call_ministats.sentiment_delta }}</span></div></div>
+            <div class="ministat"><div class="l">Vorbire agent</div><div class="v">{{ post_call_ministats.talk_ratio }}%</div></div>
+            <div class="ministat"><div class="l">Obiecții</div><div class="v">{{ post_call_ministats.objections }}</div></div>
+            <div class="ministat"><div class="l">Sprijin client</div><div class="v" style="font-size:14px;">{{ post_call_ministats.champion }}</div></div>
         </div>
         {% endif %}
 
@@ -337,18 +341,22 @@
             </form>
         </div>
 
-        {# Client Intel #}
+        {# Profil client — only real data, no fake CRM placeholders #}
         <div class="dcard">
-            <h3>Client Intel</h3>
+            <h3>Profil client</h3>
             <p class="intel-summary">{{ client_intel_summary }}</p>
+            {% if intel_chips %}
             <div class="intel-chips">
                 {% for chip in intel_chips %}{% include "voice/partials/outcome_chip.html" with label=chip.label tone=chip.tone %}{% endfor %}
             </div>
+            {% endif %}
+            {% if intel_kpis %}
             <div class="kpi-list">
                 {% for k in intel_kpis %}
                 <div class="row"><span class="l">{{ k.label }}</span><span class="v">{{ k.value }}</span></div>
                 {% endfor %}
             </div>
+            {% endif %}
         </div>
 
     </div>

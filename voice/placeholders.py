@@ -453,35 +453,42 @@ def visit_detail_extras(visit, pre_calls, post_calls, effective_methodology):
         }
         post_call_analysis = a
     else:
-        post_call_ministats = visit_ministats(visit)
+        # No real analysis yet — hide the ministats block entirely.
+        # The structured analysis sections render only when analysis exists,
+        # so ministats with fake placeholder values would mislead the demo.
+        post_call_ministats = None
         post_call_analysis = None
 
-    # ─── client_intel ───
-    intel_chip_pool = [
-        ("Expanding APAC", "green"),
-        ("New CFO", "cream"),
-        ("Competitor pilot", "rose"),
-        ("Renewal Q3", "green"),
-        ("Budget freeze", "rose"),
-        ("Champion strong", "green"),
-    ]
-    n_intel = 3
-    start = visit.id % len(intel_chip_pool)
-    intel_chips = [
-        {"label": intel_chip_pool[(start + i) % len(intel_chip_pool)][0],
-         "tone": intel_chip_pool[(start + i) % len(intel_chip_pool)][1]}
-        for i in range(n_intel)
-    ]
+    # ─── client_intel (honest signals only — no fake CRM data) ───
+    intel_chips = []
+    if client:
+        if client.status == 'nou':
+            intel_chips.append({"label": "Client nou", "tone": "cream"})
+        else:
+            intel_chips.append({"label": "Client existent", "tone": "green"})
+        if client.industry:
+            intel_chips.append({"label": client.industry, "tone": "default"})
+
+    # Sumar AI client — use real ai_summary if populated, otherwise honest stub.
     client_intel_summary = (
         (client.ai_summary if client and client.ai_summary else None)
-        or "No client intel summary on file yet. Real summary will be sourced from Client.ai_summary."
+        or "Niciun sumar AI salvat pentru acest client. Se va popula automat când vom integra "
+           "extragerea din CRM și istoricul vizitelor."
     )
 
-    intel_kpis = [
-        {"label": "Last contact", "value": f"{5 + (visit.id % 28)} days ago"},
-        {"label": "Open deals", "value": str(1 + (visit.id % 3))},
-        {"label": "ARR", "value": f"${(40 + (visit.id % 60)) * 1000:,}"},
-    ]
+    # KPI list — only count real visits we have in DB. Skip fake last-contact/ARR/deal data.
+    intel_kpis = []
+    if client:
+        from voice.models import Visit as _V
+        total_visits_for_client = _V.objects.filter(client=client).count()
+        completed_visits_for_client = _V.objects.filter(
+            client=client, status=VisitStatus.COMPLETE
+        ).count()
+        intel_kpis = [
+            {"label": "Total vizite în CRM", "value": str(total_visits_for_client)},
+            {"label": "Vizite finalizate", "value": str(completed_visits_for_client)},
+            {"label": "Industrie", "value": client.industry or "—"},
+        ]
 
     # ─── generated_prompts ───
     generated_prompts = []
