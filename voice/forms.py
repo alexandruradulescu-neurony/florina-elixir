@@ -144,14 +144,21 @@ class GlobalSettingsForm(forms.ModelForm):
 
 
 class VisitManagerNotesForm(forms.ModelForm):
-    """Form for manager to add notes, override methodology, and paste AI prompts on a visit."""
+    """Form for manager to add notes, override methodology, schedule, and paste AI prompts."""
 
     class Meta:
         model = Visit
-        fields = ['manager_notes', 'methodology',
+        fields = ['start_time', 'end_time',
+                  'manager_notes', 'methodology',
                   'pre_call_prompt', 'pre_call_first_message',
                   'post_call_prompt', 'post_call_first_message']
         widgets = {
+            'start_time': forms.DateTimeInput(attrs={
+                'type': 'datetime-local',
+            }, format='%Y-%m-%dT%H:%M'),
+            'end_time': forms.DateTimeInput(attrs={
+                'type': 'datetime-local',
+            }, format='%Y-%m-%dT%H:%M'),
             'manager_notes': forms.Textarea(attrs={
                 'placeholder': 'Special requirements for this visit (e.g., "Push for Q3 close", "Ask about new CTO")...',
             }),
@@ -173,6 +180,14 @@ class VisitManagerNotesForm(forms.ModelForm):
                 'style': 'min-height:80px;font-family:ui-monospace,Menlo,monospace;font-size:12px;line-height:1.5;',
             }),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # datetime-local needs ISO format without seconds for the browser picker
+        self.fields['start_time'].input_formats = ['%Y-%m-%dT%H:%M']
+        self.fields['end_time'].input_formats = ['%Y-%m-%dT%H:%M']
+        self.fields['start_time'].required = False
+        self.fields['end_time'].required = False
 
 
 class ClientForm(forms.ModelForm):

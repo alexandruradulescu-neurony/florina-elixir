@@ -493,6 +493,100 @@ def update_elevenlabs_webhook(webhook_url: str) -> Dict[str, Any]:
 # Note: Twilio number must be configured in ElevenLabs dashboard.
 # ElevenLabs handles all Twilio operations internally.
 
+_RO_MONTHS = [
+    'ianuarie', 'februarie', 'martie', 'aprilie', 'mai', 'iunie',
+    'iulie', 'august', 'septembrie', 'octombrie', 'noiembrie', 'decembrie',
+]
+
+
+def format_prompt_for_visit(template: str, visit, phase: str = 'pre') -> str:
+    """Substitute {tokens} in a visit prompt with real values from the visit.
+
+    Available tokens (Romanian-friendly):
+      {agent_first_name}   - Visit.agent.first_name (or username)
+      {agent_full_name}    - Visit.agent.get_full_name()
+      {agent_phone}        - Visit.agent.phone_number
+      {client_name}        - Visit.client.name
+      {client_status}      - "client nou" or "client existent" (lowercase)
+      {client_industry}    - Visit.client.industry
+      {visit_date}         - e.g. "28 mai 2026" (Romanian month names)
+      {visit_time}         - e.g. "11:00"
+      {visit_duration}     - e.g. "60 de minute"
+      {visit_title}        - Visit.title
+      {methodology_name}   - Visit.methodology.name
+      {manager_notes}      - Visit.manager_notes (may be long)
+      {pre_call_summary}   - For phase='post', the latest pre-call's Romanian
+                             summary. For phase='pre', empty (or stub).
+
+    Unknown tokens are left as-is so the prompt remains readable if it
+    references one we don't have data for.
+    """
+    if not template:
+        return template
+
+    agent = visit.agent
+    client = visit.client
+    methodology = visit.methodology
+
+    visit_date = ''
+    visit_time = ''
+    visit_duration = ''
+    if visit.start_time:
+        st = visit.start_time
+        visit_date = f"{st.day} {_RO_MONTHS[st.month - 1]} {st.year}"
+        visit_time = st.strftime('%H:%M')
+    if visit.start_time and visit.end_time:
+        minutes = int((visit.end_time - visit.start_time).total_seconds() // 60)
+        if minutes > 0:
+            visit_duration = f"{minutes} de minute"
+
+    pre_call_summary = ''
+    if phase == 'post':
+        try:
+            from voice.constants import CallPhase, CallStatus
+            latest_pre = (
+                CallAttempt.objects
+                .filter(visit=visit, phase=CallPhase.PRE_MEETING, status=CallStatus.COMPLETED)
+                .exclude(summary='')
+                .order_by('-created_at')
+                .first()
+            )
+            if latest_pre and latest_pre.summary:
+                pre_call_summary = latest_pre.summary.strip()
+        except Exception as e:
+            logger.warning(f"Could not load pre-call summary for visit {visit.id}: {e}")
+    if not pre_call_summary:
+        pre_call_summary = '(Nu există încă un sumar de pre-call pentru această vizită.)'
+
+    client_status_label = ''
+    if client and client.status:
+        client_status_label = (client.get_status_display() or '').lower()
+
+    tokens = {
+        '{agent_first_name}': (agent.first_name or agent.username or '') if agent else '',
+        '{agent_full_name}':  (agent.get_full_name() or agent.username or '') if agent else '',
+        '{agent_phone}':      (agent.phone_number or '') if agent else '',
+        '{client_name}':      client.name if client else '',
+        '{client_status}':    client_status_label,
+        '{client_industry}':  (client.industry or '') if client else '',
+        '{visit_date}':       visit_date,
+        '{visit_time}':       visit_time,
+        '{visit_duration}':   visit_duration,
+        '{visit_title}':      visit.title or '',
+        '{methodology_name}': methodology.name if methodology else '',
+        '{manager_notes}':    (visit.manager_notes or '').strip(),
+        '{pre_call_summary}': pre_call_summary,
+        # uppercase variant for the CAPS-emphasis lines in the internal context blocks
+        '{client_status_upper}': client_status_label.upper(),
+    }
+
+    out = template
+    for token, value in tokens.items():
+        if token in out:
+            out = out.replace(token, str(value))
+    return out
+
+
 def format_prompt_with_context(prompt_template: str, meeting) -> str:
     """
     Inject meeting details into the prompt template.
@@ -844,6 +938,11 @@ def trigger_visit_call(visit, phase: str) -> Dict[str, Any]:
     else:
         result['error'] = f"Invalid phase '{phase}'. Expected 'pre' or 'post'."
         return result
+
+    # Substitute {tokens} with real visit data (agent name, client, time,
+    # methodology, and — critically for post-call — the pre-call summary).
+    prompt_text = format_prompt_for_visit(prompt_text or '', visit, phase=phase)
+    first_message_text = format_prompt_for_visit(first_message_text or '', visit, phase=phase)
 
     if not prompt_text or not prompt_text.strip():
         result['error'] = (

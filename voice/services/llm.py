@@ -251,7 +251,12 @@ def extract_pdf_text(file_path: str) -> str:
     return '\n\n'.join(text_parts)
 
 
-def analyze_post_call(transcript: str, post_call_prompt: str = '', visit_context: str = '') -> Optional[dict]:
+def analyze_post_call(
+    transcript: str,
+    post_call_prompt: str = '',
+    visit_context: str = '',
+    pre_call_summary: str = '',
+) -> Optional[dict]:
     """
     Analyze a post-call transcript and return structured fields for CRM/Visit Detail.
 
@@ -260,6 +265,9 @@ def analyze_post_call(transcript: str, post_call_prompt: str = '', visit_context
         post_call_prompt: The prompt the AI used during the debrief — gives Claude
                           context on what the agent was probing for.
         visit_context: Free-form context about the visit (client, agent, methodology).
+        pre_call_summary: Romanian summary of the pre-call. If present, Claude
+                          actively compares pre-call claims vs post-call reality
+                          and flags discrepancies in `consistency_check`.
 
     Returns:
         dict matching the agreed schema, or None on failure.
@@ -289,7 +297,18 @@ def analyze_post_call(transcript: str, post_call_prompt: str = '', visit_context
   "objections_raised": ["<obiecție ridicată de client, formulare scurtă în română>"],
   "objections_handled": ["<cum a fost gestionată obiecția, în română>"],
   "champion_strength": "weak" | "moderate" | "strong" | "champion",
-  "risks": ["<risc concret pentru deal, în română>"]
+  "risks": ["<risc concret pentru deal, în română>"],
+  "consistency_check": {
+    "has_pre_call_summary": true | false,
+    "consistent": true | false,
+    "discrepancies": [
+      {
+        "pre_call_claim": "<ce a spus / ce a confirmat agentul la pre-call, în română>",
+        "post_call_reality": "<ce reiese din debrief că s-a întâmplat de fapt, în română>",
+        "implication": "<ce înseamnă pentru deal sau pentru relația cu agentul, în română>"
+      }
+    ]
+  }
 }
 '''.strip()
 
@@ -321,12 +340,28 @@ def analyze_post_call(transcript: str, post_call_prompt: str = '', visit_context
         "- Nu inventa detalii care nu apar în transcript. Dacă agentul nu a confirmat un "
         "lucru, nu pune în CRM ca și cum ar fi confirmat.\n"
         "- Dacă transcriptul e prea scurt sau gol ca să tragi concluzii, întoarce valori "
-        "default goale dar JSON valid."
+        "default goale dar JSON valid.\n"
+        "\n"
+        "VERIFICAREA CONSISTENȚEI PRE↔POST (consistency_check):\n"
+        "- Dacă există un sumar al pre-call-ului în context, compară activ ce a CONFIRMAT "
+        "agentul că știe/are pregătit la pre-call versus ce reiese din debrief.\n"
+        "- Exemple de discrepanțe relevante: agentul a zis la pre-call că a verificat "
+        "solvabilitatea pe listafirme, dar la post-call recunoaște că nu a apucat. Sau "
+        "a confirmat că are fișa de produs gata, dar la întâlnire nu a prezentat-o.\n"
+        "- has_pre_call_summary = true doar dacă efectiv ai primit un sumar de pre-call în "
+        "context. Dacă nu, has_pre_call_summary = false, consistent = true, discrepancies = [].\n"
+        "- Dacă nu există discrepanțe relevante, consistent = true și discrepancies = [].\n"
+        "- Nu raporta discrepanțe minore de formulare. Doar lucruri care chiar contează "
+        "pentru deal sau pentru calitatea pregătirii agentului."
     )
 
     parts = []
     if visit_context:
         parts.append(f"## Context vizită\n{visit_context}")
+    if pre_call_summary and pre_call_summary.strip():
+        parts.append(
+            f"## Sumar pre-call (folosește pentru consistency_check)\n{pre_call_summary.strip()}"
+        )
     if post_call_prompt:
         parts.append(f"## Promptul folosit de Florina în debrief (ce voia agentul să afle)\n{post_call_prompt}")
     parts.append(f"## Transcript apel\n{transcript}")

@@ -218,10 +218,31 @@ class ElevenLabsWebhookView(View):
                     # to avoid a second Claude call.
                     ro_summary = None
                     if is_post:
+                        # Inject the latest pre-call summary so Claude can
+                        # cross-check claims (consistency_check field).
+                        pre_call_summary_for_analysis = ''
+                        try:
+                            from .models import CallAttempt as _CA
+                            latest_pre = (
+                                _CA.objects
+                                .filter(visit=visit, phase=CallPhase.PRE_MEETING,
+                                        status=CallStatus.COMPLETED)
+                                .exclude(summary='')
+                                .order_by('-created_at')
+                                .first()
+                            )
+                            if latest_pre and latest_pre.summary:
+                                pre_call_summary_for_analysis = latest_pre.summary.strip()
+                        except Exception as e:
+                            logger.warning(
+                                f"Could not load pre-call summary for analysis: {e}"
+                            )
+
                         analysis = analyze_post_call(
                             transcript=call_attempt.transcript,
                             post_call_prompt=original_prompt,
                             visit_context=visit_context,
+                            pre_call_summary=pre_call_summary_for_analysis,
                         )
                         if analysis:
                             call_attempt.analysis = analysis

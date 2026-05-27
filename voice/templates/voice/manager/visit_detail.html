@@ -231,6 +231,33 @@
         </div>
         {% endif %}
 
+        {# ─── Verificare consistență pre↔post (când există sumar de pre-call) ─── #}
+        {% if post_call_analysis.consistency_check.has_pre_call_summary %}
+        <div class="dcard consistency-card{% if not post_call_analysis.consistency_check.consistent %} has-discrepancies{% endif %}">
+            <h3>
+                Verificare consistență pre↔post
+                {% if post_call_analysis.consistency_check.consistent %}
+                <span class="badge-ok">Consistent</span>
+                {% else %}
+                <span class="badge-warn">{{ post_call_analysis.consistency_check.discrepancies|length }} discrepanțe</span>
+                {% endif %}
+            </h3>
+            {% if post_call_analysis.consistency_check.discrepancies %}
+            <div class="discrepancy-list">
+                {% for d in post_call_analysis.consistency_check.discrepancies %}
+                <div class="discrepancy">
+                    <div class="row"><span class="lbl">Pre-call:</span> {{ d.pre_call_claim }}</div>
+                    <div class="row"><span class="lbl">Post-call:</span> {{ d.post_call_reality }}</div>
+                    {% if d.implication %}<div class="row implication"><span class="lbl">Implicație:</span> {{ d.implication }}</div>{% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="t-body" style="margin:0;color:var(--fg-muted);">Agentul a fost consistent — ce a confirmat că are pregătit la pre-call a fost confirmat și în debrief.</p>
+            {% endif %}
+        </div>
+        {% endif %}
+
         {# ─── Obiecții și riscuri (tag groups) ─── #}
         {% if post_call_analysis.objections_raised or post_call_analysis.objections_handled or post_call_analysis.risks %}
         <div class="dcard">
@@ -296,6 +323,18 @@
             <h3>Manager Notes</h3>
             <form method="post">
                 {% csrf_token %}
+
+                <div class="fieldrow datetime-row">
+                    <div class="datetime-cell">
+                        <label class="t-meta">Start vizită</label>
+                        {{ form.start_time }}
+                    </div>
+                    <div class="datetime-cell">
+                        <label class="t-meta">Sfârșit vizită</label>
+                        {{ form.end_time }}
+                    </div>
+                </div>
+
                 <textarea name="manager_notes" placeholder="Notes about this visit…">{{ form.manager_notes.value|default:"" }}</textarea>
                 {% if form.methodology %}
                 <div class="fieldrow">
