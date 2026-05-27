@@ -2062,3 +2062,48 @@
 .calendar-body[data-filter="upcoming"]  .chip-row .chip:not(.upcoming)  { opacity: 0.35; }
 .calendar-body[data-filter="completed"] .chip-row .chip:not(.completed) { opacity: 0.35; }
 .calendar-body[data-filter="cancelled"] .chip-row .chip:not(.cancelled):not(.replanned) { opacity: 0.35; }
+
+/* ============================================================================
+   Prompt accordion (used in Visit Detail manager notes form)
+   ============================================================================ */
+.prompt-accordion {
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-md);
+  margin-top: 12px;
+  background: var(--bg-card);
+}
+.prompt-accordion[open] {
+  background: var(--zinc-50);
+}
+.prompt-accordion summary {
+  cursor: pointer;
+  padding: 10px 14px;
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 12px;
+  color: var(--fg-strong);
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.prompt-accordion summary::-webkit-details-marker { display: none; }
+.prompt-accordion summary::before {
+  content: "▸";
+  color: var(--fg-muted);
+  font-size: 10px;
+  transition: transform 100ms ease-out;
+}
+.prompt-accordion[open] summary::before {
+  transform: rotate(90deg);
+}
+.prompt-accordion textarea {
+  display: block;
+  width: calc(100% - 28px);
+  margin: 0 14px 14px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  resize: vertical;
+}

@@ -803,5 +803,143 @@ def trigger_agent_call(
         
         call_attempt.status = CallStatus.FAILED
         call_attempt.save()
-    
+
+    return result
+
+
+# ============================================================================
+# Visit-aware EL trigger (used by the Call Now button on Visit Detail).
+# Bypasses the legacy meeting-keyed trigger_agent_call; works with Visit
+# directly. The prompt is taken verbatim from visit.pre_call_prompt or
+# visit.post_call_prompt — no placeholder interpolation.
+# ============================================================================
+
+
+def trigger_visit_call(visit, phase: str) -> Dict[str, Any]:
+    """Initiate an EL outbound call for a Visit and phase ('pre' or 'post').
+
+    - Reads the pre-rendered prompt directly from visit.pre_call_prompt
+      or visit.post_call_prompt.
+    - Picks the agent's phone from visit.agent.phone_number.
+    - Uses settings.ELEVENLABS_AGENT_ID as the shared EL agent.
+    - Creates a CallAttempt(visit=visit, meeting=None, phase=..., ...).
+
+    Returns: {'success': bool, 'call_id': str|None, 'error': str|None}.
+    """
+    from decouple import config
+    import requests
+    from voice.constants import CallPhase
+
+    result = {'success': False, 'call_id': None, 'error': None}
+
+    # Phase mapping
+    if phase == 'pre':
+        prompt_text = visit.pre_call_prompt
+        call_phase = CallPhase.PRE_MEETING
+    elif phase == 'post':
+        prompt_text = visit.post_call_prompt
+        call_phase = CallPhase.POST_MEETING
+    else:
+        result['error'] = f"Invalid phase '{phase}'. Expected 'pre' or 'post'."
+        return result
+
+    if not prompt_text or not prompt_text.strip():
+        result['error'] = (
+            f"{phase.title()}-call prompt is empty on visit #{visit.id}. "
+            f"Paste it on the Visit Detail page first."
+        )
+        return result
+
+    # Validate agent phone
+    if not visit.agent or not visit.agent.phone_number:
+        result['error'] = f"Visit #{visit.id} has no agent phone number on file."
+        return result
+    formatted_phone = format_phone_number(visit.agent.phone_number)
+    if not formatted_phone:
+        result['error'] = f"Agent phone '{visit.agent.phone_number}' is not a valid E.164 number."
+        return result
+
+    # Validate env vars
+    api_key = config('ELEVENLABS_API_KEY', default='')
+    agent_id = config('ELEVENLABS_AGENT_ID', default='')
+    phone_number_id = config('ELEVENLABS_PHONE_NUMBER_ID', default='')
+    missing = [
+        name for name, val in (
+            ('ELEVENLABS_API_KEY', api_key),
+            ('ELEVENLABS_AGENT_ID', agent_id),
+            ('ELEVENLABS_PHONE_NUMBER_ID', phone_number_id),
+        ) if not val
+    ]
+    if missing:
+        result['error'] = f"Missing env vars: {', '.join(missing)}"
+        return result
+
+    # Create CallAttempt row (visit-linked, no meeting)
+    call_attempt = CallAttempt.objects.create(
+        visit=visit,
+        meeting=None,
+        phase=call_phase,
+        scheduled_offset_minutes=0,
+        scheduled_time=timezone.now(),
+        executed_at=timezone.now(),
+        status=CallStatus.INITIATED,
+    )
+
+    # Build EL payload
+    payload = {
+        'agent_id': agent_id,
+        'agent_phone_number_id': phone_number_id,
+        'to_number': formatted_phone,
+        'conversation_initiation_client_data': {
+            'conversation_config_override': {
+                'agent': {
+                    'prompt': {'prompt': prompt_text.strip()},
+                },
+            },
+        },
+    }
+
+    api_url = 'https://api.elevenlabs.io/v1/convai/twilio/outbound-call'
+    headers = {
+        'Content-Type': 'application/json',
+        'xi-api-key': api_key,
+    }
+
+    try:
+        response = requests.post(api_url, headers=headers, json=payload, timeout=30)
+    except requests.exceptions.RequestException as e:
+        call_attempt.status = CallStatus.FAILED
+        call_attempt.save()
+        result['error'] = f"EL request failed: {e}"
+        return result
+
+    if response.status_code == 200:
+        data = response.json()
+        call_id = (
+            data.get('conversation_id')
+            or data.get('call_id')
+            or data.get('id')
+            or data.get('call_sid')
+        )
+        if call_id:
+            call_attempt.external_call_id = call_id
+            call_attempt.status = CallStatus.IN_PROGRESS
+            call_attempt.save()
+            result['success'] = True
+            result['call_id'] = call_id
+            return result
+        call_attempt.status = CallStatus.FAILED
+        call_attempt.save()
+        result['error'] = f"EL returned 200 but no call_id in response: {data}"
+        return result
+
+    # Non-200
+    try:
+        err_data = response.json()
+        err_detail = err_data.get('detail') or err_data.get('message') or err_data.get('error') or str(err_data)
+    except Exception:
+        err_detail = response.text[:200]
+    call_attempt.status = CallStatus.FAILED
+    call_attempt.save()
+    result['error'] = f"EL API error ({response.status_code}): {err_detail}"
     return result

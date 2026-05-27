@@ -145,10 +145,33 @@
                     {{ form.methodology }}
                 </div>
                 {% endif %}
-                <div class="fieldrow">
+
+                <details class="prompt-accordion">
+                    <summary>Pre-call prompt</summary>
+                    <textarea name="pre_call_prompt" placeholder="Paste the pre-call AI prompt here. Sent verbatim to ElevenLabs.">{{ form.pre_call_prompt.value|default:'' }}</textarea>
+                </details>
+                <details class="prompt-accordion">
+                    <summary>Post-call prompt</summary>
+                    <textarea name="post_call_prompt" placeholder="Paste the post-call AI prompt here. Sent verbatim to ElevenLabs.">{{ form.post_call_prompt.value|default:'' }}</textarea>
+                </details>
+
+                <div class="fieldrow" style="margin-top:12px;">
                     <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;">Save</button>
                 </div>
                 <div class="savehint">Changes affect future pre/post-call prompts.</div>
+            </form>
+        </div>
+
+        {# ─── Run AI call ─── #}
+        <div class="dcard">
+            <h3>Run AI call</h3>
+            <form method="post" action="{% url 'voice:visit_call_now' visit_id=visit.id phase='pre' %}" style="margin-bottom:8px;">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;">Run pre-call</button>
+            </form>
+            <form method="post" action="{% url 'voice:visit_call_now' visit_id=visit.id phase='post' %}">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-secondary" style="width:100%;justify-content:center;">Run post-call</button>
             </form>
         </div>
 

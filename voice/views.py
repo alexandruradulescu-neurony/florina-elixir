@@ -1432,6 +1432,30 @@ class VisitDetailView(SuperuserRequiredMixin, View):
         return render(request, 'voice/manager/visit_detail.html', context)
 
 
+class VisitCallNowView(SuperuserRequiredMixin, View):
+    """Trigger an EL outbound call for a Visit's pre or post phase."""
+
+    def post(self, request, visit_id, phase):
+        from django.shortcuts import get_object_or_404
+        from voice.services.elevenlabs import trigger_visit_call
+
+        visit = get_object_or_404(Visit, id=visit_id)
+        if phase not in ('pre', 'post'):
+            messages.error(request, "Invalid call phase.")
+            return redirect('voice:visit_detail', visit_id=visit_id)
+
+        result = trigger_visit_call(visit, phase)
+        if result['success']:
+            messages.success(
+                request,
+                f"{phase.title()}-call initiated for {visit.client.name if visit.client else 'visit'}. "
+                f"Call ID: {result['call_id']}"
+            )
+        else:
+            messages.error(request, f"Call failed: {result['error']}")
+        return redirect('voice:visit_detail', visit_id=visit_id)
+
+
 class AgentMethodologyView(SuperuserRequiredMixin, View):
     """Assign default methodology to an agent."""
 

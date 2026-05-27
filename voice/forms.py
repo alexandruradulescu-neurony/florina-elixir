@@ -144,18 +144,23 @@ class GlobalSettingsForm(forms.ModelForm):
 
 
 class VisitManagerNotesForm(forms.ModelForm):
-    """Form for manager to add notes and override methodology on a visit."""
+    """Form for manager to add notes, override methodology, and paste AI prompts on a visit."""
 
     class Meta:
         model = Visit
-        fields = ['manager_notes', 'methodology']
+        fields = ['manager_notes', 'methodology', 'pre_call_prompt', 'post_call_prompt']
         widgets = {
             'manager_notes': forms.Textarea(attrs={
-                'class': 'textarea textarea-bordered w-full h-32',
                 'placeholder': 'Special requirements for this visit (e.g., "Push for Q3 close", "Ask about new CTO")...',
             }),
-            'methodology': forms.Select(attrs={
-                'class': 'select select-bordered w-full',
+            'methodology': forms.Select(),
+            'pre_call_prompt': forms.Textarea(attrs={
+                'placeholder': 'Paste the pre-call AI prompt here. Sent verbatim to ElevenLabs.',
+                'style': 'min-height:180px;font-family:ui-monospace,Menlo,monospace;font-size:12px;line-height:1.5;',
+            }),
+            'post_call_prompt': forms.Textarea(attrs={
+                'placeholder': 'Paste the post-call AI prompt here. Sent verbatim to ElevenLabs.',
+                'style': 'min-height:180px;font-family:ui-monospace,Menlo,monospace;font-size:12px;line-height:1.5;',
             }),
         }
 
