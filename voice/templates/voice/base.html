@@ -59,11 +59,11 @@
                         <span class="label">Agents</span>
                     </a>
                     <a href="{% url 'voice:client_list' %}" class="row {% if request.resolver_match.url_name == 'client_list' or request.resolver_match.url_name == 'client_detail' or request.resolver_match.url_name == 'client_create' or request.resolver_match.url_name == 'client_edit' or request.resolver_match.url_name == 'client_delete' %}active{% endif %}">
-                        <span class="iconslot"><span class="ic ic-grid ic-18"></span></span>
+                        <span class="iconslot"><span class="ic ic-building ic-18"></span></span>
                         <span class="label">Clients</span>
                     </a>
                     <a href="{% url 'voice:methodology_list' %}" class="row {% if request.resolver_match.url_name == 'methodology_list' or request.resolver_match.url_name == 'methodology_create' or request.resolver_match.url_name == 'methodology_edit' %}active{% endif %}">
-                        <span class="iconslot"><span class="ic ic-grid ic-18"></span></span>
+                        <span class="iconslot"><span class="ic ic-book ic-18"></span></span>
                         <span class="label">Methodologies</span>
                     </a>
                     <a href="{% url 'voice:programmed_calls' %}" class="row {% if request.resolver_match.url_name == 'programmed_calls' or request.resolver_match.url_name == 'manual_call_trigger' %}active{% endif %}">
