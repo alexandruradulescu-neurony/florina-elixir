@@ -42,7 +42,7 @@
     </thead>
     <tbody>
         {% for ad in agents %}
-        <tr>
+        <tr class="clickable" onclick="window.location.href='{% url 'voice:agent_detail' agent_id=ad.agent.id %}'">
             <td>
                 <div class="who">
                     {% include "voice/partials/avatar.html" with initial=ad.agent.username|first|upper palette=ad.avatar_palette size=36 %}

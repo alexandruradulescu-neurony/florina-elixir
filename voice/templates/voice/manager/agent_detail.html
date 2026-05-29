@@ -27,8 +27,6 @@
 
 {% block header_actions %}
 {% include "voice/partials/status_pill.html" with variant=agent_status_variant label=agent_status_label %}
-<a href="#" class="btn btn-secondary">Edit</a>
-<button type="button" class="icon-btn" aria-label="More"><span class="ic ic-menu-dots ic-16"></span></button>
 {% endblock %}
 
 {% block content %}
@@ -105,6 +103,42 @@
     </div>
 
     <div class="detail-side">
+
+        {# Edit agent details #}
+        <div class="dcard notes">
+            <h3>Detalii agent</h3>
+            <form method="post">
+                {% csrf_token %}
+                <div class="fieldrow">
+                    <label class="t-meta" style="display:block;margin-bottom:4px;">Prenume</label>
+                    <input type="text" name="first_name" value="{{ agent.first_name }}" placeholder="Prenume">
+                </div>
+                <div class="fieldrow" style="margin-top:10px;">
+                    <label class="t-meta" style="display:block;margin-bottom:4px;">Nume</label>
+                    <input type="text" name="last_name" value="{{ agent.last_name }}" placeholder="Nume">
+                </div>
+                <div class="fieldrow" style="margin-top:10px;">
+                    <label class="t-meta" style="display:block;margin-bottom:4px;">Email</label>
+                    <input type="email" name="email" value="{{ agent.email }}" placeholder="email@exemplu.ro">
+                </div>
+                <div class="fieldrow" style="margin-top:10px;">
+                    <label class="t-meta" style="display:block;margin-bottom:4px;">Telefon</label>
+                    <input type="tel" name="phone_number" value="{{ agent.phone_number }}" placeholder="+40722000000">
+                </div>
+                <div class="fieldrow" style="margin-top:10px;">
+                    <label class="t-meta" style="display:block;margin-bottom:4px;">Metodologie implicită</label>
+                    <select name="default_methodology">
+                        <option value="">— Niciuna —</option>
+                        {% for m in methodologies %}
+                        <option value="{{ m.id }}" {% if agent.default_methodology_id == m.id %}selected{% endif %}>{{ m.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="fieldrow" style="margin-top:14px;">
+                    <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;">Salvează</button>
+                </div>
+            </form>
+        </div>
 
         {# Configuration #}
         <div class="dcard">

@@ -616,7 +616,7 @@ class AgentManagementView(SuperuserRequiredMixin, View):
 
 
 class AgentDetailView(SuperuserRequiredMixin, View):
-    """Read-only detail view for a single sales agent."""
+    """Detail view for a single sales agent — view + inline edit of core fields."""
 
     def get(self, request, agent_id):
         from django.shortcuts import get_object_or_404
@@ -631,9 +631,44 @@ class AgentDetailView(SuperuserRequiredMixin, View):
             'agent': agent,
             'recent_visits': recent_visits,
             'recent_calls': recent_calls,
+            'methodologies': Methodology.objects.filter(is_active=True).order_by('name'),
         }
         context.update(placeholders.agent_detail_extras(agent, recent_visits, recent_calls))
         return render(request, 'voice/manager/agent_detail.html', context)
+
+    def post(self, request, agent_id):
+        from django.shortcuts import get_object_or_404
+        from .utils import format_phone_number
+
+        agent = get_object_or_404(User, id=agent_id, is_sales_agent=True)
+
+        agent.first_name = (request.POST.get('first_name') or '').strip()
+        agent.last_name = (request.POST.get('last_name') or '').strip()
+        agent.email = (request.POST.get('email') or '').strip()
+
+        phone = (request.POST.get('phone_number') or '').strip()
+        if phone:
+            agent.phone_number = format_phone_number(phone) or phone
+        else:
+            agent.phone_number = ''
+
+        meth_id = request.POST.get('default_methodology')
+        if meth_id:
+            try:
+                agent.default_methodology = Methodology.objects.get(id=meth_id)
+            except (Methodology.DoesNotExist, ValueError):
+                pass
+        else:
+            agent.default_methodology = None
+
+        agent.save()
+        log_activity(
+            action=f"Updated sales agent: {agent.username}",
+            user=request.user,
+            level='INFO',
+        )
+        messages.success(request, 'Detaliile agentului au fost salvate.')
+        return redirect('voice:agent_detail', agent_id=agent.id)
 
 
 class AgentCreateView(SuperuserRequiredMixin, View):
