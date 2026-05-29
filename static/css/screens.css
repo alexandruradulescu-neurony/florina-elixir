@@ -2254,46 +2254,117 @@ details.snippet > .full-transcript {
 /* ============================================================================
    Prompt accordion (used in Visit Detail manager notes form)
    ============================================================================ */
-.prompt-accordion {
-  border: 1px solid var(--border-hairline);
-  border-radius: var(--radius-md);
-  margin-top: 12px;
-  background: var(--bg-card);
+/* ─── Prompt action buttons (in the Pre-call / Post-call cards) ─── */
+.prompt-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-hairline);
 }
-.prompt-accordion[open] {
-  background: var(--zinc-50);
-}
-.prompt-accordion summary {
-  cursor: pointer;
-  padding: 10px 14px;
+.prompt-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 14px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-pill);
+  background: var(--bg-surface);
   font-family: var(--font-ui);
   font-weight: 700;
   font-size: 12px;
   color: var(--fg-strong);
-  list-style: none;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+.prompt-btn:hover {
+  background: var(--bg-tint);
+  border-color: var(--cyan-500);
+}
+.prompt-btn .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+}
+.prompt-btn .dot.set   { background: var(--green-700); }
+.prompt-btn .dot.empty { background: var(--zinc-300); }
+
+/* ─── Prompt edit modal (native <dialog>) ─── */
+dialog.prompt-modal {
+  width: min(820px, 92vw);
+  max-width: 92vw;
+  max-height: 88vh;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-lg);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.28);
+  background: var(--bg-card);
+  overflow: hidden;
+}
+dialog.prompt-modal::backdrop {
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(2px);
+}
+dialog.prompt-modal .pm-head {
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: space-between;
+  padding: 18px 22px;
+  border-bottom: 1px solid var(--border-hairline);
 }
-.prompt-accordion summary::-webkit-details-marker { display: none; }
-.prompt-accordion summary::before {
-  content: "▸";
+dialog.prompt-modal .pm-head h3 {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-weight: 800;
+  font-size: 16px;
+  color: var(--fg-strong);
+}
+dialog.prompt-modal .pm-x {
+  border: none;
+  background: transparent;
+  font-size: 18px;
+  line-height: 1;
   color: var(--fg-muted);
-  font-size: 10px;
-  transition: transform 100ms ease-out;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
 }
-.prompt-accordion[open] summary::before {
-  transform: rotate(90deg);
+dialog.prompt-modal .pm-x:hover { background: var(--bg-tint); color: var(--fg-strong); }
+dialog.prompt-modal .pm-hint {
+  margin: 0;
+  padding: 14px 22px 0;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--fg-muted);
 }
-.prompt-accordion textarea {
+dialog.prompt-modal .pm-textarea {
   display: block;
-  width: calc(100% - 28px);
-  margin: 0 14px 14px;
-  padding: 8px 10px;
+  width: calc(100% - 44px);
+  margin: 12px 22px;
+  height: 46vh;
+  padding: 14px 16px;
   border: 1px solid var(--border-default);
   border-radius: var(--radius-md);
   background: var(--bg-surface);
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--fg-strong);
   resize: vertical;
+  box-sizing: border-box;
+}
+dialog.prompt-modal .pm-textarea.short { height: 18vh; }
+dialog.prompt-modal .pm-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 16px 22px;
+  border-top: 1px solid var(--border-hairline);
+  background: var(--bg-surface);
 }
 
 /* ============================================================================

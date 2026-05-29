@@ -123,6 +123,18 @@
                 <pre class="full-transcript">{{ pre_call_panel.snippet.full }}</pre>
             </details>
             {% endif %}
+            <div class="prompt-actions">
+                <button type="button" class="prompt-btn" onclick="document.getElementById('dlgPrePrompt').showModal()">
+                    <span class="ic ic-comment-alt-dots ic-14"></span>
+                    <span class="lbl">Prompt pre-call</span>
+                    {% if form.pre_call_prompt.value %}<span class="dot set" title="Setat"></span>{% else %}<span class="dot empty" title="Gol"></span>{% endif %}
+                </button>
+                <button type="button" class="prompt-btn" onclick="document.getElementById('dlgPreFirst').showModal()">
+                    <span class="ic ic-comment-alt-dots ic-14"></span>
+                    <span class="lbl">Primul mesaj pre-call</span>
+                    {% if form.pre_call_first_message.value %}<span class="dot set" title="Setat"></span>{% else %}<span class="dot empty" title="Gol"></span>{% endif %}
+                </button>
+            </div>
         </div>
 
         {# Post-call #}
@@ -149,6 +161,18 @@
                 <pre class="full-transcript">{{ post_call_panel.snippet.full }}</pre>
             </details>
             {% endif %}
+            <div class="prompt-actions">
+                <button type="button" class="prompt-btn" onclick="document.getElementById('dlgPostPrompt').showModal()">
+                    <span class="ic ic-comment-alt-dots ic-14"></span>
+                    <span class="lbl">Prompt post-call</span>
+                    {% if form.post_call_prompt.value %}<span class="dot set" title="Setat"></span>{% else %}<span class="dot empty" title="Gol"></span>{% endif %}
+                </button>
+                <button type="button" class="prompt-btn" onclick="document.getElementById('dlgPostFirst').showModal()">
+                    <span class="ic ic-comment-alt-dots ic-14"></span>
+                    <span class="lbl">Primul mesaj post-call</span>
+                    {% if form.post_call_first_message.value %}<span class="dot set" title="Setat"></span>{% else %}<span class="dot empty" title="Gol"></span>{% endif %}
+                </button>
+            </div>
         </div>
 
         {% if post_call_analysis %}
@@ -321,7 +345,7 @@
         {# Manager Notes #}
         <div class="dcard notes">
             <h3>Manager Notes</h3>
-            <form method="post">
+            <form method="post" id="visitForm">
                 {% csrf_token %}
 
                 <div class="schedule-block">
@@ -351,27 +375,11 @@
                 </div>
                 {% endif %}
 
-                <details class="prompt-accordion">
-                    <summary>Pre-call prompt</summary>
-                    <textarea name="pre_call_prompt" placeholder="Paste the pre-call AI prompt here. Sent verbatim to ElevenLabs.">{{ form.pre_call_prompt.value|default:'' }}</textarea>
-                </details>
-                <details class="prompt-accordion">
-                    <summary>Pre-call first message</summary>
-                    <textarea name="pre_call_first_message" placeholder="Paste the first message the AI should say on the pre-call.">{{ form.pre_call_first_message.value|default:'' }}</textarea>
-                </details>
-                <details class="prompt-accordion">
-                    <summary>Post-call prompt</summary>
-                    <textarea name="post_call_prompt" placeholder="Paste the post-call AI prompt here. Sent verbatim to ElevenLabs.">{{ form.post_call_prompt.value|default:'' }}</textarea>
-                </details>
-                <details class="prompt-accordion">
-                    <summary>Post-call first message</summary>
-                    <textarea name="post_call_first_message" placeholder="Paste the first message the AI should say on the post-call.">{{ form.post_call_first_message.value|default:'' }}</textarea>
-                </details>
+                <div class="savehint" style="margin-top:4px;">Prompturile pre/post-call se editează din secțiunile din stânga.</div>
 
                 <div class="fieldrow" style="margin-top:12px;">
                     <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;">Save</button>
                 </div>
-                <div class="savehint">Changes affect future pre/post-call prompts.</div>
             </form>
         </div>
 
@@ -408,5 +416,58 @@
 
     </div>
 </div>
+
+{# ─── Prompt edit modals (textareas belong to #visitForm via the form= attribute) ─── #}
+<dialog id="dlgPrePrompt" class="prompt-modal">
+    <div class="pm-head">
+        <h3>Prompt pre-call</h3>
+        <button type="button" class="pm-x" onclick="this.closest('dialog').close()" aria-label="Închide">✕</button>
+    </div>
+    <p class="pm-hint">Promptul de sistem trimis către ElevenLabs pentru apelul de pregătire. Acceptă placeholdere ca {agent_first_name}, {client_name}, {visit_time}.</p>
+    <textarea name="pre_call_prompt" form="visitForm" class="pm-textarea" placeholder="Promptul pre-call…">{{ form.pre_call_prompt.value|default:'' }}</textarea>
+    <div class="pm-foot">
+        <button type="button" class="btn btn-secondary" onclick="this.closest('dialog').close()">Închide</button>
+        <button type="submit" form="visitForm" class="btn btn-primary">Salvează</button>
+    </div>
+</dialog>
+
+<dialog id="dlgPreFirst" class="prompt-modal">
+    <div class="pm-head">
+        <h3>Primul mesaj pre-call</h3>
+        <button type="button" class="pm-x" onclick="this.closest('dialog').close()" aria-label="Închide">✕</button>
+    </div>
+    <p class="pm-hint">Prima replică pe care o spune Florina când sună agentul înainte de întâlnire.</p>
+    <textarea name="pre_call_first_message" form="visitForm" class="pm-textarea short" placeholder="Primul mesaj pre-call…">{{ form.pre_call_first_message.value|default:'' }}</textarea>
+    <div class="pm-foot">
+        <button type="button" class="btn btn-secondary" onclick="this.closest('dialog').close()">Închide</button>
+        <button type="submit" form="visitForm" class="btn btn-primary">Salvează</button>
+    </div>
+</dialog>
+
+<dialog id="dlgPostPrompt" class="prompt-modal">
+    <div class="pm-head">
+        <h3>Prompt post-call</h3>
+        <button type="button" class="pm-x" onclick="this.closest('dialog').close()" aria-label="Închide">✕</button>
+    </div>
+    <p class="pm-hint">Promptul de sistem pentru debrief-ul după întâlnire. Placeholderul {pre_call_summary} injectează automat sumarul pre-call-ului.</p>
+    <textarea name="post_call_prompt" form="visitForm" class="pm-textarea" placeholder="Promptul post-call…">{{ form.post_call_prompt.value|default:'' }}</textarea>
+    <div class="pm-foot">
+        <button type="button" class="btn btn-secondary" onclick="this.closest('dialog').close()">Închide</button>
+        <button type="submit" form="visitForm" class="btn btn-primary">Salvează</button>
+    </div>
+</dialog>
+
+<dialog id="dlgPostFirst" class="prompt-modal">
+    <div class="pm-head">
+        <h3>Primul mesaj post-call</h3>
+        <button type="button" class="pm-x" onclick="this.closest('dialog').close()" aria-label="Închide">✕</button>
+    </div>
+    <p class="pm-hint">Prima replică pe care o spune Florina la debrief-ul de după întâlnire.</p>
+    <textarea name="post_call_first_message" form="visitForm" class="pm-textarea short" placeholder="Primul mesaj post-call…">{{ form.post_call_first_message.value|default:'' }}</textarea>
+    <div class="pm-foot">
+        <button type="button" class="btn btn-secondary" onclick="this.closest('dialog').close()">Închide</button>
+        <button type="submit" form="visitForm" class="btn btn-primary">Salvează</button>
+    </div>
+</dialog>
 
 {% endblock %}
