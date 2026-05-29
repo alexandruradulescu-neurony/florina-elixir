@@ -258,7 +258,10 @@ button {
   height: 40px;
   box-shadow: var(--shadow-card);
 }
-.hdr-page .filters button {
+.hdr-page .filters button,
+.hdr-page .filters a {
+  display: inline-flex;
+  align-items: center;
   height: 32px;
   padding: 0 16px;
   border-radius: var(--radius-pill);
@@ -267,9 +270,13 @@ button {
   font-size: 13px;
   color: var(--fg-muted);
   white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
 }
-.hdr-page .filters button.on { background: var(--zinc-950); color: #fff; }
-.hdr-page .filters button.on.cancelled { background: var(--orange-500); }
+.hdr-page .filters button.on,
+.hdr-page .filters a.on { background: var(--zinc-950); color: #fff; }
+.hdr-page .filters button.on.cancelled,
+.hdr-page .filters a.on.cancelled { background: var(--orange-500); }
 .hdr-page .actions {
   display: flex;
   align-items: center;

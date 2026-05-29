@@ -1277,6 +1277,8 @@ class VisitListView(SuperuserRequiredMixin, View):
         date_str = request.GET.get('date')
         agent_id = request.GET.get('agent')
         status_filter = request.GET.get('status')
+        # Named filter group from the top pills: all | upcoming | completed | cancelled
+        group_filter = (request.GET.get('filter') or 'all').lower()
 
         if date_str:
             try:
@@ -1293,8 +1295,18 @@ class VisitListView(SuperuserRequiredMixin, View):
             except User.DoesNotExist:
                 pass
 
+        from .constants import VisitStatus
         visits = get_visits_for_date(target_date, agent=agent)
-        if status_filter:
+        # Top-pill group filter takes precedence; falls back to the exact-status
+        # dropdown if no group is active.
+        if group_filter == 'upcoming':
+            visits = visits.exclude(status=VisitStatus.COMPLETE)
+        elif group_filter == 'completed':
+            visits = visits.filter(status=VisitStatus.COMPLETE)
+        elif group_filter == 'cancelled':
+            # No CANCELLED status in the enum yet — yields an empty list honestly.
+            visits = visits.filter(status='CANCELLED')
+        elif status_filter:
             visits = visits.filter(status=status_filter)
 
         # Enrich visits with call counts for display
@@ -1333,6 +1345,7 @@ class VisitListView(SuperuserRequiredMixin, View):
             'agents': agents,
             'agent_filter': agent_id or '',
             'status_filter': status_filter or '',
+            'group_filter': group_filter,
             'status_choices': VisitStatus.choices,
             'now': timezone.now(),
         }

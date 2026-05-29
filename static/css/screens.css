@@ -239,7 +239,10 @@
   padding: 3px;
   height: 36px;
 }
-.toggle button {
+.toggle button,
+.toggle a {
+  display: inline-flex;
+  align-items: center;
   height: 28px;
   padding: 0 14px;
   border-radius: var(--radius-pill);
@@ -247,8 +250,11 @@
   font-weight: 700;
   font-size: 13px;
   color: var(--fg-muted);
+  text-decoration: none;
+  cursor: pointer;
 }
-.toggle button.on { background: var(--zinc-950); color: #fff; }
+.toggle button.on,
+.toggle a.on { background: var(--zinc-950); color: #fff; }
 
 /* ─────────── Section heading row ─────────── */
 .section-head {
@@ -696,6 +702,8 @@
 
 /* ─── Visits table (vtable, variant of .tbl) ─── */
 .vtable { width: 100%; }
+.vt-row.clickable { cursor: pointer; transition: background 0.12s ease; }
+.vt-row.clickable:hover td { background: var(--bg-tint); }
 .vt-row.cancelled td { color: var(--fg-faint); text-decoration: line-through; }
 .vt-row .calls { display: inline-flex; gap: 6px; align-items: center; }
 .vt-row .meth-pill {
