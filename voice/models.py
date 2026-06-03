@@ -633,6 +633,15 @@ class MegaPrompt(models.Model):
                 fields=["domain", "version"],
                 name="megaprompt_unique_domain_version",
             ),
+            # DB-enforce the "one active version per domain" invariant. Without
+            # this, the assembler's `.filter(is_active=True).first()` could
+            # silently pick one of multiple active rows and a race condition
+            # in seed/activate paths could create the second one.
+            models.UniqueConstraint(
+                fields=["domain"],
+                condition=models.Q(is_active=True),
+                name="megaprompt_one_active_per_domain",
+            ),
         ]
 
     def __str__(self) -> str:
