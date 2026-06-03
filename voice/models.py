@@ -708,8 +708,14 @@ class GenerationRun(models.Model):
     mega_prompt = models.ForeignKey(
         MegaPrompt,
         on_delete=models.PROTECT,
+        null=True,
+        blank=True,
         related_name="generation_runs",
-        help_text="The exact MegaPrompt version that was used",
+        help_text=(
+            "The exact MegaPrompt version that was used; NULL when the "
+            "assembler failed before a MegaPrompt could be loaded (e.g. no "
+            "active version exists for the domain)."
+        ),
     )
     triggered_by = models.CharField(max_length=20, choices=TriggeredBy.choices)
     # Fields below carry PII (transcripts, manager notes, CRM history,

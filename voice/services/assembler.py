@@ -160,16 +160,24 @@ def _run_assembly(
     """
     mega = _load_active(domain)
     if mega is None:
-        # GenerationRun.mega_prompt is NOT NULL (every saved run pins to a
-        # specific prompt version). When no active prompt exists this is a
-        # configuration error: log it and return an unsaved sentinel row so
-        # the caller still gets a `success=False` GenerationRun with `.error`.
+        # Configuration error — a deploy is missing the active MegaPrompt for
+        # this domain. Persist a real `GenerationRun` so the failure shows up
+        # in the audit log; `mega_prompt` is nullable specifically for this
+        # case (see model `help_text`).
         error = f"No active MegaPrompt for {domain}"
         logger.error("Assembler aborted: %s (visit=%s)", error, getattr(visit, "pk", None))
-        return GenerationRun(
+        return _record_run(
             visit=visit,
             domain=domain,
+            mega_prompt=None,
             triggered_by=triggered_by,
+            user=user,
+            context_bundle={},
+            claude_request="",
+            claude_response="",
+            parsed_outputs={},
+            input_tokens=0,
+            output_tokens=0,
             success=False,
             error=error,
         )
