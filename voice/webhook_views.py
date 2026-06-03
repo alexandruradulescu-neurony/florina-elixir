@@ -340,6 +340,28 @@ class ElevenLabsWebhookView(View):
                     visit.save(update_fields=["status", "updated_at"])
                     logger.info(f"Visit #{visit.id} advanced to {new_status}")
 
+                # If the transcript arrived AFTER the post-call prompt was first
+                # generated (e.g., the scheduled job ran with transcript=""), this
+                # re-assembly bakes the actual transcript into the prompt for any
+                # subsequent retry dial. Failures are logged but never raised — the
+                # webhook's primary job is to acknowledge the call, not to keep the
+                # prompt fresh.
+                if call_attempt.phase == CallPhase.POST_MEETING:
+                    try:
+                        from voice.models import GenerationRun
+                        from voice.services.assembler import assemble_post_call
+
+                        assemble_post_call(
+                            visit,
+                            transcript=call_attempt.transcript or "",
+                            triggered_by=GenerationRun.TriggeredBy.END_OF_MEETING,
+                        )
+                    except Exception:
+                        logger.exception(
+                            "End-of-meeting POST_CALL re-assembly failed for visit=%s",
+                            visit.id,
+                        )
+
             # Update meeting completion status if call was successful
             if call_attempt.status == CallStatus.COMPLETED:
                 meeting = call_attempt.meeting
