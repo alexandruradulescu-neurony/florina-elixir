@@ -329,6 +329,11 @@ class Client(models.Model):
     ai_summary = models.TextField(
         blank=True, null=True, help_text="LLM-generated client profile summary"
     )
+    lessons_learned = models.TextField(
+        blank=True,
+        default="",
+        help_text="Distilled lessons from prior calls; updated by LESSONS_DISTILL after each post-call. Editable.",
+    )
     raw_data = models.JSONField(default=dict, blank=True, help_text="Full CRM data for reference")
     last_synced_at = models.DateTimeField(
         null=True, blank=True, help_text="Last time this client was synced from CRM"
