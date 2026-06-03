@@ -50,6 +50,29 @@ class ElevenLabsWebhookView(View):
 
     def post(self, request):
         """Handle ElevenLabs webhook POST request."""
+        # ── Authenticate the request before any processing (fail-closed) ──
+        from .webhook_security import (
+            get_elevenlabs_webhook_secret,
+            require_signature,
+            verify_elevenlabs_signature,
+        )
+
+        if require_signature():
+            secret = get_elevenlabs_webhook_secret()
+            if not secret:
+                logger.critical(
+                    "ElevenLabs webhook secret not configured — rejecting request "
+                    "(set ELEVENLABS_WEBHOOK_SECRET or WEBHOOK_REQUIRE_SIGNATURE=False)."
+                )
+                return JsonResponse(
+                    {"error": "Webhook signature verification not configured"}, status=503
+                )
+            sig_header = request.headers.get("ElevenLabs-Signature", "")
+            ok, reason = verify_elevenlabs_signature(sig_header, request.body, secret)
+            if not ok:
+                logger.warning(f"Rejected ElevenLabs webhook: signature {reason}")
+                return JsonResponse({"error": "Invalid or missing signature"}, status=401)
+
         try:
             # Parse webhook payload
             if request.content_type == "application/json":
@@ -565,6 +588,29 @@ class TwilioWebhookView(View):
 
     def post(self, request):
         """Handle Twilio webhook POST request."""
+        # ── Authenticate the request before any processing (fail-closed) ──
+        from .webhook_security import (
+            get_twilio_auth_token,
+            require_signature,
+            verify_twilio_signature,
+        )
+
+        if require_signature():
+            auth_token = get_twilio_auth_token()
+            if not auth_token:
+                logger.warning(
+                    "Twilio webhook hit but TWILIO_AUTH_TOKEN not configured — "
+                    "rejecting (fail-closed)."
+                )
+                return HttpResponse(status=403)
+            signature = request.META.get("HTTP_X_TWILIO_SIGNATURE", "")
+            ok, reason = verify_twilio_signature(
+                request.build_absolute_uri(), request.POST, signature, auth_token
+            )
+            if not ok:
+                logger.warning(f"Rejected Twilio webhook: signature {reason}")
+                return HttpResponse(status=403)
+
         try:
             # Twilio sends form data, not JSON
             call_sid = request.POST.get("CallSid")
