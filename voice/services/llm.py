@@ -89,6 +89,33 @@ def _call_claude(system_prompt: str, user_message: str, max_tokens: int = 4096) 
         return None
 
 
+def _call_claude_with_usage(
+    system_prompt: str,
+    user_message: str,
+    max_tokens: int = 4096,
+) -> tuple[str | None, int, int]:
+    """Like _call_claude, but also returns (input_tokens, output_tokens).
+
+    Returns (text_or_none, input_tokens, output_tokens). On failure, returns
+    (None, 0, 0).
+    """
+    try:
+        client = _get_client()
+        response = client.messages.create(
+            model=config("LLM_MODEL", default="claude-sonnet-4-20250514"),
+            max_tokens=max_tokens,
+            system=system_prompt,
+            messages=[{"role": "user", "content": user_message}],
+        )
+        text = response.content[0].text
+        in_tok = getattr(response.usage, "input_tokens", 0) or 0
+        out_tok = getattr(response.usage, "output_tokens", 0) or 0
+        return text, in_tok, out_tok
+    except Exception as e:
+        logger.error(f"Claude API call failed: {e}", exc_info=True)
+        return None, 0, 0
+
+
 def summarize_methodology_pdf(pdf_text: str) -> str | None:
     """
     Summarize a methodology PDF into a structured reference for voice prompts.

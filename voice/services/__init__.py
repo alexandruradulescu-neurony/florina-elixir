@@ -27,6 +27,11 @@ from voice.calendar import get_calendar_provider
 from voice.crm import get_crm_provider
 
 # ============================================================================
+# Prompt Assembly (PRE_CALL / POST_CALL)
+# ============================================================================
+from .assembler import assemble_post_call, assemble_pre_call
+
+# ============================================================================
 # Client Sync
 # ============================================================================
 from .client_sync import enrich_client_from_crm, sync_all_clients, sync_single_client
@@ -61,6 +66,11 @@ from .google_calendar import (
 )
 
 # ============================================================================
+# Lessons Distiller
+# ============================================================================
+from .lessons import distill_lessons
+
+# ============================================================================
 # LLM Service
 # ============================================================================
 from .llm import (
@@ -85,11 +95,6 @@ from .pipedrive import (
     get_pipedrive_deals_for_organization,
     sync_note_to_pipedrive,
 )
-
-# ============================================================================
-# Prompt Builder
-# ============================================================================
-from .prompt_builder import generate_post_call_prompt, generate_pre_call_prompt
 
 # ============================================================================
 # Scheduler Logic
@@ -165,8 +170,9 @@ __all__ = [
     "summarize_call_transcript",
     "summarize_methodology_pdf",
     # Prompt Builder
-    "generate_pre_call_prompt",
-    "generate_post_call_prompt",
+    "assemble_pre_call",
+    "assemble_post_call",
+    "distill_lessons",
     # Scheduler
     "pre_program_meeting_calls",
     "cleanup_cancelled_meeting_calls",
