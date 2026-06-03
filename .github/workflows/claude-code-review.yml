@@ -3,6 +3,16 @@ name: Claude Code Review
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - "manage.py"
+      - "pyproject.toml"
+      - ".github/workflows/**"
+      - "proj_mes_voice/**"
+      - "voice/**"
+    paths-ignore:
+      - "voice/migrations/**"
+      - "README.md"
+      - "uv.lock"
 
 jobs:
   review:
