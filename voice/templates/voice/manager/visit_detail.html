@@ -523,6 +523,17 @@
   <dialog id="dlgPrePrompt" class="prompt-modal">
     <div class="pm-head">
       <h3>Prompt pre-call</h3>
+      <form method="post"
+            action="{% url 'voice:visit_lock_toggle' visit.id 'pre_prompt' %}"
+            class="inline-flex ml-auto mr-2">
+        {% csrf_token %}
+        <button type="submit"
+                class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md border
+                       {% if visit.pre_call_prompt_locked %}bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100{% else %}bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100{% endif %}"
+                title="{% if visit.pre_call_prompt_locked %}Locked — assembler will skip this field on regen. Click to unlock.{% else %}Unlocked — assembler may overwrite on regen. Click to lock.{% endif %}">
+          {% if visit.pre_call_prompt_locked %}🔒 locked{% else %}🔓 unlocked{% endif %}
+        </button>
+      </form>
       <button type="button"
               class="pm-x"
               onclick="this.closest('dialog').close()"
@@ -546,6 +557,17 @@
   <dialog id="dlgPreFirst" class="prompt-modal">
     <div class="pm-head">
       <h3>Primul mesaj pre-call</h3>
+      <form method="post"
+            action="{% url 'voice:visit_lock_toggle' visit.id 'pre_first' %}"
+            class="inline-flex ml-auto mr-2">
+        {% csrf_token %}
+        <button type="submit"
+                class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md border
+                       {% if visit.pre_call_first_message_locked %}bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100{% else %}bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100{% endif %}"
+                title="{% if visit.pre_call_first_message_locked %}Locked — assembler will skip this field on regen. Click to unlock.{% else %}Unlocked — assembler may overwrite on regen. Click to lock.{% endif %}">
+          {% if visit.pre_call_first_message_locked %}🔒 locked{% else %}🔓 unlocked{% endif %}
+        </button>
+      </form>
       <button type="button"
               class="pm-x"
               onclick="this.closest('dialog').close()"
@@ -569,6 +591,17 @@
   <dialog id="dlgPostPrompt" class="prompt-modal">
     <div class="pm-head">
       <h3>Prompt post-call</h3>
+      <form method="post"
+            action="{% url 'voice:visit_lock_toggle' visit.id 'post_prompt' %}"
+            class="inline-flex ml-auto mr-2">
+        {% csrf_token %}
+        <button type="submit"
+                class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md border
+                       {% if visit.post_call_prompt_locked %}bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100{% else %}bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100{% endif %}"
+                title="{% if visit.post_call_prompt_locked %}Locked — assembler will skip this field on regen. Click to unlock.{% else %}Unlocked — assembler may overwrite on regen. Click to lock.{% endif %}">
+          {% if visit.post_call_prompt_locked %}🔒 locked{% else %}🔓 unlocked{% endif %}
+        </button>
+      </form>
       <button type="button"
               class="pm-x"
               onclick="this.closest('dialog').close()"
@@ -592,6 +625,17 @@
   <dialog id="dlgPostFirst" class="prompt-modal">
     <div class="pm-head">
       <h3>Primul mesaj post-call</h3>
+      <form method="post"
+            action="{% url 'voice:visit_lock_toggle' visit.id 'post_first' %}"
+            class="inline-flex ml-auto mr-2">
+        {% csrf_token %}
+        <button type="submit"
+                class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md border
+                       {% if visit.post_call_first_message_locked %}bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100{% else %}bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100{% endif %}"
+                title="{% if visit.post_call_first_message_locked %}Locked — assembler will skip this field on regen. Click to unlock.{% else %}Unlocked — assembler may overwrite on regen. Click to lock.{% endif %}">
+          {% if visit.post_call_first_message_locked %}🔒 locked{% else %}🔓 unlocked{% endif %}
+        </button>
+      </form>
       <button type="button"
               class="pm-x"
               onclick="this.closest('dialog').close()"

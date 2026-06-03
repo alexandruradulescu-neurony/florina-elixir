@@ -897,6 +897,59 @@ class MegaPromptActivateView(SuperuserRequiredMixin, View):
         return redirect("voice:mega_prompt_list")
 
 
+class VisitLockToggleView(SuperuserRequiredMixin, View):
+    """Toggle a single `*_locked` boolean on a Visit.
+
+    The `field` URL kwarg maps to a flag via LOCK_FIELD_MAP. POST only —
+    a GET bounces back to the visit detail.
+
+    A locked field is skipped by the assembler on the next regen so the
+    manager's manual edit isn't blown away.
+    """
+
+    LOCK_FIELD_MAP = {
+        "pre_prompt": "pre_call_prompt_locked",
+        "pre_first": "pre_call_first_message_locked",
+        "post_prompt": "post_call_prompt_locked",
+        "post_first": "post_call_first_message_locked",
+    }
+
+    def post(self, request, visit_id, field):
+        from voice.constants import LogLevel
+        from voice.models import Visit
+        from voice.services.logging import log_activity
+
+        if field not in self.LOCK_FIELD_MAP:
+            messages.error(request, f"Unknown lock field: {field!r}")
+            return redirect("voice:visit_detail", visit_id=visit_id)
+
+        attr = self.LOCK_FIELD_MAP[field]
+        try:
+            visit = Visit.objects.get(pk=visit_id)
+        except Visit.DoesNotExist:
+            messages.error(request, "Visit not found.")
+            return redirect("voice:visit_list")
+
+        new_state = not getattr(visit, attr)
+        setattr(visit, attr, new_state)
+        visit.save(update_fields=[attr, "updated_at"])
+
+        log_activity(
+            user=request.user,
+            action=f"{'Locked' if new_state else 'Unlocked'} {attr} on visit #{visit_id}",
+            details={"visit_id": visit_id, "field": attr, "locked": new_state},
+            level=LogLevel.INFO,
+        )
+        messages.success(
+            request,
+            f"{'🔒 Locked' if new_state else '🔓 Unlocked'} {attr.replace('_', ' ')}.",
+        )
+        return redirect("voice:visit_detail", visit_id=visit_id)
+
+    def get(self, request, visit_id, field):
+        return redirect("voice:visit_detail", visit_id=visit_id)
+
+
 class AgentManagementView(SuperuserRequiredMixin, View):
     """Manage sales agents."""
 

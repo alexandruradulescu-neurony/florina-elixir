@@ -96,6 +96,11 @@ urlpatterns = [
         views.VisitStatusUpdateView.as_view(),
         name="visit_status_update",
     ),
+    path(
+        "manager/visits/<int:visit_id>/lock/<str:field>/",
+        views.VisitLockToggleView.as_view(),
+        name="visit_lock_toggle",
+    ),
     path("manager/calendar/", views.VisitCalendarView.as_view(), name="visit_calendar"),
     # Agent methodology assignment
     path(
