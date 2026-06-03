@@ -1,0 +1,160 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      rollback:
+        description: "Perform rollback to previous release"
+        required: false
+        default: "false"
+        type: boolean
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy
+    if: ${{ github.event.inputs.rollback != 'true' }}
+    runs-on: ubuntu-latest
+    environment: development
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check deploy script
+        id: deploy_script
+        run: |
+          if [ -f .deploy/deploy.sh ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Skip deploy
+        if: steps.deploy_script.outputs.exists != 'true'
+        run: echo "No .deploy/deploy.sh found; skipping deploy."
+
+      - name: Setup SSH
+        if: steps.deploy_script.outputs.exists == 'true'
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          echo "${{ secrets.SSH_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+          cat >> ~/.ssh/config << EOF
+          Host *
+            ServerAliveInterval 30
+            ServerAliveCountMax 5
+            TCPKeepAlive yes
+
+          Host gateway
+            HostName ${{ vars.GATEWAY_HOST }}
+            Port ${{ vars.GATEWAY_PORT }}
+            User ${{ vars.SSH_USER }}
+            IdentityFile ~/.ssh/deploy_key
+
+          Host target
+            HostName ${{ vars.SSH_HOST }}
+            User ${{ vars.SSH_USER }}
+            IdentityFile ~/.ssh/deploy_key
+            ProxyCommand ssh -W %h:%p gateway
+          EOF
+
+      - name: Deploy
+        if: steps.deploy_script.outputs.exists == 'true'
+        env:
+          GITHUB_SHA: ${{ github.sha }}
+        run: |
+          ssh target "
+            set -euo pipefail
+
+            DEPLOY_PATH='${{ vars.SSH_DEPLOY_PATH }}'
+            RELEASES_DIR=\"\$DEPLOY_PATH/releases\"
+            RELEASE_NAME=\"\$(date +%Y%m%d%H%M%S)-${GITHUB_SHA::8}\"
+            RELEASE_PATH=\"\$RELEASES_DIR/\$RELEASE_NAME\"
+
+            mkdir -p \"\$RELEASES_DIR\"
+
+            echo 'Creating new release at' \"\$RELEASE_PATH\"
+            git clone 'git@github.com:${{ github.repository }}.git' \"\$RELEASE_PATH\"
+
+            cd \"\$RELEASE_PATH\"
+            git fetch --depth 1 origin '$GITHUB_SHA'
+            git checkout --detach '$GITHUB_SHA'
+
+            chmod +x .deploy/deploy.sh .deploy/rollback.sh .deploy/install-systemd.sh
+            DEPLOY_PATH=\"\$DEPLOY_PATH\" bash .deploy/deploy.sh
+          "
+
+      - name: Cleanup SSH
+        if: always() && steps.deploy_script.outputs.exists == 'true'
+        run: |
+          rm -f ~/.ssh/deploy_key
+          rm -f ~/.ssh/config
+
+  rollback:
+    name: Rollback
+    if: ${{ github.event.inputs.rollback == 'true' }}
+    runs-on: ubuntu-latest
+    environment: development
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check rollback script
+        id: rollback_script
+        run: |
+          if [ -f .deploy/rollback.sh ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Skip rollback
+        if: steps.rollback_script.outputs.exists != 'true'
+        run: echo "No .deploy/rollback.sh found; skipping rollback."
+
+      - name: Setup SSH
+        if: steps.rollback_script.outputs.exists == 'true'
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          echo "${{ secrets.SSH_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+          cat >> ~/.ssh/config << EOF
+          Host *
+            ServerAliveInterval 30
+            ServerAliveCountMax 5
+            TCPKeepAlive yes
+
+          Host gateway
+            HostName ${{ vars.GATEWAY_HOST }}
+            Port ${{ vars.GATEWAY_PORT }}
+            User ${{ vars.SSH_USER }}
+            IdentityFile ~/.ssh/deploy_key
+
+          Host target
+            HostName ${{ vars.SSH_HOST }}
+            User ${{ vars.SSH_USER }}
+            IdentityFile ~/.ssh/deploy_key
+            ProxyCommand ssh -W %h:%p gateway
+          EOF
+
+      - name: Run rollback
+        if: steps.rollback_script.outputs.exists == 'true'
+        env:
+          DEPLOY_PATH: ${{ vars.SSH_DEPLOY_PATH }}
+        run: |
+          ssh target "DEPLOY_PATH='$DEPLOY_PATH' bash -s" < ./.deploy/rollback.sh
+
+      - name: Cleanup SSH
+        if: always() && steps.rollback_script.outputs.exists == 'true'
+        run: |
+          rm -f ~/.ssh/deploy_key
+          rm -f ~/.ssh/config

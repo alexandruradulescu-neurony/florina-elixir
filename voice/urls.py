@@ -9,6 +9,7 @@ from . import views, webhook_views
 app_name = "voice"
 
 urlpatterns = [
+    path("healthz/", views.HealthcheckView.as_view(), name="healthcheck"),
     path("", views.HomeView.as_view(), name="home"),
     path("login/", views.CustomLoginView.as_view(), name="login"),
     path("logout/", views.CustomLogoutView.as_view(), name="logout"),

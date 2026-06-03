@@ -11,6 +11,7 @@ from django.contrib import messages
 from django.contrib.auth import logout
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.views import LoginView
+from django.http import HttpResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -68,6 +69,13 @@ from .services import (
 from .utils import build_webhook_url, get_ngrok_url
 
 logger = logging.getLogger(__name__)
+
+
+class HealthcheckView(View):
+    """Lightweight health endpoint for deploy checks and uptime probes."""
+
+    def get(self, request):
+        return HttpResponse("ok", content_type="text/plain")
 
 
 class HomeView(LoginRequiredMixin, View):
