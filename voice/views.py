@@ -897,6 +897,61 @@ class MegaPromptActivateView(SuperuserRequiredMixin, View):
         return redirect("voice:mega_prompt_list")
 
 
+class GenerationRunListView(SuperuserRequiredMixin, View):
+    """Audit-log viewer for assembler runs. SUPERUSER-ONLY because the detail
+    page exposes decrypted PII (transcripts, manager notes, CRM history)."""
+
+    def get(self, request):
+        from django.core.paginator import Paginator
+
+        from voice.models import GenerationRun, MegaPrompt
+
+        qs = GenerationRun.objects.select_related("visit", "client", "mega_prompt").order_by(
+            "-created_at"
+        )
+
+        domain = request.GET.get("domain", "")
+        if domain in {code for code, _ in MegaPrompt.Domain.choices}:
+            qs = qs.filter(domain=domain)
+        success_filter = request.GET.get("success", "")
+        if success_filter == "true":
+            qs = qs.filter(success=True)
+        elif success_filter == "false":
+            qs = qs.filter(success=False)
+
+        page_number = request.GET.get("page", 1)
+        paginator = Paginator(qs, 50)
+        page = paginator.get_page(page_number)
+
+        context = {
+            "page": page,
+            "paginator": paginator,
+            "current_domain": domain,
+            "current_success": success_filter,
+            "domain_choices": MegaPrompt.Domain.choices,
+            "total_count": qs.count(),
+        }
+        return render(request, "voice/manager/generation_run_list.html", context)
+
+
+class GenerationRunDetailView(SuperuserRequiredMixin, View):
+    """Audit-log detail page. SUPERUSER-ONLY (decrypts PII)."""
+
+    def get(self, request, pk):
+        from voice.models import GenerationRun
+
+        try:
+            run = GenerationRun.objects.select_related(
+                "visit", "client", "mega_prompt", "created_by"
+            ).get(pk=pk)
+        except GenerationRun.DoesNotExist:
+            messages.error(request, "Generation run not found.")
+            return redirect("voice:generation_run_list")
+
+        context = {"run": run}
+        return render(request, "voice/manager/generation_run_detail.html", context)
+
+
 class VisitLockToggleView(SuperuserRequiredMixin, View):
     """Toggle a single `*_locked` boolean on a Visit.
 

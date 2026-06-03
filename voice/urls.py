@@ -50,6 +50,17 @@ urlpatterns = [
         views.MegaPromptActivateView.as_view(),
         name="mega_prompt_activate",
     ),
+    # Generation Runs (assembler audit log)
+    path(
+        "manager/generation-runs/",
+        views.GenerationRunListView.as_view(),
+        name="generation_run_list",
+    ),
+    path(
+        "manager/generation-runs/<int:pk>/",
+        views.GenerationRunDetailView.as_view(),
+        name="generation_run_detail",
+    ),
     path("manager/agents/", views.AgentManagementView.as_view(), name="agent_management"),
     path("manager/agents/<int:agent_id>/", views.AgentDetailView.as_view(), name="agent_detail"),
     path("manager/agents/add/", views.AgentCreateView.as_view(), name="agent_add"),

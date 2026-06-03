@@ -1,0 +1,81 @@
+{% extends 'voice/base.html' %}
+
+{% block title %}Generation Runs - Sales Assistant{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+  <h1 class="text-xl font-bold text-slate-900">Generation Runs</h1>
+  <p class="text-sm text-slate-500">
+    {{ total_count }} run{{ total_count|pluralize }} &mdash; audit log of every assembler run (pre-call, post-call, lessons distill).
+    Superuser-only because the detail page decrypts PII (transcripts, manager notes, CRM history).
+  </p>
+</div>
+
+<form method="get" class="flex flex-wrap items-end gap-3 mb-4 bg-white rounded-xl border border-slate-200 p-4">
+  <div>
+    <label class="block text-[10px] text-slate-400 uppercase tracking-wider font-semibold mb-1">Domain</label>
+    <select name="domain" class="text-sm rounded-lg border border-slate-300 px-3 py-1.5">
+      <option value="">All</option>
+      {% for code, label in domain_choices %}
+        <option value="{{ code }}"{% if current_domain == code %} selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div>
+    <label class="block text-[10px] text-slate-400 uppercase tracking-wider font-semibold mb-1">Outcome</label>
+    <select name="success" class="text-sm rounded-lg border border-slate-300 px-3 py-1.5">
+      <option value="">Any</option>
+      <option value="true"{% if current_success == "true" %} selected{% endif %}>Success only</option>
+      <option value="false"{% if current_success == "false" %} selected{% endif %}>Failures only</option>
+    </select>
+  </div>
+  <button type="submit" class="px-4 py-1.5 text-sm font-semibold rounded-lg bg-slate-800 text-white hover:bg-slate-700">Filter</button>
+</form>
+
+<div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+  <table class="w-full text-sm">
+    <thead class="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
+      <tr>
+        <th class="text-left px-4 py-2">When</th>
+        <th class="text-left px-4 py-2">Domain</th>
+        <th class="text-left px-4 py-2">Target</th>
+        <th class="text-left px-4 py-2">Trigger</th>
+        <th class="text-left px-4 py-2">Status</th>
+        <th class="text-left px-4 py-2">Tokens (in/out)</th>
+        <th class="text-left px-4 py-2"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for run in page %}
+        <tr class="border-t border-slate-100 hover:bg-slate-50">
+          <td class="px-4 py-2 text-slate-700">{{ run.created_at|date:"Y-m-d H:i" }}</td>
+          <td class="px-4 py-2">{{ run.get_domain_display }}</td>
+          <td class="px-4 py-2 text-slate-600">
+            {% if run.visit %}Visit #{{ run.visit_id }}{% elif run.client %}Client #{{ run.client_id }}{% else %}&mdash;{% endif %}
+          </td>
+          <td class="px-4 py-2 text-slate-500">{{ run.get_triggered_by_display }}</td>
+          <td class="px-4 py-2">
+            {% if run.success %}<span class="text-teal-700 font-medium">&#10003; ok</span>{% else %}<span class="text-rose-700 font-medium">&#10007; fail</span>{% endif %}
+          </td>
+          <td class="px-4 py-2 text-slate-500">{{ run.input_tokens }} / {{ run.output_tokens }}</td>
+          <td class="px-4 py-2"><a href="{% url 'voice:generation_run_detail' run.pk %}" class="text-teal-700 hover:text-teal-800 font-medium">details</a></td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="7" class="px-4 py-8 text-center text-slate-400">No runs yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if page.paginator.num_pages > 1 %}
+  <nav class="flex justify-center items-center gap-2 mt-4 text-sm">
+    {% if page.has_previous %}
+      <a href="?page={{ page.previous_page_number }}{% if current_domain %}&domain={{ current_domain }}{% endif %}{% if current_success %}&success={{ current_success }}{% endif %}" class="px-3 py-1.5 border border-slate-200 rounded-lg hover:bg-slate-50">prev</a>
+    {% endif %}
+    <span class="text-slate-500">page {{ page.number }} of {{ page.paginator.num_pages }}</span>
+    {% if page.has_next %}
+      <a href="?page={{ page.next_page_number }}{% if current_domain %}&domain={{ current_domain }}{% endif %}{% if current_success %}&success={{ current_success }}{% endif %}" class="px-3 py-1.5 border border-slate-200 rounded-lg hover:bg-slate-50">next</a>
+    {% endif %}
+  </nav>
+{% endif %}
+{% endblock %}
