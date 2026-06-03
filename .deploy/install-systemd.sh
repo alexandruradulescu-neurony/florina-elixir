@@ -11,6 +11,12 @@ set -euo pipefail
 #        ./.deploy/install-systemd.sh /home/USER/florina.vm.neurony.dev
 # =============================================================================
 
+MODE="install"
+if [ "${1:-}" = "--check" ]; then
+    MODE="check"
+    shift
+fi
+
 DEPLOY_PATH="${DEPLOY_PATH:-${1:-}}"
 
 if [ -z "$DEPLOY_PATH" ]; then
@@ -63,6 +69,28 @@ APP_GROUP="${APP_GROUP:-$(stat -c %G "$DEPLOY_PATH")}"
 
 mkdir -p "$LOG_DIR"
 
+GUNICORN_UNIT_PATH="/etc/systemd/system/${GUNICORN_SERVICE_NAME}.service"
+SCHEDULER_UNIT_PATH="/etc/systemd/system/${SCHEDULER_SERVICE_NAME}.service"
+
+if [ "$MODE" = "check" ]; then
+    log_info "Checking Django Gunicorn service: $GUNICORN_SERVICE_NAME"
+    if ! systemctl cat "$GUNICORN_SERVICE_NAME" >/dev/null 2>&1; then
+        log_error "Missing systemd unit: $GUNICORN_SERVICE_NAME"
+        log_error "Run manually once: DEPLOY_PATH=$DEPLOY_PATH bash $DEPLOY_PATH/current/.deploy/install-systemd.sh"
+        exit 1
+    fi
+
+    log_info "Checking Django scheduler service: $SCHEDULER_SERVICE_NAME"
+    if ! systemctl cat "$SCHEDULER_SERVICE_NAME" >/dev/null 2>&1; then
+        log_error "Missing systemd unit: $SCHEDULER_SERVICE_NAME"
+        log_error "Run manually once: DEPLOY_PATH=$DEPLOY_PATH bash $DEPLOY_PATH/current/.deploy/install-systemd.sh"
+        exit 1
+    fi
+
+    log_info "Systemd units are installed"
+    exit 0
+fi
+
 log_info "Installing Django Gunicorn service: $GUNICORN_SERVICE_NAME"
 TMP_GUNICORN_UNIT="$(mktemp)"
 cat > "$TMP_GUNICORN_UNIT" <<EOF
@@ -112,8 +140,8 @@ StandardError=append:${LOG_DIR}/scheduler.error.log
 WantedBy=multi-user.target
 EOF
 
-sudo install -m 0644 "$TMP_GUNICORN_UNIT" "/etc/systemd/system/${GUNICORN_SERVICE_NAME}.service"
-sudo install -m 0644 "$TMP_SCHEDULER_UNIT" "/etc/systemd/system/${SCHEDULER_SERVICE_NAME}.service"
+sudo install -m 0644 "$TMP_GUNICORN_UNIT" "$GUNICORN_UNIT_PATH"
+sudo install -m 0644 "$TMP_SCHEDULER_UNIT" "$SCHEDULER_UNIT_PATH"
 rm -f "$TMP_GUNICORN_UNIT" "$TMP_SCHEDULER_UNIT"
 
 sudo systemctl daemon-reload

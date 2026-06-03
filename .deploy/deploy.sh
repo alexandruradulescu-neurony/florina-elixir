@@ -84,8 +84,8 @@ ln -sfn "$ENV_PATH" "$RELEASE_PATH/.env"
 rm -rf "$RELEASE_PATH/media"
 ln -sfn "$MEDIA_DIR" "$RELEASE_PATH/media"
 
-log_info "Ensuring systemd units are installed and current ..."
-DEPLOY_PATH="$DEPLOY_PATH" bash "$RELEASE_PATH/.deploy/install-systemd.sh"
+log_info "Verifying systemd units are installed ..."
+DEPLOY_PATH="$DEPLOY_PATH" bash "$RELEASE_PATH/.deploy/install-systemd.sh" --check
 
 if command -v uv >/dev/null 2>&1; then
     UV_BIN="$(command -v uv)"
