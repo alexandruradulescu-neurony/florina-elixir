@@ -151,17 +151,33 @@
             </p>
           </div>
         </header>
-        <form method="post" action="{% url 'voice:client_lessons_update' client.id %}">
+        <form method="post"
+              action="{% url 'voice:client_lessons_update' client.id %}">
           {% csrf_token %}
           <textarea name="lessons_learned"
                     rows="12"
-                    style="width:100%;padding:8px 12px;font-size:13px;font-family:monospace;border:1px solid var(--border);border-radius:6px;font-size:12px;line-height:1.5;"
+                    style="width:100%;
+                           padding:8px 12px;
+                           font-size:13px;
+                           font-family:monospace;
+                           border:1px solid var(--border);
+                           border-radius:6px;
+                           font-size:12px;
+                           line-height:1.5"
                     placeholder="No lessons learned yet — they accumulate after each post-call.">{{ client.lessons_learned }}</textarea>
           <div style="display:flex;justify-content:flex-end;margin-top:12px;">
             <button type="submit"
-                    style="display:inline-flex;align-items:center;gap:8px;padding:8px 16px;font-size:13px;font-weight:600;border-radius:6px;background-color:var(--accent);color:white;border:none;cursor:pointer;">
-              Save lessons
-            </button>
+                    style="display:inline-flex;
+                           align-items:center;
+                           gap:8px;
+                           padding:8px 16px;
+                           font-size:13px;
+                           font-weight:600;
+                           border-radius:6px;
+                           background-color:var(--accent);
+                           color:white;
+                           border:none;
+                           cursor:pointer">Save lessons</button>
           </div>
         </form>
       </div>
