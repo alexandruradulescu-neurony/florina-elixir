@@ -812,6 +812,91 @@ class MegaPromptEditView(SuperuserRequiredMixin, View):
         return redirect("voice:mega_prompt_list")
 
 
+class MegaPromptActivateView(SuperuserRequiredMixin, View):
+    """Activate a MegaPrompt version, atomically deactivating sibling actives
+    in the same domain. Auto-exports the seed file on disk so the repo stays
+    in sync with the DB.
+
+    Only POST is supported — GET should not flip state.
+    """
+
+    def post(self, request, pk):
+        from io import StringIO
+
+        from django.core.management import call_command
+        from django.db import transaction as db_transaction
+
+        from voice.constants import LogLevel
+        from voice.models import MegaPrompt
+        from voice.services.logging import log_activity
+
+        try:
+            target = MegaPrompt.objects.get(pk=pk)
+        except MegaPrompt.DoesNotExist:
+            messages.error(request, "Mega-prompt not found.")
+            return redirect("voice:mega_prompt_list")
+
+        with db_transaction.atomic():
+            target = MegaPrompt.objects.select_for_update().get(pk=pk)
+            if target.is_active:
+                messages.info(
+                    request,
+                    f"[{target.get_domain_display()}] v{target.version} is already active.",
+                )
+                return redirect("voice:mega_prompt_list")
+
+            # Atomic sibling-deactivation in the same domain.
+            MegaPrompt.objects.filter(domain=target.domain, is_active=True).exclude(
+                pk=target.pk
+            ).update(is_active=False)
+            target.is_active = True
+            target.save(update_fields=["is_active", "updated_at"])
+
+        log_activity(
+            user=request.user,
+            action=f"Activated MegaPrompt [{target.get_domain_display()}] v{target.version}",
+            details={
+                "mega_prompt_id": target.pk,
+                "domain": target.domain,
+                "version": target.version,
+            },
+        )
+
+        # Auto-export: rewrite the on-disk seed file for this domain so the
+        # repo always reflects the current active version. Failure here does
+        # NOT roll back the activation — the activation is the source of
+        # truth; the seed file is a backup.
+        try:
+            call_command("export_mega_prompts", stdout=StringIO())
+        except Exception:
+            logger.exception(
+                "Auto-export to seed file failed after activating MegaPrompt pk=%s",
+                target.pk,
+            )
+            log_activity(
+                user=request.user,
+                action="Seed-file auto-export failed after activation",
+                details={"mega_prompt_id": target.pk, "domain": target.domain},
+                level=LogLevel.WARNING,
+            )
+            messages.warning(
+                request,
+                f"Activated v{target.version}, but the seed file auto-export "
+                f"failed (see logs). Run `manage.py export_mega_prompts` "
+                f"manually to sync.",
+            )
+        else:
+            messages.success(
+                request,
+                f"Activated [{target.get_domain_display()}] v{target.version}. Seed file updated.",
+            )
+        return redirect("voice:mega_prompt_list")
+
+    def get(self, request, pk):
+        # No GET — activation must be a deliberate POST. Bounce back.
+        return redirect("voice:mega_prompt_list")
+
+
 class AgentManagementView(SuperuserRequiredMixin, View):
     """Manage sales agents."""
 
