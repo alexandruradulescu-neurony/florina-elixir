@@ -311,12 +311,6 @@ class GlobalSettingsAdmin(admin.ModelAdmin):
                 )
             },
         ),
-        (
-            "Meta-Prompts",
-            {
-                "fields": ("pre_call_meta_prompt", "post_call_meta_prompt"),
-            },
-        ),
         ("Defaults", {"fields": ("default_methodology",)}),
         ("Timestamps", {"fields": ("updated_at",)}),
     )
