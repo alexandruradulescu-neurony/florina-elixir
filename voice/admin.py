@@ -417,6 +417,9 @@ class ScenarioAdmin(admin.ModelAdmin):
 class GenerationRunAdmin(admin.ModelAdmin):
     list_display = ("created_at", "domain", "visit", "client", "success", "input_tokens", "output_tokens")
     list_filter = ("domain", "success", "triggered_by")
-    search_fields = ("error", "claude_response")
+    # `error`, `claude_response`, `claude_request`, `context_bundle`,
+    # `parsed_outputs` are encrypted at rest — searching their ciphertext is
+    # useless. Filter by structured fields (domain, success, triggered_by)
+    # instead; drill into a single row to inspect the decrypted body.
     readonly_fields = [f.name for f in GenerationRun._meta.get_fields()]
     ordering = ("-created_at",)

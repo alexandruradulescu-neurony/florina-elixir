@@ -19,6 +19,7 @@ Failure behavior is loud, not silent:
   0015 data migration can encrypt existing rows.
 """
 
+import json
 import logging
 
 from cryptography.fernet import Fernet, InvalidToken, MultiFernet
@@ -106,3 +107,45 @@ class EncryptedTextField(models.TextField):
                     "decrypted with any configured FIELD_ENCRYPTION_KEY."
                 ) from None
         return get_cipher().encrypt(value.encode()).decode()
+
+
+class EncryptedJSONField(EncryptedTextField):
+    """JSON-typed field whose serialized form is encrypted at rest.
+
+    Stored on disk as Fernet-encrypted ciphertext (a TEXT column under the
+    hood). Python-side, callers get/set arbitrary JSON-serializable values
+    (dict / list / scalar) — encode happens on write, decode on read.
+
+    Distinct from `JSONField`: queries cannot use JSON operators (the column
+    is opaque ciphertext), so use this only when the JSON is structured data
+    you read whole-row, never index/query into. The GenerationRun audit
+    fields fit that — they're read by an admin viewing a single run, not
+    aggregated or filtered on JSON keys.
+    """
+
+    def from_db_value(self, value, expression, connection):
+        decrypted = super().from_db_value(value, expression, connection)
+        if decrypted is None or decrypted == "":
+            return decrypted
+        try:
+            return json.loads(decrypted)
+        except (ValueError, TypeError):
+            # Tolerate genuine pre-encryption plaintext that already happens
+            # to be JSON-shaped, but if even the plaintext path produces
+            # non-JSON, that's a corrupt row — return raw string to let the
+            # caller decide.
+            return decrypted
+
+    def get_prep_value(self, value):
+        if value is None or value == "":
+            return value
+        if isinstance(value, str):
+            # Honor pass-through of already-ciphertext / already-encoded text.
+            return super().get_prep_value(value)
+        try:
+            encoded = json.dumps(value, ensure_ascii=False, default=str)
+        except (TypeError, ValueError) as e:
+            raise ImproperlyConfigured(
+                f"EncryptedJSONField cannot serialize value of type {type(value).__name__}: {e}"
+            ) from e
+        return super().get_prep_value(encoded)

@@ -7,7 +7,7 @@ from django.db import models
 from django.utils.translation import gettext_lazy as _
 
 from .constants import CallPhase, CallStatus, ClientStatus, LogLevel, VisitStatus
-from .encryption import EncryptedTextField
+from .encryption import EncryptedJSONField, EncryptedTextField
 
 
 class User(AbstractUser):
@@ -712,14 +712,19 @@ class GenerationRun(models.Model):
         help_text="The exact MegaPrompt version that was used",
     )
     triggered_by = models.CharField(max_length=20, choices=TriggeredBy.choices)
-    context_bundle = models.JSONField(default=dict, blank=True)
-    claude_request = models.TextField(blank=True, default="")
-    claude_response = models.TextField(blank=True, default="")
-    parsed_outputs = models.JSONField(default=dict, blank=True)
+    # Fields below carry PII (transcripts, manager notes, CRM history,
+    # generated voice-prompt text). Encrypted at rest via Fernet using the
+    # project's FIELD_ENCRYPTION_KEY — same scheme as the OAuth secrets in
+    # GoogleOauthCredential. These columns are opaque ciphertext at the DB
+    # layer; no JSON or text indexing on them.
+    context_bundle = EncryptedJSONField(default=dict, blank=True)
+    claude_request = EncryptedTextField(blank=True, default="")
+    claude_response = EncryptedTextField(blank=True, default="")
+    parsed_outputs = EncryptedJSONField(default=dict, blank=True)
     input_tokens = models.PositiveIntegerField(default=0)
     output_tokens = models.PositiveIntegerField(default=0)
     success = models.BooleanField(default=False, db_index=True)
-    error = models.TextField(blank=True, default="")
+    error = EncryptedTextField(blank=True, default="")
     created_by = models.ForeignKey(
         User,
         on_delete=models.SET_NULL,
