@@ -302,6 +302,103 @@ class VisitManagerNotesForm(forms.ModelForm):
         return instance
 
 
+class VisitForm(forms.ModelForm):
+    """Create or fully edit a visit (agent, client, title, schedule, methodology, notes).
+
+    Schedule uses the same date / start-time / duration trio as VisitManagerNotesForm;
+    on save() they are combined into Visit.start_time and Visit.end_time. A new visit is
+    saved with the model default status (PLANNED) so the existing call-scheduling task
+    picks it up automatically.
+    """
+
+    _INPUT = (
+        "w-full h-9 rounded-lg border border-slate-200 text-sm text-slate-700 px-3 "
+        "focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-400 "
+        "placeholder-slate-300"
+    )
+
+    visit_date = forms.DateField(
+        widget=forms.DateInput(attrs={"type": "date", "class": _INPUT}),
+    )
+    visit_start_time = forms.TimeField(
+        widget=forms.TimeInput(attrs={"type": "time", "step": "60", "class": _INPUT}),
+    )
+    visit_duration_minutes = forms.IntegerField(
+        min_value=5,
+        max_value=480,
+        initial=60,
+        widget=forms.NumberInput(attrs={"step": "5", "min": "5", "max": "480", "class": _INPUT}),
+    )
+
+    class Meta:
+        model = Visit
+        fields = ["agent", "client", "title", "methodology", "manager_notes"]
+        widgets = {
+            "title": forms.TextInput(attrs={"placeholder": "e.g. Quarterly review"}),
+            "manager_notes": forms.Textarea(
+                attrs={
+                    "rows": 4,
+                    "placeholder": 'Special requirements (e.g. "Push for Q3 close")...',
+                }
+            ),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Only real sales agents can own a visit.
+        self.fields["agent"].queryset = User.objects.filter(is_sales_agent=True).order_by(
+            "first_name", "username"
+        )
+        self.fields["client"].queryset = Client.objects.order_by("name")
+        self.fields["methodology"].queryset = Methodology.objects.filter(is_active=True).order_by(
+            "name"
+        )
+        self.fields["methodology"].required = False
+        # Consistent styling for the ModelForm-generated widgets.
+        for name in ("agent", "client", "title", "methodology"):
+            self.fields[name].widget.attrs.setdefault("class", self._INPUT)
+        self.fields["manager_notes"].widget.attrs.setdefault(
+            "class",
+            "w-full rounded-lg border border-slate-200 text-sm text-slate-700 p-3 "
+            "focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-400 "
+            "placeholder-slate-300 resize-y",
+        )
+        # Prefill schedule pickers when editing an existing visit.
+        instance = kwargs.get("instance") or getattr(self, "instance", None)
+        if instance and instance.pk and instance.start_time:
+            self.fields["visit_date"].initial = instance.start_time.date()
+            self.fields["visit_start_time"].initial = instance.start_time.time().replace(
+                microsecond=0, second=0
+            )
+            if instance.end_time:
+                minutes = int((instance.end_time - instance.start_time).total_seconds() // 60)
+                if minutes > 0:
+                    self.fields["visit_duration_minutes"].initial = minutes
+
+    def save(self, commit=True):
+        from datetime import datetime as _dt
+        from datetime import timedelta as _td
+
+        from django.utils import timezone as _tz
+
+        instance = super().save(commit=False)
+
+        d = self.cleaned_data.get("visit_date")
+        t = self.cleaned_data.get("visit_start_time")
+        dur = self.cleaned_data.get("visit_duration_minutes")
+
+        if d and t:
+            naive = _dt.combine(d, t)
+            instance.start_time = _tz.make_aware(naive, _tz.get_current_timezone())
+            if dur and dur > 0:
+                instance.end_time = instance.start_time + _td(minutes=int(dur))
+
+        if commit:
+            instance.save()
+            self.save_m2m()
+        return instance
+
+
 class ClientForm(forms.ModelForm):
     """Form for creating/editing a client manually."""
 
