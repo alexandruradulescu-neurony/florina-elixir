@@ -231,6 +231,13 @@ class GoogleCalendarWatch(models.Model):
     expiration = models.DateTimeField(
         help_text="When this watch channel expires (Google sends expiration notifications)"
     )
+    token = models.CharField(
+        max_length=64,
+        blank=True,
+        default="",
+        help_text="Random per-watch secret. Inbound webhooks must present a matching "
+        "X-Goog-Channel-Token; requests that don't match are rejected.",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

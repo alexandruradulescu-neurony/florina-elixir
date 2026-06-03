@@ -622,8 +622,11 @@ class GoogleCalendarWebhookView(View):
     def post(self, request):
         """Handle Google Calendar push notification."""
         try:
+            from django.utils.crypto import constant_time_compare
+
             # Extract headers
             channel_id = request.headers.get("X-Goog-Channel-ID")
+            resource_id = request.headers.get("X-Goog-Resource-ID", "")
             resource_state = request.headers.get("X-Goog-Resource-State")
             channel_token = request.headers.get("X-Goog-Channel-Token", "")
 
@@ -631,58 +634,52 @@ class GoogleCalendarWebhookView(View):
                 f"Google Calendar webhook received: channel_id={channel_id}, state={resource_state}"
             )
 
-            # Handle expiration notification
+            # ── Authenticate against stored watch state (CWE-345 fix) ──
+            # Resolve the watch ONLY by channel_id, then require an exact match on
+            # the stored random token and resource_id. The target user is taken
+            # from the watch row — never derived from an attacker-supplied header.
+            # This runs before ANY action (including delete), so a forged request
+            # can neither trigger a sync nor delete a watch.
+            watch = None
+            if channel_id:
+                watch = (
+                    GoogleCalendarWatch.objects.select_related("user")
+                    .filter(channel_id=channel_id)
+                    .first()
+                )
+            if not watch:
+                logger.warning(f"Rejected Google Calendar webhook: unknown channel_id={channel_id}")
+                return JsonResponse({"error": "Unknown channel"}, status=403)
+            if not (
+                watch.token and channel_token and constant_time_compare(channel_token, watch.token)
+            ):
+                logger.warning(
+                    f"Rejected Google Calendar webhook: token mismatch on channel_id={channel_id}"
+                )
+                return JsonResponse({"error": "Invalid token"}, status=403)
+            if resource_id and watch.resource_id and resource_id != watch.resource_id:
+                logger.warning(
+                    f"Rejected Google Calendar webhook: resource_id mismatch on "
+                    f"channel_id={channel_id}"
+                )
+                return JsonResponse({"error": "Resource mismatch"}, status=403)
+
+            user_id = watch.user_id
+
+            # Handle expiration notification (now authenticated)
             if resource_state == "not_exists":
-                # Channel expired or was stopped
-                if channel_id:
-                    watch = GoogleCalendarWatch.objects.filter(channel_id=channel_id).first()
-                    if watch:
-                        logger.info(
-                            f"Watch channel {channel_id} expired for user {watch.user.username}"
-                        )
-                        watch.delete()
-                        log_activity(
-                            user=watch.user,
-                            action="Google Calendar watch channel expired",
-                            details={"channel_id": channel_id},
-                        )
+                logger.info(f"Watch channel {channel_id} expired for user {watch.user.username}")
+                watch.delete()
+                log_activity(
+                    user=watch.user,
+                    action="Google Calendar watch channel expired",
+                    details={"channel_id": channel_id},
+                )
                 return JsonResponse({"status": "acknowledged"}, status=200)
 
-            # Extract user ID from channel token (format: "user_{user_id}_{channel_id}")
-            user_id = None
-            if channel_token.startswith("user_"):
-                try:
-                    parts = channel_token.split("_")
-                    if len(parts) >= 2:
-                        user_id = int(parts[1])
-                except (ValueError, IndexError):
-                    pass
-
-            # Find watch channel to get user
-            if not user_id and channel_id:
-                watch = GoogleCalendarWatch.objects.filter(channel_id=channel_id).first()
-                if watch:
-                    user_id = watch.user.id
-
-            if not user_id:
-                logger.warning(
-                    f"Could not determine user from Google Calendar webhook: channel_id={channel_id}, token={channel_token}"
-                )
-                return JsonResponse({"status": "received", "message": "User not found"}, status=200)
-
-            # Handle sync notification
-            if resource_state == "sync":
-                # Initial sync - full calendar sync
-                logger.info(f"Google Calendar sync notification for user {user_id}")
-                result = handle_google_calendar_notification(user_id)
-                if result.get("success"):
-                    logger.info(f"Calendar sync completed: {result}")
-                else:
-                    logger.error(f"Calendar sync failed: {result.get('error')}")
-
-            elif resource_state == "exists":
-                # Event was created or updated - sync calendar
-                logger.info(f"Google Calendar event change notification for user {user_id}")
+            # Handle sync / event-change notifications
+            if resource_state in ("sync", "exists"):
+                logger.info(f"Google Calendar {resource_state} notification for user {user_id}")
                 result = handle_google_calendar_notification(user_id)
                 if result.get("success"):
                     logger.info(f"Calendar sync completed: {result}")
