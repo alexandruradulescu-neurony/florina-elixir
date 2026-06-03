@@ -4,20 +4,28 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('voice', '0003_voiceprompt_first_message'),
+        ("voice", "0003_voiceprompt_first_message"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='callattempt',
-            name='summary',
-            field=models.TextField(blank=True, help_text='AI-generated summary of the call conversation from ElevenLabs', null=True),
+            model_name="callattempt",
+            name="summary",
+            field=models.TextField(
+                blank=True,
+                help_text="AI-generated summary of the call conversation from ElevenLabs",
+                null=True,
+            ),
         ),
         migrations.AddField(
-            model_name='callattempt',
-            name='summary_title',
-            field=models.CharField(blank=True, help_text='Title of the call summary from ElevenLabs', max_length=255, null=True),
+            model_name="callattempt",
+            name="summary_title",
+            field=models.CharField(
+                blank=True,
+                help_text="Title of the call summary from ElevenLabs",
+                max_length=255,
+                null=True,
+            ),
         ),
     ]

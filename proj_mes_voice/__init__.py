@@ -1,4 +1,3 @@
 """
 Django project initialization.
 """
-

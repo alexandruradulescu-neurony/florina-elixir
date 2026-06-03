@@ -2,6 +2,7 @@
 Database query selectors for the voice app.
 Following DRY principles to centralize database queries.
 """
+
 from datetime import timedelta
 
 from django.utils import timezone
@@ -87,7 +88,12 @@ def get_meetings_for_pre_call_check() -> list[tuple[Meeting, int]]:
         # meeting.start_time + offset should be between (now - window/2) and (now + window/2)
         # Rearranging: meeting.start_time should be between (now - offset - window/2) and (now - offset + window/2)
         # Also allow some past tolerance to catch up on missed calls (extend window backward by 10 minutes)
-        window_start = now - timedelta(minutes=offset) - timedelta(minutes=SCHEDULER_WINDOW / 2) - timedelta(minutes=10)
+        window_start = (
+            now
+            - timedelta(minutes=offset)
+            - timedelta(minutes=SCHEDULER_WINDOW / 2)
+            - timedelta(minutes=10)
+        )
         window_end = now - timedelta(minutes=offset) + timedelta(minutes=SCHEDULER_WINDOW / 2)
 
         # Find meetings where start_time falls in this window
@@ -96,7 +102,7 @@ def get_meetings_for_pre_call_check() -> list[tuple[Meeting, int]]:
             start_time__gte=window_start,
             start_time__lte=window_end,
             start_time__gt=now,  # Meeting hasn't started yet
-            agent__is_sales_agent=True
+            agent__is_sales_agent=True,
         )
 
         for meeting in meetings:
@@ -104,18 +110,19 @@ def get_meetings_for_pre_call_check() -> list[tuple[Meeting, int]]:
             if offset == PRE_MEETING_OFFSETS[0]:  # First call (-60 mins)
                 # Check if call attempt already exists for this offset
                 if not CallAttempt.objects.filter(
-                    meeting=meeting,
-                    phase=CallPhase.PRE_MEETING,
-                    scheduled_offset_minutes=offset
+                    meeting=meeting, phase=CallPhase.PRE_MEETING, scheduled_offset_minutes=offset
                 ).exists():
                     results.append((meeting, offset))
             else:  # Retry call (-30 mins)
                 # Only trigger if pre-call is not completed and retry call doesn't exist
-                if not meeting.is_pre_call_completed and not CallAttempt.objects.filter(
-                    meeting=meeting,
-                    phase=CallPhase.PRE_MEETING,
-                    scheduled_offset_minutes=offset,
-                ).exists():
+                if (
+                    not meeting.is_pre_call_completed
+                    and not CallAttempt.objects.filter(
+                        meeting=meeting,
+                        phase=CallPhase.PRE_MEETING,
+                        scheduled_offset_minutes=offset,
+                    ).exists()
+                ):
                     results.append((meeting, offset))
 
     return results
@@ -146,9 +153,7 @@ def get_meetings_for_post_call_check() -> list[tuple[Meeting, int]]:
 
         # Find meetings that ended in this window
         meetings = Meeting.objects.filter(
-            end_time__gte=window_start,
-            end_time__lte=window_end,
-            agent__is_sales_agent=True
+            end_time__gte=window_start, end_time__lte=window_end, agent__is_sales_agent=True
         )
 
         for meeting in meetings:
@@ -156,18 +161,19 @@ def get_meetings_for_post_call_check() -> list[tuple[Meeting, int]]:
             if offset == POST_MEETING_OFFSETS[0]:  # First call (+15 mins)
                 # Check if call attempt already exists for this offset
                 if not CallAttempt.objects.filter(
-                    meeting=meeting,
-                    phase=CallPhase.POST_MEETING,
-                    scheduled_offset_minutes=offset
+                    meeting=meeting, phase=CallPhase.POST_MEETING, scheduled_offset_minutes=offset
                 ).exists():
                     results.append((meeting, offset))
             else:  # Retry call (+30 mins)
                 # Only trigger if post-call is not completed and retry call doesn't exist
-                if not meeting.is_post_call_completed and not CallAttempt.objects.filter(
-                    meeting=meeting,
-                    phase=CallPhase.POST_MEETING,
-                    scheduled_offset_minutes=offset,
-                ).exists():
+                if (
+                    not meeting.is_post_call_completed
+                    and not CallAttempt.objects.filter(
+                        meeting=meeting,
+                        phase=CallPhase.POST_MEETING,
+                        scheduled_offset_minutes=offset,
+                    ).exists()
+                ):
                     results.append((meeting, offset))
 
     return results
@@ -187,7 +193,7 @@ def get_call_attempts_for_meeting(meeting: Meeting, phase: str = None) -> list[C
     queryset = CallAttempt.objects.filter(meeting=meeting)
     if phase:
         queryset = queryset.filter(phase=phase)
-    return list(queryset.order_by('created_at'))
+    return list(queryset.order_by("created_at"))
 
 
 def get_sales_agents() -> list:
@@ -198,6 +204,7 @@ def get_sales_agents() -> list:
         List of User instances who are sales agents
     """
     from .models import User
+
     return list(User.objects.filter(is_sales_agent=True))
 
 
@@ -212,6 +219,7 @@ def get_recent_activity_logs(limit: int = 100):
         QuerySet of ActivityLog instances (for lazy evaluation)
     """
     from .models import ActivityLog
+
     return ActivityLog.objects.all()[:limit]
 
 
@@ -237,15 +245,15 @@ def get_system_statistics():
     success_rate = (completed_count / total_calls * 100) if total_calls > 0 else 0
 
     return {
-        'total_users': User.objects.count(),
-        'sales_agents': User.objects.filter(is_sales_agent=True).count(),
-        'total_meetings': Meeting.objects.count(),
-        'upcoming_meetings': Meeting.objects.filter(start_time__gte=timezone.now()).count(),
-        'calls_today': total_calls,
-        'completed_calls_today': completed_count,
-        'success_rate': round(success_rate, 1),
-        'total_logs': ActivityLog.objects.count(),
-        'error_logs': ActivityLog.objects.filter(level=LogLevel.ERROR).count(),
+        "total_users": User.objects.count(),
+        "sales_agents": User.objects.filter(is_sales_agent=True).count(),
+        "total_meetings": Meeting.objects.count(),
+        "upcoming_meetings": Meeting.objects.filter(start_time__gte=timezone.now()).count(),
+        "calls_today": total_calls,
+        "completed_calls_today": completed_count,
+        "success_rate": round(success_rate, 1),
+        "total_logs": ActivityLog.objects.count(),
+        "error_logs": ActivityLog.objects.filter(level=LogLevel.ERROR).count(),
     }
 
 
@@ -259,7 +267,11 @@ def get_recent_calls(limit: int = 20):
     Returns:
         List of CallAttempt instances
     """
-    return list(CallAttempt.objects.select_related('meeting', 'meeting__agent').order_by('-created_at')[:limit])
+    return list(
+        CallAttempt.objects.select_related("meeting", "meeting__agent").order_by("-created_at")[
+            :limit
+        ]
+    )
 
 
 def get_failed_calls_today():
@@ -280,17 +292,15 @@ def get_failed_calls_today():
         start_time__gte=today_start,
         start_time__lte=today_end,
         agent__is_sales_agent=True,
-        is_pre_call_completed=False
-    ).prefetch_related('call_attempts')
+        is_pre_call_completed=False,
+    ).prefetch_related("call_attempts")
 
     failed_meetings = []
     for meeting in today_meetings:
         # Check if both pre-meeting calls failed
         # Use prefetched call_attempts to avoid additional queries
         pre_calls = meeting.call_attempts.filter(
-            phase=CallPhase.PRE_MEETING,
-            created_at__gte=today_start,
-            created_at__lte=today_end
+            phase=CallPhase.PRE_MEETING, created_at__gte=today_start, created_at__lte=today_end
         )
 
         # Check if both -60 and -30 calls exist and both failed
@@ -303,12 +313,14 @@ def get_failed_calls_today():
             and call_60.status in [CallStatus.NO_ANSWER, CallStatus.FAILED]
             and call_30.status in [CallStatus.NO_ANSWER, CallStatus.FAILED]
         ):
-            failed_meetings.append({
-                'meeting': meeting,
-                'agent': meeting.agent,
-                'call_60_status': call_60.status,
-                'call_30_status': call_30.status,
-            })
+            failed_meetings.append(
+                {
+                    "meeting": meeting,
+                    "agent": meeting.agent,
+                    "call_60_status": call_60.status,
+                    "call_30_status": call_30.status,
+                }
+            )
 
     return failed_meetings
 
@@ -324,15 +336,15 @@ def get_all_meetings(limit: int = 50, filters: dict = None):
     Returns:
         QuerySet of Meeting instances
     """
-    queryset = Meeting.objects.select_related('agent').order_by('-start_time')
+    queryset = Meeting.objects.select_related("agent").order_by("-start_time")
 
     if filters:
-        if 'agent_id' in filters:
-            queryset = queryset.filter(agent_id=filters['agent_id'])
-        if 'start_date' in filters:
-            queryset = queryset.filter(start_time__gte=filters['start_date'])
-        if 'end_date' in filters:
-            queryset = queryset.filter(start_time__lte=filters['end_date'])
+        if "agent_id" in filters:
+            queryset = queryset.filter(agent_id=filters["agent_id"])
+        if "start_date" in filters:
+            queryset = queryset.filter(start_time__gte=filters["start_date"])
+        if "end_date" in filters:
+            queryset = queryset.filter(start_time__lte=filters["end_date"])
 
     return queryset[:limit]
 
@@ -351,7 +363,7 @@ def get_activity_logs_filtered(level: str = None, user_id: int = None, limit: in
     """
     from .models import ActivityLog
 
-    queryset = ActivityLog.objects.select_related('user', 'meeting').order_by('-timestamp')
+    queryset = ActivityLog.objects.select_related("user", "meeting").order_by("-timestamp")
 
     if level:
         queryset = queryset.filter(level=level)
@@ -372,7 +384,7 @@ def get_agent_meetings(agent, limit: int = 20):
     Returns:
         QuerySet of Meeting instances
     """
-    return Meeting.objects.filter(agent=agent).order_by('-start_time')[:limit]
+    return Meeting.objects.filter(agent=agent).order_by("-start_time")[:limit]
 
 
 def get_agent_call_statistics(agent):
@@ -394,11 +406,11 @@ def get_agent_call_statistics(agent):
     success_rate = (completed / total * 100) if total > 0 else 0
 
     return {
-        'total': total,
-        'completed': completed,
-        'failed': failed,
-        'no_answer': no_answer,
-        'success_rate': round(success_rate, 1),
+        "total": total,
+        "completed": completed,
+        "failed": failed,
+        "no_answer": no_answer,
+        "success_rate": round(success_rate, 1),
     }
 
 
@@ -413,10 +425,9 @@ def get_upcoming_meetings_for_agent(agent, limit: int = 10):
     Returns:
         QuerySet of Meeting instances
     """
-    return Meeting.objects.filter(
-        agent=agent,
-        start_time__gte=timezone.now()
-    ).order_by('start_time')[:limit]
+    return Meeting.objects.filter(agent=agent, start_time__gte=timezone.now()).order_by(
+        "start_time"
+    )[:limit]
 
 
 def get_agent_timeline_data(agent, date=None):
@@ -445,17 +456,14 @@ def get_agent_timeline_data(agent, date=None):
 
     # Get meetings for this date
     meetings = Meeting.objects.filter(
-        agent=agent,
-        start_time__gte=date_start,
-        start_time__lte=date_end
-    ).order_by('start_time')
+        agent=agent, start_time__gte=date_start, start_time__lte=date_end
+    ).order_by("start_time")
 
     for meeting in meetings:
         # Pre-meeting calls
         pre_calls = CallAttempt.objects.filter(
-            meeting=meeting,
-            phase=CallPhase.PRE_MEETING
-        ).order_by('created_at')
+            meeting=meeting, phase=CallPhase.PRE_MEETING
+        ).order_by("created_at")
 
         for call in pre_calls:
             # Use scheduled_time if available (from pre-programming), otherwise calculate it
@@ -465,28 +473,31 @@ def get_agent_timeline_data(agent, date=None):
                 # Fallback: calculate from meeting start time + offset
                 call_time = meeting.start_time + timedelta(minutes=call.scheduled_offset_minutes)
 
-            timeline_items.append({
-                'type': 'pre_call',
-                'time': call_time,
-                'meeting': meeting,
-                'call': call,
-                'status': call.status,
-                'offset': call.scheduled_offset_minutes,
-            })
+            timeline_items.append(
+                {
+                    "type": "pre_call",
+                    "time": call_time,
+                    "meeting": meeting,
+                    "call": call,
+                    "status": call.status,
+                    "offset": call.scheduled_offset_minutes,
+                }
+            )
 
         # Meeting itself
-        timeline_items.append({
-            'type': 'meeting',
-            'time': meeting.start_time,
-            'meeting': meeting,
-            'status': 'scheduled',
-        })
+        timeline_items.append(
+            {
+                "type": "meeting",
+                "time": meeting.start_time,
+                "meeting": meeting,
+                "status": "scheduled",
+            }
+        )
 
         # Post-meeting calls
         post_calls = CallAttempt.objects.filter(
-            meeting=meeting,
-            phase=CallPhase.POST_MEETING
-        ).order_by('created_at')
+            meeting=meeting, phase=CallPhase.POST_MEETING
+        ).order_by("created_at")
 
         for call in post_calls:
             # Use scheduled_time if available (from pre-programming), otherwise calculate it
@@ -496,17 +507,19 @@ def get_agent_timeline_data(agent, date=None):
                 # Fallback: calculate from meeting end time + offset
                 call_time = meeting.end_time + timedelta(minutes=call.scheduled_offset_minutes)
 
-            timeline_items.append({
-                'type': 'post_call',
-                'time': call_time,
-                'meeting': meeting,
-                'call': call,
-                'status': call.status,
-                'offset': call.scheduled_offset_minutes,
-            })
+            timeline_items.append(
+                {
+                    "type": "post_call",
+                    "time": call_time,
+                    "meeting": meeting,
+                    "call": call,
+                    "status": call.status,
+                    "offset": call.scheduled_offset_minutes,
+                }
+            )
 
     # Sort by time
-    timeline_items.sort(key=lambda x: x['time'])
+    timeline_items.sort(key=lambda x: x["time"])
 
     return timeline_items
 
@@ -514,6 +527,7 @@ def get_agent_timeline_data(agent, date=None):
 # ============================================================================
 # Client Selectors
 # ============================================================================
+
 
 def get_client_by_domain(domain: str):
     """Find a client by email domain."""
@@ -536,9 +550,9 @@ def get_all_clients(limit=100):
 def get_stale_clients(hours=24):
     """Get clients that haven't been synced recently."""
     cutoff = timezone.now() - timedelta(hours=hours)
-    return Client.objects.filter(
-        last_synced_at__lt=cutoff
-    ) | Client.objects.filter(last_synced_at__isnull=True)
+    return Client.objects.filter(last_synced_at__lt=cutoff) | Client.objects.filter(
+        last_synced_at__isnull=True
+    )
 
 
 def get_clients_with_stats():
@@ -547,33 +561,34 @@ def get_clients_with_stats():
     Returns list of dicts for template consumption.
     """
     from .models import User
-    clients = Client.objects.all().order_by('name')
+
+    clients = Client.objects.all().order_by("name")
     now = timezone.now()
     result = []
 
     for client in clients:
         visits = Visit.objects.filter(client=client)
         total_visits = visits.count()
-        last_visit = visits.order_by('-start_time').first()
+        last_visit = visits.order_by("-start_time").first()
         agents = User.objects.filter(
-            is_sales_agent=True,
-            id__in=visits.values_list('agent_id', flat=True).distinct()
+            is_sales_agent=True, id__in=visits.values_list("agent_id", flat=True).distinct()
         )
 
         is_stale = (
-            client.last_synced_at is None
-            or (now - client.last_synced_at).total_seconds() > 86400
+            client.last_synced_at is None or (now - client.last_synced_at).total_seconds() > 86400
         )
 
-        result.append({
-            'client': client,
-            'total_visits': total_visits,
-            'last_visit': last_visit,
-            'agent_count': agents.count(),
-            'has_summary': bool(client.ai_summary),
-            'has_contacts': bool(client.contacts and len(client.contacts) > 0),
-            'is_stale': is_stale,
-        })
+        result.append(
+            {
+                "client": client,
+                "total_visits": total_visits,
+                "last_visit": last_visit,
+                "agent_count": agents.count(),
+                "has_summary": bool(client.ai_summary),
+                "has_contacts": bool(client.contacts and len(client.contacts) > 0),
+                "is_stale": is_stale,
+            }
+        )
 
     return result
 
@@ -584,41 +599,46 @@ def get_client_detail(client_id):
     Returns dict with enriched data or None if not found.
     """
     from .models import CallAttempt, User
+
     try:
         client = Client.objects.get(id=client_id)
     except Client.DoesNotExist:
         return None
 
-    visits = Visit.objects.filter(
-        client=client
-    ).select_related('agent', 'methodology').order_by('-start_time')
+    visits = (
+        Visit.objects.filter(client=client)
+        .select_related("agent", "methodology")
+        .order_by("-start_time")
+    )
 
     agents = User.objects.filter(
-        is_sales_agent=True,
-        id__in=visits.values_list('agent_id', flat=True).distinct()
-    ).select_related('default_methodology')
+        is_sales_agent=True, id__in=visits.values_list("agent_id", flat=True).distinct()
+    ).select_related("default_methodology")
 
     total_visits = visits.count()
     completed_visits = visits.filter(status=VisitStatus.COMPLETE).count()
 
-    recent_calls = CallAttempt.objects.filter(
-        visit__client=client
-    ).select_related('visit', 'visit__agent').order_by('-created_at')[:10]
+    recent_calls = (
+        CallAttempt.objects.filter(visit__client=client)
+        .select_related("visit", "visit__agent")
+        .order_by("-created_at")[:10]
+    )
 
     return {
-        'client': client,
-        'visits': visits[:20],
-        'agents': agents,
-        'recent_calls': recent_calls,
-        'total_visits': total_visits,
-        'completed_visits': completed_visits,
-        'completion_rate': round(completed_visits / total_visits * 100) if total_visits else 0,
+        "client": client,
+        "visits": visits[:20],
+        "agents": agents,
+        "recent_calls": recent_calls,
+        "total_visits": total_visits,
+        "completed_visits": completed_visits,
+        "completion_rate": round(completed_visits / total_visits * 100) if total_visits else 0,
     }
 
 
 # ============================================================================
 # Visit Selectors
 # ============================================================================
+
 
 def get_visits_for_date(target_date=None, agent=None):
     """Get all visits for a given date, optionally filtered by agent."""
@@ -627,30 +647,31 @@ def get_visits_for_date(target_date=None, agent=None):
 
     qs = Visit.objects.filter(
         start_time__date=target_date,
-    ).select_related('agent', 'client', 'methodology')
+    ).select_related("agent", "client", "methodology")
 
     if agent:
         qs = qs.filter(agent=agent)
 
-    return qs.order_by('start_time')
+    return qs.order_by("start_time")
 
 
 def get_visits_for_range(start_date, end_date, agent=None):
     """Get all visits within a date range, optionally filtered by agent."""
     from datetime import datetime
     from datetime import time as dt_time
+
     start_dt = timezone.make_aware(datetime.combine(start_date, dt_time.min))
     end_dt = timezone.make_aware(datetime.combine(end_date, dt_time.max))
 
     qs = Visit.objects.filter(
         start_time__gte=start_dt,
         start_time__lte=end_dt,
-    ).select_related('agent', 'client', 'methodology')
+    ).select_related("agent", "client", "methodology")
 
     if agent:
         qs = qs.filter(agent=agent)
 
-    return qs.order_by('start_time')
+    return qs.order_by("start_time")
 
 
 def get_visits_needing_pre_call():
@@ -659,6 +680,7 @@ def get_visits_needing_pre_call():
     and the visit is coming up within the configured window.
     """
     from .models import GlobalSettings
+
     settings = GlobalSettings.load()
     offset = abs(settings.pre_call_offset_minutes)
 
@@ -669,7 +691,7 @@ def get_visits_needing_pre_call():
         status=VisitStatus.PLANNED,
         start_time__lte=cutoff,
         start_time__gt=now,
-    ).select_related('agent', 'client', 'methodology')
+    ).select_related("agent", "client", "methodology")
 
 
 def get_visits_needing_post_call():
@@ -677,6 +699,7 @@ def get_visits_needing_post_call():
     Get visits where the meeting has ended but post-call hasn't happened yet.
     """
     from .models import GlobalSettings
+
     settings = GlobalSettings.load()
     offset = settings.post_call_offset_minutes
 
@@ -685,14 +708,18 @@ def get_visits_needing_post_call():
     return Visit.objects.filter(
         status__in=[VisitStatus.PLANNED, VisitStatus.PRE_CALL_DONE, VisitStatus.IN_PROGRESS],
         end_time__lte=now - timedelta(minutes=offset),
-    ).select_related('agent', 'client', 'methodology')
+    ).select_related("agent", "client", "methodology")
 
 
 def get_agent_visits(agent, limit=20):
     """Get recent visits for a specific agent."""
-    return Visit.objects.filter(
-        agent=agent,
-    ).select_related('client', 'methodology').order_by('-start_time')[:limit]
+    return (
+        Visit.objects.filter(
+            agent=agent,
+        )
+        .select_related("client", "methodology")
+        .order_by("-start_time")[:limit]
+    )
 
 
 def get_visit_by_calendar_event(event_id: str, agent=None):
@@ -707,9 +734,10 @@ def get_visit_by_calendar_event(event_id: str, agent=None):
 # Methodology Selectors
 # ============================================================================
 
+
 def get_active_methodologies():
     """Get all active methodologies."""
-    return Methodology.objects.filter(is_active=True).order_by('name')
+    return Methodology.objects.filter(is_active=True).order_by("name")
 
 
 def get_methodology_by_id(methodology_id: int):
@@ -723,6 +751,7 @@ def get_methodology_by_id(methodology_id: int):
 # ============================================================================
 # Dashboard Selectors
 # ============================================================================
+
 
 def get_dashboard_visit_summary(target_date=None):
     """
@@ -740,12 +769,12 @@ def get_dashboard_visit_summary(target_date=None):
         status_counts[status_val] = visits.filter(status=status_val).count()
 
     return {
-        'total': total,
-        'planned': status_counts.get(VisitStatus.PLANNED, 0),
-        'pre_call_done': status_counts.get(VisitStatus.PRE_CALL_DONE, 0),
-        'in_progress': status_counts.get(VisitStatus.IN_PROGRESS, 0),
-        'post_call_done': status_counts.get(VisitStatus.POST_CALL_DONE, 0),
-        'complete': status_counts.get(VisitStatus.COMPLETE, 0),
+        "total": total,
+        "planned": status_counts.get(VisitStatus.PLANNED, 0),
+        "pre_call_done": status_counts.get(VisitStatus.PRE_CALL_DONE, 0),
+        "in_progress": status_counts.get(VisitStatus.IN_PROGRESS, 0),
+        "post_call_done": status_counts.get(VisitStatus.POST_CALL_DONE, 0),
+        "complete": status_counts.get(VisitStatus.COMPLETE, 0),
     }
 
 
@@ -755,21 +784,26 @@ def get_agent_readiness(target_date=None):
     Returns list of dicts with agent info and their visit/call stats.
     """
     from .models import User
+
     if target_date is None:
         target_date = timezone.now().date()
 
-    agents = User.objects.filter(is_sales_agent=True).order_by('username')
+    agents = User.objects.filter(is_sales_agent=True).order_by("username")
     result = []
 
     for agent in agents:
-        visits = Visit.objects.filter(
-            agent=agent, start_time__date=target_date
-        ).select_related('client', 'methodology')
+        visits = Visit.objects.filter(agent=agent, start_time__date=target_date).select_related(
+            "client", "methodology"
+        )
 
         visit_count = visits.count()
         pre_calls_done = visits.filter(
-            status__in=[VisitStatus.PRE_CALL_DONE, VisitStatus.IN_PROGRESS,
-                        VisitStatus.POST_CALL_DONE, VisitStatus.COMPLETE]
+            status__in=[
+                VisitStatus.PRE_CALL_DONE,
+                VisitStatus.IN_PROGRESS,
+                VisitStatus.POST_CALL_DONE,
+                VisitStatus.COMPLETE,
+            ]
         ).count()
         post_calls_done = visits.filter(
             status__in=[VisitStatus.POST_CALL_DONE, VisitStatus.COMPLETE]
@@ -781,27 +815,29 @@ def get_agent_readiness(target_date=None):
 
         # Determine overall status
         if visit_count == 0:
-            agent_status = 'idle'
+            agent_status = "idle"
         elif not has_phone:
-            agent_status = 'error'
+            agent_status = "error"
         elif completed == visit_count:
-            agent_status = 'done'
+            agent_status = "done"
         elif pre_calls_done == visit_count:
-            agent_status = 'good'
+            agent_status = "good"
         else:
-            agent_status = 'pending'
+            agent_status = "pending"
 
-        result.append({
-            'agent': agent,
-            'visit_count': visit_count,
-            'pre_calls_done': pre_calls_done,
-            'post_calls_done': post_calls_done,
-            'completed': completed,
-            'methodology': methodology,
-            'has_phone': has_phone,
-            'status': agent_status,
-            'visits': list(visits.order_by('start_time')[:5]),
-        })
+        result.append(
+            {
+                "agent": agent,
+                "visit_count": visit_count,
+                "pre_calls_done": pre_calls_done,
+                "post_calls_done": post_calls_done,
+                "completed": completed,
+                "methodology": methodology,
+                "has_phone": has_phone,
+                "status": agent_status,
+                "visits": list(visits.order_by("start_time")[:5]),
+            }
+        )
 
     return result
 
@@ -812,6 +848,7 @@ def get_dashboard_action_items(target_date=None):
     Returns list of action item dicts with type, severity, message, and link context.
     """
     from .models import User
+
     if target_date is None:
         target_date = timezone.now().date()
 
@@ -824,22 +861,24 @@ def get_dashboard_action_items(target_date=None):
         start_time__date=target_date,
         start_time__gt=now,
         start_time__lte=now + timedelta(hours=2),
-    ).select_related('agent', 'client')
+    ).select_related("agent", "client")
 
     for visit in upcoming_no_precall:
         minutes_until = int((visit.start_time - now).total_seconds() / 60)
-        items.append({
-            'type': 'no_precall',
-            'severity': 'error' if minutes_until < 30 else 'warning',
-            'message': f"{visit.agent.get_full_name() or visit.agent.username} meets {visit.client.name if visit.client else visit.title} in {minutes_until}min — no pre-call done",
-            'visit_id': visit.id,
-        })
+        items.append(
+            {
+                "type": "no_precall",
+                "severity": "error" if minutes_until < 30 else "warning",
+                "message": f"{visit.agent.get_full_name() or visit.agent.username} meets {visit.client.name if visit.client else visit.title} in {minutes_until}min — no pre-call done",
+                "visit_id": visit.id,
+            }
+        )
 
     # 2. Failed call attempts today
     failed_calls = CallAttempt.objects.filter(
         created_at__date=target_date,
         status__in=[CallStatus.FAILED, CallStatus.NO_ANSWER],
-    ).select_related('visit', 'visit__agent', 'visit__client', 'meeting', 'meeting__agent')
+    ).select_related("visit", "visit__agent", "visit__client", "meeting", "meeting__agent")
 
     for call in failed_calls[:5]:
         if call.visit:
@@ -850,63 +889,76 @@ def get_dashboard_action_items(target_date=None):
             context = call.meeting.title
         else:
             continue
-        items.append({
-            'type': 'failed_call',
-            'severity': 'error',
-            'message': f"Call to {agent_name} failed ({call.get_status_display()}) — {context}",
-            'visit_id': call.visit_id,
-        })
+        items.append(
+            {
+                "type": "failed_call",
+                "severity": "error",
+                "message": f"Call to {agent_name} failed ({call.get_status_display()}) — {context}",
+                "visit_id": call.visit_id,
+            }
+        )
 
     # 3. Visits with no methodology
     no_methodology = Visit.objects.filter(
         start_time__date=target_date,
         methodology__isnull=True,
-    ).select_related('agent')
+    ).select_related("agent")
 
     for visit in no_methodology:
         agent = visit.agent
         if not agent.default_methodology:
             from .models import GlobalSettings
+
             settings = GlobalSettings.load()
             if not settings.default_methodology:
-                items.append({
-                    'type': 'no_methodology',
-                    'severity': 'warning',
-                    'message': f"{agent.get_full_name() or agent.username} has a visit with no methodology at any level",
-                    'visit_id': visit.id,
-                })
+                items.append(
+                    {
+                        "type": "no_methodology",
+                        "severity": "warning",
+                        "message": f"{agent.get_full_name() or agent.username} has a visit with no methodology at any level",
+                        "visit_id": visit.id,
+                    }
+                )
 
     # 4. Agents with no phone number
     agents_no_phone = User.objects.filter(
         is_sales_agent=True,
-        phone_number='',
+        phone_number="",
     )
     for agent in agents_no_phone:
-        items.append({
-            'type': 'no_phone',
-            'severity': 'error',
-            'message': f"{agent.get_full_name() or agent.username} has no phone number — cannot receive calls",
-            'visit_id': None,
-        })
+        items.append(
+            {
+                "type": "no_phone",
+                "severity": "error",
+                "message": f"{agent.get_full_name() or agent.username} has no phone number — cannot receive calls",
+                "visit_id": None,
+            }
+        )
 
     # 5. Pending CRM sync
-    pending_sync = Visit.objects.filter(
-        status__in=[VisitStatus.POST_CALL_DONE, VisitStatus.COMPLETE],
-        crm_synced=False,
-        post_call_summary__isnull=False,
-    ).exclude(post_call_summary='').select_related('agent', 'client')
+    pending_sync = (
+        Visit.objects.filter(
+            status__in=[VisitStatus.POST_CALL_DONE, VisitStatus.COMPLETE],
+            crm_synced=False,
+            post_call_summary__isnull=False,
+        )
+        .exclude(post_call_summary="")
+        .select_related("agent", "client")
+    )
 
     for visit in pending_sync[:3]:
-        items.append({
-            'type': 'crm_pending',
-            'severity': 'info',
-            'message': f"CRM sync pending for {visit.client.name if visit.client else visit.title}",
-            'visit_id': visit.id,
-        })
+        items.append(
+            {
+                "type": "crm_pending",
+                "severity": "info",
+                "message": f"CRM sync pending for {visit.client.name if visit.client else visit.title}",
+                "visit_id": visit.id,
+            }
+        )
 
     # Sort by severity
-    severity_order = {'error': 0, 'warning': 1, 'info': 2}
-    items.sort(key=lambda x: severity_order.get(x['severity'], 3))
+    severity_order = {"error": 0, "warning": 1, "info": 2}
+    items.sort(key=lambda x: severity_order.get(x["severity"], 3))
 
     return items
 
@@ -924,6 +976,7 @@ def get_weekly_summary(target_date=None):
 
     from datetime import datetime
     from datetime import time as dt_time
+
     week_start = timezone.make_aware(datetime.combine(monday, dt_time.min))
     week_end = timezone.make_aware(datetime.combine(sunday, dt_time.max))
 
@@ -938,21 +991,23 @@ def get_weekly_summary(target_date=None):
 
     # Methodology breakdown
     methodology_usage = {}
-    for visit in visits.select_related('methodology'):
-        m_name = visit.methodology.name if visit.methodology else 'None'
+    for visit in visits.select_related("methodology"):
+        m_name = visit.methodology.name if visit.methodology else "None"
         methodology_usage[m_name] = methodology_usage.get(m_name, 0) + 1
 
     return {
-        'week_start': monday,
-        'week_end': sunday,
-        'total_visits': total_visits,
-        'completed_visits': completed_visits,
-        'visit_completion_rate': round(completed_visits / total_visits * 100, 1) if total_visits else 0,
-        'total_calls': total_calls,
-        'completed_calls': completed_calls,
-        'call_success_rate': round(completed_calls / total_calls * 100, 1) if total_calls else 0,
-        'crm_synced': crm_synced,
-        'methodology_usage': methodology_usage,
+        "week_start": monday,
+        "week_end": sunday,
+        "total_visits": total_visits,
+        "completed_visits": completed_visits,
+        "visit_completion_rate": round(completed_visits / total_visits * 100, 1)
+        if total_visits
+        else 0,
+        "total_calls": total_calls,
+        "completed_calls": completed_calls,
+        "call_success_rate": round(completed_calls / total_calls * 100, 1) if total_calls else 0,
+        "crm_synced": crm_synced,
+        "methodology_usage": methodology_usage,
     }
 
 
@@ -970,13 +1025,16 @@ def get_recent_post_call_summaries(limit=5):
     from .constants import CallPhase, CallStatus
 
     # Recent CallAttempts with summary
-    ca_qs = CallAttempt.objects.filter(
-        phase=CallPhase.POST_MEETING,
-        status=CallStatus.COMPLETED,
-        visit__isnull=False,
-    ).exclude(summary='').select_related(
-        'visit', 'visit__agent', 'visit__client'
-    ).order_by('-executed_at', '-created_at')
+    ca_qs = (
+        CallAttempt.objects.filter(
+            phase=CallPhase.POST_MEETING,
+            status=CallStatus.COMPLETED,
+            visit__isnull=False,
+        )
+        .exclude(summary="")
+        .select_related("visit", "visit__agent", "visit__client")
+        .order_by("-executed_at", "-created_at")
+    )
 
     seen_visit_ids = set()
     results = []
@@ -991,13 +1049,19 @@ def get_recent_post_call_summaries(limit=5):
             return results
 
     # Fall back to legacy Visit.post_call_summary
-    legacy_qs = Visit.objects.filter(
-        post_call_summary__isnull=False,
-    ).exclude(
-        post_call_summary='',
-    ).exclude(
-        id__in=seen_visit_ids,
-    ).select_related('agent', 'client').order_by('-end_time')
+    legacy_qs = (
+        Visit.objects.filter(
+            post_call_summary__isnull=False,
+        )
+        .exclude(
+            post_call_summary="",
+        )
+        .exclude(
+            id__in=seen_visit_ids,
+        )
+        .select_related("agent", "client")
+        .order_by("-end_time")
+    )
 
     for v in legacy_qs:
         v.recent_summary_text = v.post_call_summary
@@ -1010,6 +1074,11 @@ def get_recent_post_call_summaries(limit=5):
 def get_next_upcoming_visit():
     """Get the single next upcoming visit (for countdown display)."""
     now = timezone.now()
-    return Visit.objects.filter(
-        start_time__gt=now,
-    ).select_related('agent', 'client').order_by('start_time').first()
+    return (
+        Visit.objects.filter(
+            start_time__gt=now,
+        )
+        .select_related("agent", "client")
+        .order_by("start_time")
+        .first()
+    )

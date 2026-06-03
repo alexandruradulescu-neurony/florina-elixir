@@ -4,6 +4,7 @@ Client Sync Service.
 Syncs client/organization data from the CRM into the local Client model.
 Supports full sync (all clients) and single-client refresh.
 """
+
 import logging
 
 from django.utils import timezone
@@ -26,9 +27,9 @@ def sync_all_clients() -> dict:
     """
     crm = get_crm_provider()
     if not crm.is_configured():
-        return {'created': 0, 'updated': 0, 'errors': ['CRM not configured']}
+        return {"created": 0, "updated": 0, "errors": ["CRM not configured"]}
 
-    results = {'created': 0, 'updated': 0, 'errors': []}
+    results = {"created": 0, "updated": 0, "errors": []}
     now = timezone.now()
 
     try:
@@ -36,21 +37,21 @@ def sync_all_clients() -> dict:
     except Exception as e:
         error_msg = f"CRM sync_clients call failed: {e}"
         logger.error(error_msg, exc_info=True)
-        results['errors'].append(error_msg)
+        results["errors"].append(error_msg)
         return results
 
     for raw in raw_clients:
         try:
-            crm_id = raw.get('id')
+            crm_id = raw.get("id")
             if not crm_id:
                 continue
 
             defaults = {
-                'name': raw.get('name', ''),
-                'domain': raw.get('domain', '') or None,
-                'industry': raw.get('industry', '') or None,
-                'raw_data': raw.get('raw', raw),
-                'last_synced_at': now,
+                "name": raw.get("name", ""),
+                "domain": raw.get("domain", "") or None,
+                "industry": raw.get("industry", "") or None,
+                "raw_data": raw.get("raw", raw),
+                "last_synced_at": now,
             }
 
             client, created = Client.objects.update_or_create(
@@ -59,14 +60,14 @@ def sync_all_clients() -> dict:
             )
 
             if created:
-                results['created'] += 1
+                results["created"] += 1
             else:
-                results['updated'] += 1
+                results["updated"] += 1
 
         except Exception as e:
             error_msg = f"Error syncing client {raw.get('id', '?')}: {e}"
             logger.error(error_msg, exc_info=True)
-            results['errors'].append(error_msg)
+            results["errors"].append(error_msg)
 
     log_activity(
         action="Client sync completed",
@@ -94,11 +95,11 @@ def sync_single_client(crm_id: str) -> Client | None:
 
         now = timezone.now()
         defaults = {
-            'name': raw.get('name', ''),
-            'domain': raw.get('domain', '') or None,
-            'industry': raw.get('industry', '') or None,
-            'raw_data': raw.get('raw', raw),
-            'last_synced_at': now,
+            "name": raw.get("name", ""),
+            "domain": raw.get("domain", "") or None,
+            "industry": raw.get("industry", "") or None,
+            "raw_data": raw.get("raw", raw),
+            "last_synced_at": now,
         }
 
         client, _ = Client.objects.update_or_create(
@@ -147,10 +148,10 @@ def enrich_client_from_crm(client: Client) -> Client:
     log_activity(
         action=f"Client enriched from CRM: {client.name}",
         details={
-            'crm_id': client.crm_id,
-            'contacts_count': len(client.contacts),
-            'deals_count': len(client.deal_history),
-            'interactions_count': len(client.interaction_history),
+            "crm_id": client.crm_id,
+            "contacts_count": len(client.contacts),
+            "deals_count": len(client.deal_history),
+            "interactions_count": len(client.interaction_history),
         },
     )
     return client

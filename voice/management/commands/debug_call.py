@@ -1,6 +1,7 @@
 """
 Management command to debug a specific call failure.
 """
+
 from decouple import config
 from django.core.management.base import BaseCommand
 from django.utils import timezone
@@ -10,18 +11,18 @@ from voice.utils import format_phone_number
 
 
 class Command(BaseCommand):
-    help = 'Debug a specific call failure'
+    help = "Debug a specific call failure"
 
     def add_arguments(self, parser):
-        parser.add_argument('call_id', type=int, help='CallAttempt ID to debug')
+        parser.add_argument("call_id", type=int, help="CallAttempt ID to debug")
 
     def handle(self, *args, **options):
-        call_id = options['call_id']
+        call_id = options["call_id"]
 
         try:
             call = CallAttempt.objects.get(id=call_id)
         except CallAttempt.DoesNotExist:
-            self.stdout.write(self.style.ERROR(f'CallAttempt {call_id} not found'))
+            self.stdout.write(self.style.ERROR(f"CallAttempt {call_id} not found"))
             return
 
         self.stdout.write("=" * 60)
@@ -53,9 +54,9 @@ class Command(BaseCommand):
 
         # Check ElevenLabs configuration
         self.stdout.write("\nElevenLabs Configuration:")
-        api_key = config('ELEVENLABS_API_KEY', default='')
-        agent_id = config('ELEVENLABS_AGENT_ID', default='')
-        phone_id = config('ELEVENLABS_PHONE_NUMBER_ID', default='')
+        api_key = config("ELEVENLABS_API_KEY", default="")
+        agent_id = config("ELEVENLABS_AGENT_ID", default="")
+        phone_id = config("ELEVENLABS_PHONE_NUMBER_ID", default="")
 
         self.stdout.write(f"  API Key: {'SET' if api_key else self.style.ERROR('MISSING')}")
         self.stdout.write(f"  Agent ID: {agent_id or self.style.ERROR('MISSING')}")
@@ -67,16 +68,15 @@ class Command(BaseCommand):
         # Check activity logs
         self.stdout.write("\nActivity Logs (related to this call):")
         logs = ActivityLog.objects.filter(
-            meeting=call.meeting,
-            timestamp__gte=call.created_at - timezone.timedelta(minutes=5)
-        ).order_by('timestamp')
+            meeting=call.meeting, timestamp__gte=call.created_at - timezone.timedelta(minutes=5)
+        ).order_by("timestamp")
 
         if logs.exists():
             for log in logs:
                 level_style = {
-                    'ERROR': self.style.ERROR,
-                    'WARNING': self.style.WARNING,
-                    'INFO': self.style.SUCCESS,
+                    "ERROR": self.style.ERROR,
+                    "WARNING": self.style.WARNING,
+                    "INFO": self.style.SUCCESS,
                 }.get(log.level, lambda x: x)
 
                 self.stdout.write(f"  [{log.timestamp}] {level_style(log.level)}: {log.action}")

@@ -1,6 +1,7 @@
 """
 Custom template tags for the voice app.
 """
+
 from django import template
 
 register = template.Library()
@@ -15,11 +16,10 @@ def daisyui_alert_class(message_tag):
     DaisyUI classes: alert-error, alert-warning, alert-info, alert-success
     """
     mapping = {
-        'error': 'alert-error',
-        'warning': 'alert-warning',
-        'info': 'alert-info',
-        'success': 'alert-success',
-        'debug': 'alert-info',
+        "error": "alert-error",
+        "warning": "alert-warning",
+        "info": "alert-info",
+        "success": "alert-success",
+        "debug": "alert-info",
     }
-    return mapping.get(message_tag, 'alert-info')
-
+    return mapping.get(message_tag, "alert-info")

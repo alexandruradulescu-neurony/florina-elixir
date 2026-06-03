@@ -1,6 +1,7 @@
 """
 Utility functions for the voice app.
 """
+
 import re
 from datetime import datetime, timedelta
 
@@ -61,7 +62,7 @@ def is_within_time_window(target_time: datetime, window_minutes: int = 5) -> boo
     return window_start <= now <= window_end
 
 
-def format_phone_number(phone_number: str, default_region: str = 'US') -> str | None:
+def format_phone_number(phone_number: str, default_region: str = "US") -> str | None:
     """
     Format phone number to E.164 format.
 
@@ -76,7 +77,7 @@ def format_phone_number(phone_number: str, default_region: str = 'US') -> str | 
         return None
 
     # Remove common formatting characters
-    cleaned = re.sub(r'[\s\-\(\)\.]', '', phone_number)
+    cleaned = re.sub(r"[\s\-\(\)\.]", "", phone_number)
 
     try:
         parsed_number = parse(cleaned, default_region)
@@ -92,7 +93,7 @@ def format_phone_number(phone_number: str, default_region: str = 'US') -> str | 
         return None
 
 
-def validate_phone_number(phone_number: str, default_region: str = 'US') -> bool:
+def validate_phone_number(phone_number: str, default_region: str = "US") -> bool:
     """
     Validate if a phone number is valid.
 
@@ -110,7 +111,7 @@ def validate_phone_number(phone_number: str, default_region: str = 'US') -> bool
     return formatted is not None
 
 
-def normalize_phone_number(phone_number: str, default_region: str = 'US') -> str | None:
+def normalize_phone_number(phone_number: str, default_region: str = "US") -> str | None:
     """
     Normalize phone number to E.164 format (alias for format_phone_number for clarity).
 
@@ -188,17 +189,17 @@ def parse_datetime_string(datetime_str: str) -> datetime | None:
 
     try:
         # Try ISO format first
-        dt = datetime.fromisoformat(datetime_str.replace('Z', '+00:00'))
+        dt = datetime.fromisoformat(datetime_str.replace("Z", "+00:00"))
         if dt.tzinfo is None:
             dt = timezone.make_aware(dt)
         return dt
     except ValueError:
         # Try common formats
         formats = [
-            '%Y-%m-%d %H:%M:%S',
-            '%Y-%m-%d %H:%M',
-            '%m/%d/%Y %H:%M:%S',
-            '%m/%d/%Y %H:%M',
+            "%Y-%m-%d %H:%M:%S",
+            "%Y-%m-%d %H:%M",
+            "%m/%d/%Y %H:%M:%S",
+            "%m/%d/%Y %H:%M",
         ]
         for fmt in formats:
             try:
@@ -229,7 +230,8 @@ def convert_to_utc(dt: datetime) -> datetime:
 # Ngrok URL Detection Utilities
 # ============================================================================
 
-def get_ngrok_url(api_url: str = 'http://localhost:4040/api/tunnels') -> str | None:
+
+def get_ngrok_url(api_url: str = "http://localhost:4040/api/tunnels") -> str | None:
     """
     Query ngrok local API to get current tunnel URL.
 
@@ -248,20 +250,20 @@ def get_ngrok_url(api_url: str = 'http://localhost:4040/api/tunnels') -> str | N
             data = response.json()
 
             # Ngrok API returns: {"tunnels": [{"public_url": "https://...", ...}, ...]}
-            tunnels = data.get('tunnels', [])
+            tunnels = data.get("tunnels", [])
 
             if tunnels:
                 # Get the first HTTP/HTTPS tunnel (prefer HTTPS)
                 for tunnel in tunnels:
-                    public_url = tunnel.get('public_url', '')
-                    if public_url.startswith('https://'):
-                        return public_url.rstrip('/')
+                    public_url = tunnel.get("public_url", "")
+                    if public_url.startswith("https://"):
+                        return public_url.rstrip("/")
 
                 # If no HTTPS, get first HTTP tunnel
                 for tunnel in tunnels:
-                    public_url = tunnel.get('public_url', '')
-                    if public_url.startswith('http://'):
-                        return public_url.rstrip('/')
+                    public_url = tunnel.get("public_url", "")
+                    if public_url.startswith("http://"):
+                        return public_url.rstrip("/")
 
         return None
 
@@ -274,6 +276,7 @@ def get_ngrok_url(api_url: str = 'http://localhost:4040/api/tunnels') -> str | N
     except Exception as e:
         # Any other error
         import logging
+
         logger = logging.getLogger(__name__)
         logger.warning(f"Error querying ngrok API: {e}")
         return None
@@ -294,17 +297,17 @@ def validate_ngrok_url(url: str) -> bool:
 
     # Check for common ngrok domain patterns
     ngrok_patterns = [
-        '.ngrok-free.dev',
-        '.ngrok.io',
-        '.ngrok.app',
-        '.ngrok-free.app',
+        ".ngrok-free.dev",
+        ".ngrok.io",
+        ".ngrok.app",
+        ".ngrok-free.app",
     ]
 
     url_lower = url.lower()
     return any(pattern in url_lower for pattern in ngrok_patterns)
 
 
-def build_webhook_url(base_url: str, webhook_path: str = '/webhooks/elevenlabs/') -> str:
+def build_webhook_url(base_url: str, webhook_path: str = "/webhooks/elevenlabs/") -> str:
     """
     Build full webhook URL from base URL.
 
@@ -316,13 +319,13 @@ def build_webhook_url(base_url: str, webhook_path: str = '/webhooks/elevenlabs/'
         Full webhook URL
     """
     if not base_url:
-        return ''
+        return ""
 
     # Remove trailing slash from base_url
-    base_url = base_url.rstrip('/')
+    base_url = base_url.rstrip("/")
 
     # Ensure webhook_path starts with /
-    if not webhook_path.startswith('/'):
-        webhook_path = '/' + webhook_path
+    if not webhook_path.startswith("/"):
+        webhook_path = "/" + webhook_path
 
     return f"{base_url}{webhook_path}"

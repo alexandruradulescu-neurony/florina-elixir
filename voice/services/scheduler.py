@@ -6,6 +6,7 @@ Handles call pre-programming and scheduling logic including:
 - Determining when calls should be triggered
 - Managing call retry logic
 """
+
 import logging
 from datetime import timedelta
 from typing import Any
@@ -31,6 +32,7 @@ logger = logging.getLogger(__name__)
 # Call Pre-Programming Logic (Hybrid Approach)
 # ============================================================================
 
+
 def pre_program_meeting_calls(meeting: Meeting, force_recreate: bool = False) -> dict[str, Any]:
     """
     Pre-program CallAttempts for a meeting.
@@ -52,7 +54,7 @@ def pre_program_meeting_calls(meeting: Meeting, force_recreate: bool = False) ->
     Returns:
         Dictionary with results: {'created': count, 'updated': count, 'deleted': count}
     """
-    results = {'created': 0, 'updated': 0, 'deleted': 0}
+    results = {"created": 0, "updated": 0, "deleted": 0}
 
     # Calculate scheduled times for all calls
     # For pre-meeting: only create the -60 minute call initially
@@ -61,20 +63,17 @@ def pre_program_meeting_calls(meeting: Meeting, force_recreate: bool = False) ->
     all_offsets = []
     # Only create the first pre-meeting call (-60 minutes)
     scheduled_time = meeting.start_time + timedelta(minutes=PRE_MEETING_OFFSETS[0])
-    all_offsets.append(('PRE', PRE_MEETING_OFFSETS[0], scheduled_time))
+    all_offsets.append(("PRE", PRE_MEETING_OFFSETS[0], scheduled_time))
 
     # Create all post-meeting calls
     for offset in POST_MEETING_OFFSETS:
         scheduled_time = meeting.end_time + timedelta(minutes=offset)
-        all_offsets.append(('POST', offset, scheduled_time))
+        all_offsets.append(("POST", offset, scheduled_time))
 
     # If force_recreate, delete existing scheduled calls
     if force_recreate:
-        deleted = CallAttempt.objects.filter(
-            meeting=meeting,
-            status=CallStatus.SCHEDULED
-        ).delete()
-        results['deleted'] = deleted[0]
+        deleted = CallAttempt.objects.filter(meeting=meeting, status=CallStatus.SCHEDULED).delete()
+        results["deleted"] = deleted[0]
 
     # Create or update CallAttempts for each offset
     for phase, offset, scheduled_time in all_offsets:
@@ -82,7 +81,7 @@ def pre_program_meeting_calls(meeting: Meeting, force_recreate: bool = False) ->
 
         # For pre-meeting calls: if meeting is created late, still create the call
         # if it's less than 1 hour before meeting (or if -30 call and less than 30 min before)
-        if phase == 'PRE':
+        if phase == "PRE":
             # For -60 call: create if meeting hasn't started yet (even if call time passed)
             # For -30 call: create if meeting hasn't started yet (even if call time passed)
             if meeting.start_time <= now:
@@ -96,17 +95,18 @@ def pre_program_meeting_calls(meeting: Meeting, force_recreate: bool = False) ->
 
         # Check if a CallAttempt already exists for this offset
         existing = CallAttempt.objects.filter(
-            meeting=meeting,
-            phase=phase,
-            scheduled_offset_minutes=offset
+            meeting=meeting, phase=phase, scheduled_offset_minutes=offset
         ).first()
 
         if existing:
             # Update existing if it's still scheduled and time changed
-            if existing.status == CallStatus.SCHEDULED and existing.scheduled_time != scheduled_time:
+            if (
+                existing.status == CallStatus.SCHEDULED
+                and existing.scheduled_time != scheduled_time
+            ):
                 existing.scheduled_time = scheduled_time
                 existing.save()
-                results['updated'] += 1
+                results["updated"] += 1
         else:
             # Create new CallAttempt
             CallAttempt.objects.create(
@@ -114,15 +114,12 @@ def pre_program_meeting_calls(meeting: Meeting, force_recreate: bool = False) ->
                 phase=phase,
                 scheduled_offset_minutes=offset,
                 scheduled_time=scheduled_time,
-                status=CallStatus.SCHEDULED
+                status=CallStatus.SCHEDULED,
             )
-            results['created'] += 1
+            results["created"] += 1
 
     log_activity(
-        meeting=meeting,
-        user=meeting.agent,
-        action="Meeting calls pre-programmed",
-        details=results
+        meeting=meeting, user=meeting.agent, action="Meeting calls pre-programmed", details=results
     )
 
     return results
@@ -138,16 +135,15 @@ def cleanup_cancelled_meeting_calls(meeting: Meeting) -> int:
     Returns:
         Number of calls cancelled
     """
-    cancelled = CallAttempt.objects.filter(
-        meeting=meeting,
-        status=CallStatus.SCHEDULED
-    ).update(status=CallStatus.FAILED)
+    cancelled = CallAttempt.objects.filter(meeting=meeting, status=CallStatus.SCHEDULED).update(
+        status=CallStatus.FAILED
+    )
 
     if cancelled > 0:
         log_activity(
             meeting=meeting,
             action=f"Cancelled {cancelled} scheduled calls for deleted meeting",
-            level=LogLevel.WARNING
+            level=LogLevel.WARNING,
         )
 
     return cancelled
@@ -156,6 +152,7 @@ def cleanup_cancelled_meeting_calls(meeting: Meeting) -> int:
 # ============================================================================
 # Scheduler Decision Logic
 # ============================================================================
+
 
 def should_trigger_pre_call(meeting: Meeting, offset: int) -> bool:
     """
@@ -174,9 +171,7 @@ def should_trigger_pre_call(meeting: Meeting, offset: int) -> bool:
 
     # Check if call attempt already exists for this offset
     existing_attempt = CallAttempt.objects.filter(
-        meeting=meeting,
-        phase=CallPhase.PRE_MEETING,
-        scheduled_offset_minutes=offset
+        meeting=meeting, phase=CallPhase.PRE_MEETING, scheduled_offset_minutes=offset
     ).first()
 
     if existing_attempt:
@@ -184,10 +179,10 @@ def should_trigger_pre_call(meeting: Meeting, offset: int) -> bool:
         if existing_attempt.status == CallStatus.COMPLETED:
             return False
         # If attempt exists but failed/no answer, allow retry if it's the retry offset
-        return (
-            offset == PRE_MEETING_OFFSETS[1]
-            and existing_attempt.status in [CallStatus.NO_ANSWER, CallStatus.FAILED]
-        )
+        return offset == PRE_MEETING_OFFSETS[1] and existing_attempt.status in [
+            CallStatus.NO_ANSWER,
+            CallStatus.FAILED,
+        ]
 
     # For first call (-60 mins), always trigger if no attempt exists
     if offset == PRE_MEETING_OFFSETS[0]:
@@ -198,12 +193,10 @@ def should_trigger_pre_call(meeting: Meeting, offset: int) -> bool:
         first_call_attempt = CallAttempt.objects.filter(
             meeting=meeting,
             phase=CallPhase.PRE_MEETING,
-            scheduled_offset_minutes=PRE_MEETING_OFFSETS[0]
+            scheduled_offset_minutes=PRE_MEETING_OFFSETS[0],
         ).first()
 
-        return not (
-            first_call_attempt and first_call_attempt.status == CallStatus.COMPLETED
-        )
+        return not (first_call_attempt and first_call_attempt.status == CallStatus.COMPLETED)
 
     return False
 
@@ -225,9 +218,7 @@ def should_trigger_post_call(meeting: Meeting, offset: int) -> bool:
 
     # Check if call attempt already exists for this offset
     existing_attempt = CallAttempt.objects.filter(
-        meeting=meeting,
-        phase=CallPhase.POST_MEETING,
-        scheduled_offset_minutes=offset
+        meeting=meeting, phase=CallPhase.POST_MEETING, scheduled_offset_minutes=offset
     ).first()
 
     if existing_attempt:
@@ -235,10 +226,10 @@ def should_trigger_post_call(meeting: Meeting, offset: int) -> bool:
         if existing_attempt.status == CallStatus.COMPLETED:
             return False
         # If attempt exists but failed/no answer, allow retry if it's the retry offset
-        return (
-            offset == POST_MEETING_OFFSETS[1]
-            and existing_attempt.status in [CallStatus.NO_ANSWER, CallStatus.FAILED]
-        )
+        return offset == POST_MEETING_OFFSETS[1] and existing_attempt.status in [
+            CallStatus.NO_ANSWER,
+            CallStatus.FAILED,
+        ]
 
     # For first call (+15 mins), always trigger if no attempt exists
     if offset == POST_MEETING_OFFSETS[0]:
@@ -249,12 +240,10 @@ def should_trigger_post_call(meeting: Meeting, offset: int) -> bool:
         first_call_attempt = CallAttempt.objects.filter(
             meeting=meeting,
             phase=CallPhase.POST_MEETING,
-            scheduled_offset_minutes=POST_MEETING_OFFSETS[0]
+            scheduled_offset_minutes=POST_MEETING_OFFSETS[0],
         ).first()
 
-        return not (
-            first_call_attempt and first_call_attempt.status == CallStatus.COMPLETED
-        )
+        return not (first_call_attempt and first_call_attempt.status == CallStatus.COMPLETED)
 
     return False
 
@@ -278,7 +267,7 @@ def check_pre_meeting_calls() -> list[tuple[Meeting, int]]:
             log_activity(
                 meeting=meeting,
                 action=f"Pre-meeting call scheduled for offset {offset} minutes",
-                details={'offset_minutes': offset, 'meeting_start': meeting.start_time.isoformat()}
+                details={"offset_minutes": offset, "meeting_start": meeting.start_time.isoformat()},
             )
 
     return meetings_to_call
@@ -303,7 +292,7 @@ def check_post_meeting_calls() -> list[tuple[Meeting, int]]:
             log_activity(
                 meeting=meeting,
                 action=f"Post-meeting call scheduled for offset {offset} minutes",
-                details={'offset_minutes': offset, 'meeting_end': meeting.end_time.isoformat()}
+                details={"offset_minutes": offset, "meeting_end": meeting.end_time.isoformat()},
             )
 
     return meetings_to_call

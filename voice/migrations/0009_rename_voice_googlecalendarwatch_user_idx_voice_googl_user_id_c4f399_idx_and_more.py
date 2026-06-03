@@ -6,45 +6,57 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('voice', '0008_googlecalendarwatch'),
+        ("voice", "0008_googlecalendarwatch"),
     ]
 
     operations = [
         migrations.RenameIndex(
-            model_name='googlecalendarwatch',
-            new_name='voice_googl_user_id_c4f399_idx',
-            old_name='voice_googlecalendarwatch_user_idx',
+            model_name="googlecalendarwatch",
+            new_name="voice_googl_user_id_c4f399_idx",
+            old_name="voice_googlecalendarwatch_user_idx",
         ),
         migrations.RenameIndex(
-            model_name='googlecalendarwatch',
-            new_name='voice_googl_channel_96d00e_idx',
-            old_name='voice_googlecalendarwatch_channel_id_idx',
+            model_name="googlecalendarwatch",
+            new_name="voice_googl_channel_96d00e_idx",
+            old_name="voice_googlecalendarwatch_channel_id_idx",
         ),
         migrations.RenameIndex(
-            model_name='googlecalendarwatch',
-            new_name='voice_googl_expirat_956fe4_idx',
-            old_name='voice_googlecalendarwatch_expiration_idx',
+            model_name="googlecalendarwatch",
+            new_name="voice_googl_expirat_956fe4_idx",
+            old_name="voice_googlecalendarwatch_expiration_idx",
         ),
         migrations.AlterField(
-            model_name='googlecalendarwatch',
-            name='channel_id',
-            field=models.CharField(help_text='Google Calendar channel ID (unique identifier for this watch)', max_length=255, unique=True),
+            model_name="googlecalendarwatch",
+            name="channel_id",
+            field=models.CharField(
+                help_text="Google Calendar channel ID (unique identifier for this watch)",
+                max_length=255,
+                unique=True,
+            ),
         ),
         migrations.AlterField(
-            model_name='googlecalendarwatch',
-            name='expiration',
-            field=models.DateTimeField(help_text='When this watch channel expires (Google sends expiration notifications)'),
+            model_name="googlecalendarwatch",
+            name="expiration",
+            field=models.DateTimeField(
+                help_text="When this watch channel expires (Google sends expiration notifications)"
+            ),
         ),
         migrations.AlterField(
-            model_name='googlecalendarwatch',
-            name='resource_id',
-            field=models.CharField(help_text='Google Calendar resource ID (calendar identifier)', max_length=255),
+            model_name="googlecalendarwatch",
+            name="resource_id",
+            field=models.CharField(
+                help_text="Google Calendar resource ID (calendar identifier)", max_length=255
+            ),
         ),
         migrations.AlterField(
-            model_name='googlecalendarwatch',
-            name='user',
-            field=models.ForeignKey(help_text='User whose calendar is being watched', on_delete=django.db.models.deletion.CASCADE, related_name='calendar_watches', to=settings.AUTH_USER_MODEL),
+            model_name="googlecalendarwatch",
+            name="user",
+            field=models.ForeignKey(
+                help_text="User whose calendar is being watched",
+                on_delete=django.db.models.deletion.CASCADE,
+                related_name="calendar_watches",
+                to=settings.AUTH_USER_MODEL,
+            ),
         ),
     ]

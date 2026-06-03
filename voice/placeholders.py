@@ -57,10 +57,9 @@ def outcome_chips_for_summary(visit):
     except Exception:
         return []
     ca = (
-        CallAttempt.objects
-        .filter(visit=visit, phase='POST', status='COMPLETED')
+        CallAttempt.objects.filter(visit=visit, phase="POST", status="COMPLETED")
         .exclude(analysis={})
-        .order_by('-executed_at', '-created_at')
+        .order_by("-executed_at", "-created_at")
         .first()
     )
     if not ca or not ca.analysis:
@@ -69,29 +68,29 @@ def outcome_chips_for_summary(visit):
     a = ca.analysis
     chips = []
 
-    obj = (a.get('objective_attained') or '').lower()
-    if obj == 'attained':
+    obj = (a.get("objective_attained") or "").lower()
+    if obj == "attained":
         chips.append(("Obiectiv atins", "green"))
-    elif obj == 'partial':
+    elif obj == "partial":
         chips.append(("Obiectiv parțial", "cream"))
-    elif obj == 'missed':
+    elif obj == "missed":
         chips.append(("Obiectiv ratat", "rose"))
 
-    no_go = a.get('no_go') or {}
-    if no_go.get('is_no_go'):
+    no_go = a.get("no_go") or {}
+    if no_go.get("is_no_go"):
         chips.append(("NO-GO", "rose"))
 
-    champ = (a.get('champion_strength') or '').lower()
-    if champ in ('strong', 'champion'):
+    champ = (a.get("champion_strength") or "").lower()
+    if champ in ("strong", "champion"):
         chips.append(("Sprijin client puternic", "green"))
 
-    risks = a.get('risks') or []
+    risks = a.get("risks") or []
     if len(risks) >= 1:
         chips.append((f"{len(risks)} risc{'uri' if len(risks) > 1 else ''}", "cream"))
 
-    consistency = a.get('consistency_check') or {}
-    if consistency.get('has_pre_call_summary') and not consistency.get('consistent'):
-        n = len(consistency.get('discrepancies') or [])
+    consistency = a.get("consistency_check") or {}
+    if consistency.get("has_pre_call_summary") and not consistency.get("consistent"):
+        n = len(consistency.get("discrepancies") or [])
         chips.append((f"{n} inconsecvențe pre↔post", "rose"))
 
     return chips[:3]  # cap to keep the row tidy
@@ -227,9 +226,7 @@ def dashboard_extras(context):
         context["next_visit_chip"] = {
             "minutes": next_minutes,
             "label": (
-                f"Next visit in {next_minutes} min"
-                if next_minutes >= 0
-                else "Visit in progress"
+                f"Next visit in {next_minutes} min" if next_minutes >= 0 else "Visit in progress"
             ),
             "agent_name": next_visit.agent.get_full_name() or next_visit.agent.username,
             "agent_avatar_palette": agent_palette(next_visit.agent),
@@ -248,9 +245,12 @@ def dashboard_extras(context):
         from django.utils import timezone as _tz
 
         from voice.models import Visit as _V
-        upcoming = _V.objects.filter(
-            start_time__gte=_tz.now()
-        ).select_related('agent', 'client', 'methodology').order_by('start_time')[:5]
+
+        upcoming = (
+            _V.objects.filter(start_time__gte=_tz.now())
+            .select_related("agent", "client", "methodology")
+            .order_by("start_time")[:5]
+        )
         todays = list(upcoming)
         fell_back = bool(todays)
 
@@ -259,15 +259,13 @@ def dashboard_extras(context):
             "visit": v,
             "avatar_palette": agent_palette(v.agent),
             "is_active": v.status == VisitStatus.IN_PROGRESS,
-            "pre_state":  _call_state_for_phase(v, 'PRE'),
-            "post_state": _call_state_for_phase(v, 'POST'),
+            "pre_state": _call_state_for_phase(v, "PRE"),
+            "post_state": _call_state_for_phase(v, "POST"),
         }
         for v in todays
     ]
     context["timeline_is_fallback"] = fell_back
-    context["timeline_heading"] = (
-        "Vizite ce urmează" if fell_back else "Vizitele de astăzi"
-    )
+    context["timeline_heading"] = "Vizite ce urmează" if fell_back else "Vizitele de astăzi"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -290,9 +288,7 @@ def visits_extras(context):
 
     active_visits = [v for v in visits if v.status == VisitStatus.IN_PROGRESS]
     context["active_count"] = len(active_visits)
-    context["live_clients"] = [
-        (v.client.name if v.client else "—") for v in active_visits[:2]
-    ]
+    context["live_clients"] = [(v.client.name if v.client else "—") for v in active_visits[:2]]
 
     # At risk: visits with a failed call, or planned w/ no methodology
     at_risk = []
@@ -457,8 +453,8 @@ def visit_detail_extras(visit, pre_calls, post_calls, effective_methodology):
             preview = full[:280]
             if len(full) > 280:
                 # cut on word boundary so the preview reads cleanly
-                cut = preview.rsplit(' ', 1)[0] or preview
-                preview = cut.rstrip('.,;:') + '…'
+                cut = preview.rsplit(" ", 1)[0] or preview
+                preview = cut.rstrip(".,;:") + "…"
             snippet = {
                 "ts": "00:00",
                 "preview": preview,
@@ -496,18 +492,18 @@ def visit_detail_extras(visit, pre_calls, post_calls, effective_methodology):
 
     # Prefer real Claude analysis from the latest post-call if present
     last_post_with_analysis = None
-    for c in (post_calls or []):
+    for c in post_calls or []:
         if c.analysis:
             last_post_with_analysis = c
     if last_post_with_analysis:
         a = last_post_with_analysis.analysis
-        tr = a.get('talk_ratio') or {}
+        tr = a.get("talk_ratio") or {}
         post_call_ministats = {
-            'sentiment': a.get('sentiment_score', 0),
-            'sentiment_delta': a.get('sentiment', 'neutral'),
-            'talk_ratio': tr.get('agent', 0),
-            'objections': len(a.get('objections_raised') or []),
-            'champion': (a.get('champion_strength') or 'unknown').title(),
+            "sentiment": a.get("sentiment_score", 0),
+            "sentiment_delta": a.get("sentiment", "neutral"),
+            "talk_ratio": tr.get("agent", 0),
+            "objections": len(a.get("objections_raised") or []),
+            "champion": (a.get("champion_strength") or "unknown").title(),
         }
         post_call_analysis = a
     else:
@@ -520,7 +516,7 @@ def visit_detail_extras(visit, pre_calls, post_calls, effective_methodology):
     # ─── client_intel (honest signals only — no fake CRM data) ───
     intel_chips = []
     if client:
-        if client.status == 'nou':
+        if client.status == "nou":
             intel_chips.append({"label": "Client nou", "tone": "cream"})
         else:
             intel_chips.append({"label": "Client existent", "tone": "green"})
@@ -531,13 +527,14 @@ def visit_detail_extras(visit, pre_calls, post_calls, effective_methodology):
     client_intel_summary = (
         (client.ai_summary if client and client.ai_summary else None)
         or "Niciun sumar AI salvat pentru acest client. Se va popula automat când vom integra "
-           "extragerea din CRM și istoricul vizitelor."
+        "extragerea din CRM și istoricul vizitelor."
     )
 
     # KPI list — only count real visits we have in DB. Skip fake last-contact/ARR/deal data.
     intel_kpis = []
     if client:
         from voice.models import Visit as _V
+
         total_visits_for_client = _V.objects.filter(client=client).count()
         completed_visits_for_client = _V.objects.filter(
             client=client, status=VisitStatus.COMPLETE
@@ -635,9 +632,7 @@ def agents_extras(context):
     agent_count = context.get("agent_count", 0) or 0
     context["agents_live_now"] = sum(1 for ad in enriched if ad.get("visits_today"))
     context["agents_avg_success"] = (
-        int(sum(ad["success_pct"] for ad in enriched) / agent_count)
-        if agent_count
-        else 0
+        int(sum(ad["success_pct"] for ad in enriched) / agent_count) if agent_count else 0
     )
 
 
@@ -653,7 +648,7 @@ def _strip_domain(domain):
     s = str(domain).strip()
     for prefix in ("https://", "http://"):
         if s.lower().startswith(prefix):
-            s = s[len(prefix):]
+            s = s[len(prefix) :]
     if s.lower().startswith("www."):
         s = s[4:]
     return s.rstrip("/")
@@ -664,6 +659,7 @@ def _relative_ago(dt):
 
     Returns '—' if dt is None."""
     from django.utils import timezone
+
     if not dt:
         return "—"
     delta = timezone.now() - dt
@@ -760,6 +756,7 @@ def agent_detail_extras(agent, recent_visits, recent_calls):
     calls_list = list(recent_calls) if recent_calls else []
 
     from django.utils import timezone
+
     today = timezone.now().date()
     today_visits = [v for v in visits_list if v.start_time and v.start_time.date() == today]
     completed_today = [v for v in today_visits if v.status == VisitStatus.COMPLETE]
@@ -898,9 +895,7 @@ def client_detail_extras(client_detail):
             {
                 "agent": a,
                 "avatar_palette": agent_palette(a),
-                "methodology_name": (
-                    a.default_methodology.name if a.default_methodology else "—"
-                ),
+                "methodology_name": (a.default_methodology.name if a.default_methodology else "—"),
             }
         )
 
@@ -910,9 +905,7 @@ def client_detail_extras(client_detail):
             {
                 "visit": v,
                 "avatar_palette": agent_palette(v.agent) if v.agent else "a",
-                "agent_name": (
-                    v.agent.get_full_name() or v.agent.username if v.agent else "—"
-                ),
+                "agent_name": (v.agent.get_full_name() or v.agent.username if v.agent else "—"),
                 "methodology_name": v.methodology.name if v.methodology else "—",
             }
         )
@@ -987,11 +980,11 @@ def _call_state_for_phase(visit, phase_code):
     except Exception:
         return "pending"
     qs = CallAttempt.objects.filter(visit=visit, phase=phase_code)
-    if qs.filter(status='COMPLETED').exists():
+    if qs.filter(status="COMPLETED").exists():
         return "done"
-    if qs.filter(status__in=['FAILED', 'NO_ANSWER']).exists():
+    if qs.filter(status__in=["FAILED", "NO_ANSWER"]).exists():
         return "failed"
-    if qs.filter(status__in=['INITIATED', 'IN_PROGRESS']).exists():
+    if qs.filter(status__in=["INITIATED", "IN_PROGRESS"]).exists():
         return "active"
     return "pending"
 
@@ -1015,8 +1008,8 @@ def _enrich_event(visit, short=False):
         "time_range": time_range,
         "title": title,
         "short": short,
-        "pre_state":  _call_state_for_phase(visit, 'PRE'),
-        "post_state": _call_state_for_phase(visit, 'POST'),
+        "pre_state": _call_state_for_phase(visit, "PRE"),
+        "post_state": _call_state_for_phase(visit, "POST"),
     }
 
 
@@ -1035,9 +1028,7 @@ def _build_hour_buckets(visits, default_start=9, default_end=18):
     buckets = []
     for h in range(start_hour, end_hour + 1):
         events = [
-            _enrich_event(v, short=False)
-            for v in visits
-            if v.start_time and v.start_time.hour == h
+            _enrich_event(v, short=False) for v in visits if v.start_time and v.start_time.hour == h
         ]
         buckets.append(
             {
@@ -1089,6 +1080,7 @@ def calendar_extras(context):
     context["month_label"] = target_date.strftime("%B %Y")
     if view_mode == "day":
         from django.utils import timezone
+
         today = timezone.now().date()
         context["nav_label"] = "Today" if target_date == today else target_date.strftime("%A")
     else:
@@ -1103,6 +1095,7 @@ def calendar_extras(context):
         context["day_visit_count"] = len(visits_for_day)
     else:
         from django.utils import timezone
+
         today = timezone.now().date()
         enriched_weeks = []
         for week in context.get("weeks", []):
@@ -1111,9 +1104,7 @@ def calendar_extras(context):
             for day in week:
                 d_date = day.get("date")
                 week_dates.append(d_date)
-                events_enriched = [
-                    _enrich_event(v, short=True) for v in (day.get("visits") or [])
-                ]
+                events_enriched = [_enrich_event(v, short=True) for v in (day.get("visits") or [])]
                 days.append(
                     {
                         **day,

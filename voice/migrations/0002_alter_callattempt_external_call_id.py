@@ -4,15 +4,19 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('voice', '0001_initial'),
+        ("voice", "0001_initial"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='callattempt',
-            name='external_call_id',
-            field=models.CharField(blank=True, help_text='External call ID from ElevenLabs (may include Twilio SID)', max_length=100, null=True),
+            model_name="callattempt",
+            name="external_call_id",
+            field=models.CharField(
+                blank=True,
+                help_text="External call ID from ElevenLabs (may include Twilio SID)",
+                max_length=100,
+                null=True,
+            ),
         ),
     ]

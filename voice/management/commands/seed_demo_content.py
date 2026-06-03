@@ -507,9 +507,7 @@ Reguli importante
 - 3-5 minute ideal.
 """
 
-V37_POST_FIRST_MESSAGE = (
-    "Bună, {agent_first_name}, sunt Florina. Cum a fost la {client_name}? Pe scurt, cum simți că a decurs întâlnirea?"
-)
+V37_POST_FIRST_MESSAGE = "Bună, {agent_first_name}, sunt Florina. Cum a fost la {client_name}? Pe scurt, cum simți că a decurs întâlnirea?"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -653,9 +651,7 @@ Reguli importante
 - 4-6 minute apel.
 """
 
-V38_POST_FIRST_MESSAGE = (
-    "Bună, {agent_first_name}. Cum a mers la {client_name}? Pe scurt, cum simți că a curs întâlnirea?"
-)
+V38_POST_FIRST_MESSAGE = "Bună, {agent_first_name}. Cum a mers la {client_name}? Pe scurt, cum simți că a curs întâlnirea?"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -722,22 +718,24 @@ class Command(BaseCommand):
                 agent__username=item["agent_username"]
             )
         except Visit.DoesNotExist:
-            self.stdout.write(self.style.ERROR(
-                f"No Visit found for agent={item['agent_username']}. "
-                f"Run `python manage.py seed_demo --date 2026-05-28` first."
-            ))
+            self.stdout.write(
+                self.style.ERROR(
+                    f"No Visit found for agent={item['agent_username']}. "
+                    f"Run `python manage.py seed_demo --date 2026-05-28` first."
+                )
+            )
             return
         except Visit.MultipleObjectsReturned:
-            self.stdout.write(self.style.ERROR(
-                f"Multiple Visits found for agent={item['agent_username']} — ambiguous."
-            ))
+            self.stdout.write(
+                self.style.ERROR(
+                    f"Multiple Visits found for agent={item['agent_username']} — ambiguous."
+                )
+            )
             return
 
         client = visit.client
         if not client:
-            self.stdout.write(self.style.ERROR(
-                f"Visit {visit.id} has no client. Skipping."
-            ))
+            self.stdout.write(self.style.ERROR(f"Visit {visit.id} has no client. Skipping."))
             return
 
         # 2. Update Client (rename + status + industry).
@@ -763,18 +761,23 @@ class Command(BaseCommand):
         visit.pre_call_first_message = item["pre_first_message"]
         visit.post_call_prompt = item["post_prompt"]
         visit.post_call_first_message = item["post_first_message"]
-        visit.save(update_fields=[
-            "title",
-            "methodology",
-            "pre_call_prompt",
-            "pre_call_first_message",
-            "post_call_prompt",
-            "post_call_first_message",
-            "updated_at",
-        ])
+        visit.save(
+            update_fields=[
+                "title",
+                "methodology",
+                "pre_call_prompt",
+                "pre_call_first_message",
+                "post_call_prompt",
+                "post_call_first_message",
+                "updated_at",
+            ]
+        )
 
-        status_label = "{client_status_upper}" if item["client_status"] == ClientStatus.NEW else "{client_status_upper}"
+        status_label = (
+            "{client_status_upper}"
+            if item["client_status"] == ClientStatus.NEW
+            else "{client_status_upper}"
+        )
         self.stdout.write(
-            f"✓ V{visit.id}  {client.name:<30}  {status_label:<16}  "
-            f"methodology: {meth.name[:60]}"
+            f"✓ V{visit.id}  {client.name:<30}  {status_label:<16}  methodology: {meth.name[:60]}"
         )

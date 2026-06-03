@@ -4,6 +4,7 @@ Abstract base class for CRM providers.
 To add a new CRM, subclass CRMProvider and implement all abstract methods.
 Then register it in voice/crm/__init__.py CRM_PROVIDERS dict.
 """
+
 from abc import ABC, abstractmethod
 
 
@@ -65,7 +66,7 @@ class CRMProvider(ABC):
         """
 
     @abstractmethod
-    def post_note_to_deal(self, deal_id: str, text: str, subject: str = '') -> dict:
+    def post_note_to_deal(self, deal_id: str, text: str, subject: str = "") -> dict:
         """
         Create a note on a deal.
 

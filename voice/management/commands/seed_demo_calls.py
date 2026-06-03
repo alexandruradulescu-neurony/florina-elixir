@@ -89,19 +89,47 @@ ANALYSIS = {
         "principală de creștere — depinde de buyerul regional și nu s-a putut închide azi."
     ),
     "actionables": [
-        {"owner": "agent", "action": "Trimite fișa suplimentului premium către buyerul de rețea Vitalis pentru aprobare de listare", "due": "2026-06-05"},
-        {"owner": "agent", "action": "Confirmă data workshop-ului de training cu farmacistele (propus marți viitor)", "due": "2026-06-03"},
-        {"owner": "client", "action": "Managerul farmaciei trimite contactul buyerului regional", "due": "2026-06-02"},
-        {"owner": "agent", "action": "Livrează materialele POS pentru raftul de lângă casă", "due": "2026-06-04"},
+        {
+            "owner": "agent",
+            "action": "Trimite fișa suplimentului premium către buyerul de rețea Vitalis pentru aprobare de listare",
+            "due": "2026-06-05",
+        },
+        {
+            "owner": "agent",
+            "action": "Confirmă data workshop-ului de training cu farmacistele (propus marți viitor)",
+            "due": "2026-06-03",
+        },
+        {
+            "owner": "client",
+            "action": "Managerul farmaciei trimite contactul buyerului regional",
+            "due": "2026-06-02",
+        },
+        {
+            "owner": "agent",
+            "action": "Livrează materialele POS pentru raftul de lângă casă",
+            "due": "2026-06-04",
+        },
     ],
     "recommendations": [
         "Pregătește din timp materialele de training — au fost cerute la fix și ar fi accelerat discuția dacă le aveai deja printate.",
         "La conturile de rețea, identifică buyerul regional înainte de vizită, ca să nu pierzi un ciclu pe escaladare.",
     ],
     "next_best_actions": [
-        {"action": "Programează un call cu buyerul regional Vitalis pentru listarea suplimentului premium", "rationale": "Decizia de listare extinsă se ia central; managerul local nu poate aproba.", "timing": "within 7 days"},
-        {"action": "Ține workshop-ul de training cu farmacistele", "rationale": "Recomandarea la tejghea e cea mai mare pârghie de creștere pe produsele noastre.", "timing": "within 7 days"},
-        {"action": "Urmărește vânzările celor 2 produse la probă după 2 săptămâni", "rationale": "Datele de sell-out întăresc cazul pentru listarea pe rețea.", "timing": "within 30 days"},
+        {
+            "action": "Programează un call cu buyerul regional Vitalis pentru listarea suplimentului premium",
+            "rationale": "Decizia de listare extinsă se ia central; managerul local nu poate aproba.",
+            "timing": "within 7 days",
+        },
+        {
+            "action": "Ține workshop-ul de training cu farmacistele",
+            "rationale": "Recomandarea la tejghea e cea mai mare pârghie de creștere pe produsele noastre.",
+            "timing": "within 7 days",
+        },
+        {
+            "action": "Urmărește vânzările celor 2 produse la probă după 2 săptămâni",
+            "rationale": "Datele de sell-out întăresc cazul pentru listarea pe rețea.",
+            "timing": "within 30 days",
+        },
     ],
     "no_go": {"is_no_go": False, "reason": None, "salvage_path": None},
     "sentiment": "positive",
@@ -137,26 +165,31 @@ class Command(BaseCommand):
     help = "Seed synthetic pre/post call data + analysis on one demo visit (UI review)."
 
     def add_arguments(self, parser):
-        parser.add_argument('--client', type=str, default='Farmaciile Vitalis',
-                            help='Client name whose visit to populate. Default: Farmaciile Vitalis')
+        parser.add_argument(
+            "--client",
+            type=str,
+            default="Farmaciile Vitalis",
+            help="Client name whose visit to populate. Default: Farmaciile Vitalis",
+        )
 
     def handle(self, *args, **opts):
-        client_name = opts['client']
+        client_name = opts["client"]
         try:
             visit = (
-                Visit.objects
-                .select_related('client', 'agent')
+                Visit.objects.select_related("client", "agent")
                 .filter(client__name=client_name)
-                .order_by('-start_time')
+                .order_by("-start_time")
                 .first()
             )
         except Visit.DoesNotExist:
             visit = None
         if not visit:
-            self.stdout.write(self.style.ERROR(
-                f"No visit found for client '{client_name}'. "
-                f"Run `python manage.py setup_demo` first."
-            ))
+            self.stdout.write(
+                self.style.ERROR(
+                    f"No visit found for client '{client_name}'. "
+                    f"Run `python manage.py setup_demo` first."
+                )
+            )
             return
 
         now = timezone.now()
@@ -195,12 +228,16 @@ class Command(BaseCommand):
 
             # Advance visit status so stepper + finalize button render
             visit.status = VisitStatus.POST_CALL_DONE
-            visit.save(update_fields=['status', 'updated_at'])
+            visit.save(update_fields=["status", "updated_at"])
 
-        self.stdout.write(self.style.SUCCESS(
-            f"✓ Seeded synthetic calls on V{visit.id} ({visit.client.name})"
-        ))
-        self.stdout.write(f"  pre-call  CA{pre.id}  COMPLETED  ({len(PRE_TRANSCRIPT)} ch transcript)")
-        self.stdout.write(f"  post-call CA{post.id}  COMPLETED  + full analysis ({len(ANALYSIS)} keys)")
+        self.stdout.write(
+            self.style.SUCCESS(f"✓ Seeded synthetic calls on V{visit.id} ({visit.client.name})")
+        )
+        self.stdout.write(
+            f"  pre-call  CA{pre.id}  COMPLETED  ({len(PRE_TRANSCRIPT)} ch transcript)"
+        )
+        self.stdout.write(
+            f"  post-call CA{post.id}  COMPLETED  + full analysis ({len(ANALYSIS)} keys)"
+        )
         self.stdout.write("  visit status -> POST_CALL_DONE")
         self.stdout.write(f"  Open: /manager/visits/{visit.id}/")

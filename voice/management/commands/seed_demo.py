@@ -24,30 +24,30 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument(
-            '--date',
+            "--date",
             type=str,
             default=None,
-            help='Date for the demo visits (YYYY-MM-DD). Defaults to today.',
+            help="Date for the demo visits (YYYY-MM-DD). Defaults to today.",
         )
 
     def handle(self, *args, **opts):
-        if opts['date']:
-            target_date = date_cls.fromisoformat(opts['date'])
+        if opts["date"]:
+            target_date = date_cls.fromisoformat(opts["date"])
         else:
             target_date = timezone.now().date()
 
         # Wipe existing seeded demo data (idempotent)
-        Visit.objects.filter(client__crm_id__startswith='DEMO-').delete()
-        Client.objects.filter(crm_id__startswith='DEMO-').delete()
-        User.objects.filter(username__startswith='demo_').delete()
+        Visit.objects.filter(client__crm_id__startswith="DEMO-").delete()
+        Client.objects.filter(crm_id__startswith="DEMO-").delete()
+        User.objects.filter(username__startswith="demo_").delete()
 
         # Create 3 sales agents with Romanian names + the shared demo phone.
         # All 3 share +40722322358 (the demo handset that rings during the demo).
-        DEMO_PHONE = '+40722322358'
+        DEMO_PHONE = "+40722322358"
         AGENTS = [
-            ('demo_andrei', 'Andrei', 'Popescu'),
-            ('demo_mihai',  'Mihai',  'Ionescu'),
-            ('demo_vlad',   'Vlad',   'Marin'),
+            ("demo_andrei", "Andrei", "Popescu"),
+            ("demo_mihai", "Mihai", "Ionescu"),
+            ("demo_vlad", "Vlad", "Marin"),
         ]
         agents = []
         for username, first, last in AGENTS:
@@ -59,20 +59,20 @@ class Command(BaseCommand):
                 phone_number=DEMO_PHONE,
                 is_sales_agent=True,
             )
-            agent.set_password('demo')
+            agent.set_password("demo")
             agent.save()
             agents.append(agent)
 
         # Create 3 clients
         CLIENTS = [
-            ('Acme Corporation',    'SaaS / B2B'),
-            ('Quorum Industries',   'Manufacturing'),
-            ('Clearwater Holdings', 'Financial services'),
+            ("Acme Corporation", "SaaS / B2B"),
+            ("Quorum Industries", "Manufacturing"),
+            ("Clearwater Holdings", "Financial services"),
         ]
         clients = []
         for i, (name, industry) in enumerate(CLIENTS, start=1):
             client = Client.objects.create(
-                crm_id=f'DEMO-{i:03d}',
+                crm_id=f"DEMO-{i:03d}",
                 name=name,
                 industry=industry,
                 domain=f"{name.lower().replace(' ', '')}.com",
@@ -94,9 +94,11 @@ class Command(BaseCommand):
             )
             self.stdout.write(f"Visit {visit.id}: /manager/visits/{visit.id}/")
 
-        self.stdout.write(self.style.SUCCESS(f'Demo data seeded for {target_date}.'))
-        self.stdout.write('Next steps:')
-        self.stdout.write('  1. Set phone numbers for demo_andrei, demo_mihai, demo_vlad in /admin/')
-        self.stdout.write('  2. Update ELEVENLABS_AGENT_ID env var to new agent ID')
-        self.stdout.write('  3. Open each visit URL above and paste pre/post prompts')
+        self.stdout.write(self.style.SUCCESS(f"Demo data seeded for {target_date}."))
+        self.stdout.write("Next steps:")
+        self.stdout.write(
+            "  1. Set phone numbers for demo_andrei, demo_mihai, demo_vlad in /admin/"
+        )
+        self.stdout.write("  2. Update ELEVENLABS_AGENT_ID env var to new agent ID")
+        self.stdout.write("  3. Open each visit URL above and paste pre/post prompts")
         self.stdout.write('  4. Click "Run pre-call" / "Run post-call" on demo day')

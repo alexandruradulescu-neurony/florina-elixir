@@ -1,6 +1,7 @@
 """
 RBAC (Role-Based Access Control) decorators and mixins for the voice app.
 """
+
 from django.contrib.auth.mixins import AccessMixin
 from django.core.exceptions import PermissionDenied
 

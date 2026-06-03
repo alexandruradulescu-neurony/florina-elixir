@@ -6,140 +6,387 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('voice', '0010_meeting_attendees'),
+        ("voice", "0010_meeting_attendees"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='Client',
+            name="Client",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('crm_id', models.CharField(help_text='ID in external CRM (e.g., Pipedrive organization ID)', max_length=100, unique=True)),
-                ('name', models.CharField(help_text='Company/organization name', max_length=255)),
-                ('domain', models.CharField(blank=True, db_index=True, help_text='Email domain for matching calendar attendees (e.g., acme.com)', max_length=255, null=True)),
-                ('industry', models.CharField(blank=True, max_length=255, null=True)),
-                ('contacts', models.JSONField(blank=True, default=list, help_text='Key contact persons from CRM')),
-                ('deal_history', models.JSONField(blank=True, default=list, help_text='Past and current deals summary')),
-                ('interaction_history', models.JSONField(blank=True, default=list, help_text='Notes, activities, past call summaries from CRM')),
-                ('ai_summary', models.TextField(blank=True, help_text='LLM-generated client profile summary', null=True)),
-                ('raw_data', models.JSONField(blank=True, default=dict, help_text='Full CRM data for reference')),
-                ('last_synced_at', models.DateTimeField(blank=True, help_text='Last time this client was synced from CRM', null=True)),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('updated_at', models.DateTimeField(auto_now=True)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True, primary_key=True, serialize=False, verbose_name="ID"
+                    ),
+                ),
+                (
+                    "crm_id",
+                    models.CharField(
+                        help_text="ID in external CRM (e.g., Pipedrive organization ID)",
+                        max_length=100,
+                        unique=True,
+                    ),
+                ),
+                ("name", models.CharField(help_text="Company/organization name", max_length=255)),
+                (
+                    "domain",
+                    models.CharField(
+                        blank=True,
+                        db_index=True,
+                        help_text="Email domain for matching calendar attendees (e.g., acme.com)",
+                        max_length=255,
+                        null=True,
+                    ),
+                ),
+                ("industry", models.CharField(blank=True, max_length=255, null=True)),
+                (
+                    "contacts",
+                    models.JSONField(
+                        blank=True, default=list, help_text="Key contact persons from CRM"
+                    ),
+                ),
+                (
+                    "deal_history",
+                    models.JSONField(
+                        blank=True, default=list, help_text="Past and current deals summary"
+                    ),
+                ),
+                (
+                    "interaction_history",
+                    models.JSONField(
+                        blank=True,
+                        default=list,
+                        help_text="Notes, activities, past call summaries from CRM",
+                    ),
+                ),
+                (
+                    "ai_summary",
+                    models.TextField(
+                        blank=True, help_text="LLM-generated client profile summary", null=True
+                    ),
+                ),
+                (
+                    "raw_data",
+                    models.JSONField(
+                        blank=True, default=dict, help_text="Full CRM data for reference"
+                    ),
+                ),
+                (
+                    "last_synced_at",
+                    models.DateTimeField(
+                        blank=True, help_text="Last time this client was synced from CRM", null=True
+                    ),
+                ),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("updated_at", models.DateTimeField(auto_now=True)),
             ],
             options={
-                'verbose_name': 'Client',
-                'verbose_name_plural': 'Clients',
-                'ordering': ['name'],
+                "verbose_name": "Client",
+                "verbose_name_plural": "Clients",
+                "ordering": ["name"],
             },
         ),
         migrations.CreateModel(
-            name='Methodology',
+            name="Methodology",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('name', models.CharField(help_text='Methodology name', max_length=255)),
-                ('description', models.TextField(blank=True, help_text='Short description of the methodology', null=True)),
-                ('source_material', models.FileField(blank=True, help_text='Uploaded PDF with methodology guide', null=True, upload_to='methodologies/')),
-                ('ai_summary', models.TextField(blank=True, help_text='LLM-processed summary of the methodology, editable by manager', null=True)),
-                ('is_active', models.BooleanField(default=True)),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('updated_at', models.DateTimeField(auto_now=True)),
-                ('created_by', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='created_methodologies', to=settings.AUTH_USER_MODEL)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True, primary_key=True, serialize=False, verbose_name="ID"
+                    ),
+                ),
+                ("name", models.CharField(help_text="Methodology name", max_length=255)),
+                (
+                    "description",
+                    models.TextField(
+                        blank=True, help_text="Short description of the methodology", null=True
+                    ),
+                ),
+                (
+                    "source_material",
+                    models.FileField(
+                        blank=True,
+                        help_text="Uploaded PDF with methodology guide",
+                        null=True,
+                        upload_to="methodologies/",
+                    ),
+                ),
+                (
+                    "ai_summary",
+                    models.TextField(
+                        blank=True,
+                        help_text="LLM-processed summary of the methodology, editable by manager",
+                        null=True,
+                    ),
+                ),
+                ("is_active", models.BooleanField(default=True)),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("updated_at", models.DateTimeField(auto_now=True)),
+                (
+                    "created_by",
+                    models.ForeignKey(
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.SET_NULL,
+                        related_name="created_methodologies",
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
             ],
             options={
-                'verbose_name': 'Methodology',
-                'verbose_name_plural': 'Methodologies',
-                'ordering': ['name'],
+                "verbose_name": "Methodology",
+                "verbose_name_plural": "Methodologies",
+                "ordering": ["name"],
             },
         ),
         migrations.AlterField(
-            model_name='callattempt',
-            name='meeting',
-            field=models.ForeignKey(blank=True, help_text='Meeting this call is associated with (legacy)', null=True, on_delete=django.db.models.deletion.CASCADE, related_name='call_attempts', to='voice.meeting'),
+            model_name="callattempt",
+            name="meeting",
+            field=models.ForeignKey(
+                blank=True,
+                help_text="Meeting this call is associated with (legacy)",
+                null=True,
+                on_delete=django.db.models.deletion.CASCADE,
+                related_name="call_attempts",
+                to="voice.meeting",
+            ),
         ),
         migrations.CreateModel(
-            name='Visit',
+            name="Visit",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('calendar_event_id', models.CharField(blank=True, help_text='External calendar event ID', max_length=255, null=True)),
-                ('title', models.CharField(max_length=255)),
-                ('start_time', models.DateTimeField()),
-                ('end_time', models.DateTimeField()),
-                ('attendees', models.JSONField(blank=True, default=list, help_text='Attendee emails from calendar event')),
-                ('crm_deal_id', models.CharField(blank=True, help_text='Linked CRM deal ID', max_length=100, null=True)),
-                ('manager_notes', models.TextField(blank=True, help_text='Free-text notes from manager for pre-call preparation', null=True)),
-                ('status', models.CharField(choices=[('PLANNED', 'Planned'), ('PRE_CALL_DONE', 'Pre-Call Done'), ('IN_PROGRESS', 'In Progress'), ('POST_CALL_DONE', 'Post-Call Done'), ('COMPLETE', 'Complete')], default='PLANNED', max_length=20)),
-                ('pre_call_prompt', models.TextField(blank=True, help_text='LLM-generated prompt used for the pre-call', null=True)),
-                ('post_call_prompt', models.TextField(blank=True, help_text='LLM-generated prompt used for the post-call', null=True)),
-                ('post_call_summary', models.TextField(blank=True, help_text='Structured debrief summary from post-call', null=True)),
-                ('crm_synced', models.BooleanField(default=False, help_text='Whether the post-call summary was posted to CRM')),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('updated_at', models.DateTimeField(auto_now=True)),
-                ('agent', models.ForeignKey(help_text='Sales agent for this visit', on_delete=django.db.models.deletion.CASCADE, related_name='visits', to=settings.AUTH_USER_MODEL)),
-                ('client', models.ForeignKey(help_text='Client being visited', on_delete=django.db.models.deletion.CASCADE, related_name='visits', to='voice.client')),
-                ('methodology', models.ForeignKey(blank=True, help_text='Override methodology; falls back to agent default then system default', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='visits', to='voice.methodology')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True, primary_key=True, serialize=False, verbose_name="ID"
+                    ),
+                ),
+                (
+                    "calendar_event_id",
+                    models.CharField(
+                        blank=True,
+                        help_text="External calendar event ID",
+                        max_length=255,
+                        null=True,
+                    ),
+                ),
+                ("title", models.CharField(max_length=255)),
+                ("start_time", models.DateTimeField()),
+                ("end_time", models.DateTimeField()),
+                (
+                    "attendees",
+                    models.JSONField(
+                        blank=True, default=list, help_text="Attendee emails from calendar event"
+                    ),
+                ),
+                (
+                    "crm_deal_id",
+                    models.CharField(
+                        blank=True, help_text="Linked CRM deal ID", max_length=100, null=True
+                    ),
+                ),
+                (
+                    "manager_notes",
+                    models.TextField(
+                        blank=True,
+                        help_text="Free-text notes from manager for pre-call preparation",
+                        null=True,
+                    ),
+                ),
+                (
+                    "status",
+                    models.CharField(
+                        choices=[
+                            ("PLANNED", "Planned"),
+                            ("PRE_CALL_DONE", "Pre-Call Done"),
+                            ("IN_PROGRESS", "In Progress"),
+                            ("POST_CALL_DONE", "Post-Call Done"),
+                            ("COMPLETE", "Complete"),
+                        ],
+                        default="PLANNED",
+                        max_length=20,
+                    ),
+                ),
+                (
+                    "pre_call_prompt",
+                    models.TextField(
+                        blank=True,
+                        help_text="LLM-generated prompt used for the pre-call",
+                        null=True,
+                    ),
+                ),
+                (
+                    "post_call_prompt",
+                    models.TextField(
+                        blank=True,
+                        help_text="LLM-generated prompt used for the post-call",
+                        null=True,
+                    ),
+                ),
+                (
+                    "post_call_summary",
+                    models.TextField(
+                        blank=True, help_text="Structured debrief summary from post-call", null=True
+                    ),
+                ),
+                (
+                    "crm_synced",
+                    models.BooleanField(
+                        default=False, help_text="Whether the post-call summary was posted to CRM"
+                    ),
+                ),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("updated_at", models.DateTimeField(auto_now=True)),
+                (
+                    "agent",
+                    models.ForeignKey(
+                        help_text="Sales agent for this visit",
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="visits",
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
+                (
+                    "client",
+                    models.ForeignKey(
+                        help_text="Client being visited",
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="visits",
+                        to="voice.client",
+                    ),
+                ),
+                (
+                    "methodology",
+                    models.ForeignKey(
+                        blank=True,
+                        help_text="Override methodology; falls back to agent default then system default",
+                        null=True,
+                        on_delete=django.db.models.deletion.SET_NULL,
+                        related_name="visits",
+                        to="voice.methodology",
+                    ),
+                ),
             ],
             options={
-                'verbose_name': 'Visit',
-                'verbose_name_plural': 'Visits',
-                'ordering': ['-start_time'],
+                "verbose_name": "Visit",
+                "verbose_name_plural": "Visits",
+                "ordering": ["-start_time"],
             },
         ),
         migrations.CreateModel(
-            name='GlobalSettings',
+            name="GlobalSettings",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('pre_call_offset_minutes', models.IntegerField(default=-60, help_text='Minutes before meeting to trigger pre-call (negative value)')),
-                ('post_call_offset_minutes', models.IntegerField(default=15, help_text='Minutes after meeting to trigger post-call')),
-                ('retry_interval_minutes', models.IntegerField(default=5, help_text='Minutes between retry attempts for failed calls')),
-                ('pre_call_meta_prompt', models.TextField(blank=True, help_text='Meta-prompt template for generating pre-call voice prompts via LLM', null=True)),
-                ('post_call_meta_prompt', models.TextField(blank=True, help_text='Meta-prompt template for generating post-call voice prompts via LLM', null=True)),
-                ('updated_at', models.DateTimeField(auto_now=True)),
-                ('default_methodology', models.ForeignKey(blank=True, help_text='System-wide fallback methodology', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='+', to='voice.methodology')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True, primary_key=True, serialize=False, verbose_name="ID"
+                    ),
+                ),
+                (
+                    "pre_call_offset_minutes",
+                    models.IntegerField(
+                        default=-60,
+                        help_text="Minutes before meeting to trigger pre-call (negative value)",
+                    ),
+                ),
+                (
+                    "post_call_offset_minutes",
+                    models.IntegerField(
+                        default=15, help_text="Minutes after meeting to trigger post-call"
+                    ),
+                ),
+                (
+                    "retry_interval_minutes",
+                    models.IntegerField(
+                        default=5, help_text="Minutes between retry attempts for failed calls"
+                    ),
+                ),
+                (
+                    "pre_call_meta_prompt",
+                    models.TextField(
+                        blank=True,
+                        help_text="Meta-prompt template for generating pre-call voice prompts via LLM",
+                        null=True,
+                    ),
+                ),
+                (
+                    "post_call_meta_prompt",
+                    models.TextField(
+                        blank=True,
+                        help_text="Meta-prompt template for generating post-call voice prompts via LLM",
+                        null=True,
+                    ),
+                ),
+                ("updated_at", models.DateTimeField(auto_now=True)),
+                (
+                    "default_methodology",
+                    models.ForeignKey(
+                        blank=True,
+                        help_text="System-wide fallback methodology",
+                        null=True,
+                        on_delete=django.db.models.deletion.SET_NULL,
+                        related_name="+",
+                        to="voice.methodology",
+                    ),
+                ),
             ],
             options={
-                'verbose_name': 'Global Settings',
-                'verbose_name_plural': 'Global Settings',
+                "verbose_name": "Global Settings",
+                "verbose_name_plural": "Global Settings",
             },
         ),
         migrations.AddIndex(
-            model_name='client',
-            index=models.Index(fields=['domain'], name='voice_clien_domain_59d2ba_idx'),
+            model_name="client",
+            index=models.Index(fields=["domain"], name="voice_clien_domain_59d2ba_idx"),
         ),
         migrations.AddIndex(
-            model_name='client',
-            index=models.Index(fields=['name'], name='voice_clien_name_79bf00_idx'),
+            model_name="client",
+            index=models.Index(fields=["name"], name="voice_clien_name_79bf00_idx"),
         ),
         migrations.AddField(
-            model_name='callattempt',
-            name='visit',
-            field=models.ForeignKey(blank=True, help_text='Visit this call is associated with', null=True, on_delete=django.db.models.deletion.CASCADE, related_name='call_attempts', to='voice.visit'),
+            model_name="callattempt",
+            name="visit",
+            field=models.ForeignKey(
+                blank=True,
+                help_text="Visit this call is associated with",
+                null=True,
+                on_delete=django.db.models.deletion.CASCADE,
+                related_name="call_attempts",
+                to="voice.visit",
+            ),
         ),
         migrations.AddField(
-            model_name='user',
-            name='default_methodology',
-            field=models.ForeignKey(blank=True, help_text='Default meeting preparation methodology for this agent', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='assigned_agents', to='voice.methodology'),
+            model_name="user",
+            name="default_methodology",
+            field=models.ForeignKey(
+                blank=True,
+                help_text="Default meeting preparation methodology for this agent",
+                null=True,
+                on_delete=django.db.models.deletion.SET_NULL,
+                related_name="assigned_agents",
+                to="voice.methodology",
+            ),
         ),
         migrations.AddIndex(
-            model_name='visit',
-            index=models.Index(fields=['start_time'], name='voice_visit_start_t_94ed73_idx'),
+            model_name="visit",
+            index=models.Index(fields=["start_time"], name="voice_visit_start_t_94ed73_idx"),
         ),
         migrations.AddIndex(
-            model_name='visit',
-            index=models.Index(fields=['end_time'], name='voice_visit_end_tim_0cc0fe_idx'),
+            model_name="visit",
+            index=models.Index(fields=["end_time"], name="voice_visit_end_tim_0cc0fe_idx"),
         ),
         migrations.AddIndex(
-            model_name='visit',
-            index=models.Index(fields=['status'], name='voice_visit_status_33f34f_idx'),
+            model_name="visit",
+            index=models.Index(fields=["status"], name="voice_visit_status_33f34f_idx"),
         ),
         migrations.AddIndex(
-            model_name='visit',
-            index=models.Index(fields=['calendar_event_id'], name='voice_visit_calenda_ad0d27_idx'),
+            model_name="visit",
+            index=models.Index(fields=["calendar_event_id"], name="voice_visit_calenda_ad0d27_idx"),
         ),
         migrations.AddIndex(
-            model_name='visit',
-            index=models.Index(fields=['agent', 'start_time'], name='voice_visit_agent_i_f6d625_idx'),
+            model_name="visit",
+            index=models.Index(
+                fields=["agent", "start_time"], name="voice_visit_agent_i_f6d625_idx"
+            ),
         ),
     ]

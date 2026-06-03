@@ -1,6 +1,7 @@
 """
 Pipedrive CRM provider implementation.
 """
+
 import logging
 
 import requests
@@ -15,8 +16,8 @@ class PipedriveProvider(CRMProvider):
     """Pipedrive CRM integration."""
 
     def __init__(self):
-        self.api_token = config('PIPEDRIVE_API_TOKEN', default='')
-        self.domain = config('PIPEDRIVE_DOMAIN', default='')
+        self.api_token = config("PIPEDRIVE_API_TOKEN", default="")
+        self.domain = config("PIPEDRIVE_DOMAIN", default="")
         self._session = None
 
     def is_configured(self) -> bool:
@@ -30,7 +31,7 @@ class PipedriveProvider(CRMProvider):
     def session(self) -> requests.Session:
         if self._session is None:
             self._session = requests.Session()
-            self._session.params = {'api_token': self.api_token}
+            self._session.params = {"api_token": self.api_token}
         return self._session
 
     def _get(self, path: str, **kwargs) -> dict | None:
@@ -39,8 +40,8 @@ class PipedriveProvider(CRMProvider):
             resp = self.session.get(f"{self.base_url}{path}", **kwargs)
             if resp.status_code == 200:
                 body = resp.json()
-                if body.get('success'):
-                    return body.get('data')
+                if body.get("success"):
+                    return body.get("data")
         except Exception as e:
             logger.error(f"Pipedrive GET {path} failed: {e}", exc_info=True)
         return None
@@ -51,8 +52,8 @@ class PipedriveProvider(CRMProvider):
             resp = self.session.post(f"{self.base_url}{path}", json=json_data)
             if resp.status_code in (200, 201):
                 body = resp.json()
-                if body.get('success'):
-                    return body.get('data')
+                if body.get("success"):
+                    return body.get("data")
         except Exception as e:
             logger.error(f"Pipedrive POST {path} failed: {e}", exc_info=True)
         return None
@@ -63,8 +64,8 @@ class PipedriveProvider(CRMProvider):
             resp = self.session.put(f"{self.base_url}{path}", json=json_data)
             if resp.status_code == 200:
                 body = resp.json()
-                if body.get('success'):
-                    return body.get('data')
+                if body.get("success"):
+                    return body.get("data")
         except Exception as e:
             logger.error(f"Pipedrive PUT {path} failed: {e}", exc_info=True)
         return None
@@ -83,16 +84,16 @@ class PipedriveProvider(CRMProvider):
         try:
             resp = self.session.get(
                 f"{self.base_url}/organizations/search",
-                params={'term': domain, 'fields': 'name'},
+                params={"term": domain, "fields": "name"},
             )
             if resp.status_code != 200:
                 return None
             body = resp.json()
-            items = (body.get('data') or {}).get('items', [])
+            items = (body.get("data") or {}).get("items", [])
             for item in items:
-                org_data = item.get('item', {})
-                if domain.lower() in org_data.get('name', '').lower():
-                    org_id = org_data.get('id')
+                org_data = item.get("item", {})
+                if domain.lower() in org_data.get("name", "").lower():
+                    org_id = org_data.get("id")
                     if org_id:
                         return self.get_client(str(org_id))
         except Exception as e:
@@ -106,8 +107,10 @@ class PipedriveProvider(CRMProvider):
         deals = sorted(
             data,
             key=lambda d: (
-                0 if d.get('status') in ('open', 'won') else 1,
-                -(d.get('update_time') or 0) if isinstance(d.get('update_time'), (int, float)) else 0,
+                0 if d.get("status") in ("open", "won") else 1,
+                -(d.get("update_time") or 0)
+                if isinstance(d.get("update_time"), (int, float))
+                else 0,
             ),
         )
         return [self._normalize_deal(d) for d in deals]
@@ -126,27 +129,33 @@ class PipedriveProvider(CRMProvider):
         notes = self._get(f"/organizations/{client_id}/notes") or []
         if isinstance(notes, list):
             for note in notes:
-                interactions.append({
-                    'type': 'note',
-                    'id': str(note.get('id', '')),
-                    'content': note.get('content', ''),
-                    'date': note.get('add_time', ''),
-                    'user': note.get('user', {}).get('name', '') if isinstance(note.get('user'), dict) else '',
-                })
+                interactions.append(
+                    {
+                        "type": "note",
+                        "id": str(note.get("id", "")),
+                        "content": note.get("content", ""),
+                        "date": note.get("add_time", ""),
+                        "user": note.get("user", {}).get("name", "")
+                        if isinstance(note.get("user"), dict)
+                        else "",
+                    }
+                )
 
         # Get activities
         activities = self._get(f"/organizations/{client_id}/activities") or []
         if isinstance(activities, list):
             for act in activities:
-                interactions.append({
-                    'type': act.get('type', 'activity'),
-                    'id': str(act.get('id', '')),
-                    'content': act.get('subject', '') or act.get('note', ''),
-                    'date': act.get('due_date', '') or act.get('add_time', ''),
-                    'user': act.get('owner_name', ''),
-                })
+                interactions.append(
+                    {
+                        "type": act.get("type", "activity"),
+                        "id": str(act.get("id", "")),
+                        "content": act.get("subject", "") or act.get("note", ""),
+                        "date": act.get("due_date", "") or act.get("add_time", ""),
+                        "user": act.get("owner_name", ""),
+                    }
+                )
 
-        interactions.sort(key=lambda x: x.get('date', ''), reverse=True)
+        interactions.sort(key=lambda x: x.get("date", ""), reverse=True)
         return interactions
 
     def get_contacts_for_client(self, client_id: str) -> list[dict]:
@@ -155,34 +164,36 @@ class PipedriveProvider(CRMProvider):
             return []
         contacts = []
         for person in data:
-            emails = person.get('email', [])
-            email = emails[0].get('value', '') if emails and isinstance(emails, list) else ''
-            phones = person.get('phone', [])
-            phone = phones[0].get('value', '') if phones and isinstance(phones, list) else ''
-            contacts.append({
-                'id': str(person.get('id', '')),
-                'name': person.get('name', ''),
-                'email': email,
-                'phone': phone,
-                'role': person.get('job_title', ''),
-            })
+            emails = person.get("email", [])
+            email = emails[0].get("value", "") if emails and isinstance(emails, list) else ""
+            phones = person.get("phone", [])
+            phone = phones[0].get("value", "") if phones and isinstance(phones, list) else ""
+            contacts.append(
+                {
+                    "id": str(person.get("id", "")),
+                    "name": person.get("name", ""),
+                    "email": email,
+                    "phone": phone,
+                    "role": person.get("job_title", ""),
+                }
+            )
         return contacts
 
-    def post_note_to_deal(self, deal_id: str, text: str, subject: str = '') -> dict:
-        result = {'success': False, 'note_id': None, 'error': None}
+    def post_note_to_deal(self, deal_id: str, text: str, subject: str = "") -> dict:
+        result = {"success": False, "note_id": None, "error": None}
         note_data = {
-            'content': text,
-            'deal_id': deal_id,
-            'pinned_to_deal_flag': 1,
+            "content": text,
+            "deal_id": deal_id,
+            "pinned_to_deal_flag": 1,
         }
         if subject:
-            note_data['subject'] = subject
-        data = self._post('/notes', note_data)
+            note_data["subject"] = subject
+        data = self._post("/notes", note_data)
         if data:
-            result['success'] = True
-            result['note_id'] = str(data.get('id', ''))
+            result["success"] = True
+            result["note_id"] = str(data.get("id", ""))
         else:
-            result['error'] = 'Failed to create note in Pipedrive'
+            result["error"] = "Failed to create note in Pipedrive"
         return result
 
     def sync_clients(self) -> list[dict]:
@@ -194,18 +205,18 @@ class PipedriveProvider(CRMProvider):
             try:
                 resp = self.session.get(
                     f"{self.base_url}/organizations",
-                    params={'start': start, 'limit': limit},
+                    params={"start": start, "limit": limit},
                 )
                 if resp.status_code != 200:
                     break
                 body = resp.json()
-                if not body.get('success'):
+                if not body.get("success"):
                     break
-                data = body.get('data') or []
+                data = body.get("data") or []
                 for org in data:
                     clients.append(self._normalize_client(org))
-                pagination = body.get('additional_data', {}).get('pagination', {})
-                if not pagination.get('more_items_in_collection'):
+                pagination = body.get("additional_data", {}).get("pagination", {})
+                if not pagination.get("more_items_in_collection"):
                     break
                 start += limit
             except Exception as e:
@@ -217,14 +228,14 @@ class PipedriveProvider(CRMProvider):
         try:
             resp = self.session.get(
                 f"{self.base_url}/deals/search",
-                params={'term': term, 'fields': 'title'},
+                params={"term": term, "fields": "title"},
             )
             if resp.status_code != 200:
                 return None
             body = resp.json()
-            items = (body.get('data') or {}).get('items', [])
+            items = (body.get("data") or {}).get("items", [])
             if items:
-                deal_id = items[0].get('item', {}).get('id')
+                deal_id = items[0].get("item", {}).get("id")
                 if deal_id:
                     return self.get_deal(str(deal_id))
         except Exception as e:
@@ -239,27 +250,27 @@ class PipedriveProvider(CRMProvider):
     def _normalize_client(org: dict) -> dict:
         """Normalize Pipedrive organization to standard client format."""
         return {
-            'id': str(org.get('id', '')),
-            'name': org.get('name', ''),
-            'domain': (org.get('cc_email', '') or '').split('@')[-1] if org.get('cc_email') else '',
-            'industry': org.get('industry', '') or '',
-            'address': org.get('address', ''),
-            'raw': org,
+            "id": str(org.get("id", "")),
+            "name": org.get("name", ""),
+            "domain": (org.get("cc_email", "") or "").split("@")[-1] if org.get("cc_email") else "",
+            "industry": org.get("industry", "") or "",
+            "address": org.get("address", ""),
+            "raw": org,
         }
 
     @staticmethod
     def _normalize_deal(deal: dict) -> dict:
         """Normalize Pipedrive deal to standard format."""
         return {
-            'id': str(deal.get('id', '')),
-            'title': deal.get('title', ''),
-            'status': deal.get('status', ''),
-            'value': deal.get('value', 0),
-            'currency': deal.get('currency', ''),
-            'stage': deal.get('stage_id', ''),
-            'expected_close_date': deal.get('expected_close_date', ''),
-            'org_id': str(deal.get('org_id', '')),
-            'person_id': str(deal.get('person_id', '')),
-            'update_time': deal.get('update_time', ''),
-            'raw': deal,
+            "id": str(deal.get("id", "")),
+            "title": deal.get("title", ""),
+            "status": deal.get("status", ""),
+            "value": deal.get("value", 0),
+            "currency": deal.get("currency", ""),
+            "stage": deal.get("stage_id", ""),
+            "expected_close_date": deal.get("expected_close_date", ""),
+            "org_id": str(deal.get("org_id", "")),
+            "person_id": str(deal.get("person_id", "")),
+            "update_time": deal.get("update_time", ""),
+            "raw": deal,
         }

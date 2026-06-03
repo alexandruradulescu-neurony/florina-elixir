@@ -6,6 +6,7 @@ Usage:
     crm = get_crm_provider()
     client = crm.search_client_by_domain('acme.com')
 """
+
 import logging
 
 from decouple import config
@@ -16,7 +17,7 @@ from .pipedrive import PipedriveProvider
 logger = logging.getLogger(__name__)
 
 CRM_PROVIDERS = {
-    'pipedrive': PipedriveProvider,
+    "pipedrive": PipedriveProvider,
 }
 
 _cached_provider = None
@@ -33,12 +34,11 @@ def get_crm_provider() -> CRMProvider:
     if _cached_provider is not None:
         return _cached_provider
 
-    provider_name = config('CRM_PROVIDER', default='pipedrive').lower()
+    provider_name = config("CRM_PROVIDER", default="pipedrive").lower()
     provider_cls = CRM_PROVIDERS.get(provider_name)
     if provider_cls is None:
         raise ValueError(
-            f"Unknown CRM provider '{provider_name}'. "
-            f"Available: {', '.join(CRM_PROVIDERS.keys())}"
+            f"Unknown CRM provider '{provider_name}'. Available: {', '.join(CRM_PROVIDERS.keys())}"
         )
     _cached_provider = provider_cls()
     logger.info(f"CRM provider initialized: {provider_name}")

@@ -4,15 +4,18 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('voice', '0002_alter_callattempt_external_call_id'),
+        ("voice", "0002_alter_callattempt_external_call_id"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='voiceprompt',
-            name='first_message',
-            field=models.TextField(blank=True, help_text='First message/greeting for the AI agent (optional). Supports same variables as system prompt.', null=True),
+            model_name="voiceprompt",
+            name="first_message",
+            field=models.TextField(
+                blank=True,
+                help_text="First message/greeting for the AI agent (optional). Supports same variables as system prompt.",
+                null=True,
+            ),
         ),
     ]

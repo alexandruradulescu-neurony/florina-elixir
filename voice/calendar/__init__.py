@@ -6,6 +6,7 @@ Usage:
     cal = get_calendar_provider()
     events = cal.get_events_for_date(user, date.today())
 """
+
 import logging
 
 from decouple import config
@@ -16,7 +17,7 @@ from .google import GoogleCalendarProvider
 logger = logging.getLogger(__name__)
 
 CALENDAR_PROVIDERS = {
-    'google': GoogleCalendarProvider,
+    "google": GoogleCalendarProvider,
 }
 
 _cached_provider = None
@@ -33,7 +34,7 @@ def get_calendar_provider() -> CalendarProvider:
     if _cached_provider is not None:
         return _cached_provider
 
-    provider_name = config('CALENDAR_PROVIDER', default='google').lower()
+    provider_name = config("CALENDAR_PROVIDER", default="google").lower()
     provider_cls = CALENDAR_PROVIDERS.get(provider_name)
     if provider_cls is None:
         raise ValueError(

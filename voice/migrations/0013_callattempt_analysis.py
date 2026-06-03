@@ -4,15 +4,18 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('voice', '0012_visit_post_call_first_message_and_more'),
+        ("voice", "0012_visit_post_call_first_message_and_more"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='callattempt',
-            name='analysis',
-            field=models.JSONField(blank=True, default=dict, help_text='Structured analysis of the call transcript, produced by Claude after a post-call.'),
+            model_name="callattempt",
+            name="analysis",
+            field=models.JSONField(
+                blank=True,
+                default=dict,
+                help_text="Structured analysis of the call transcript, produced by Claude after a post-call.",
+            ),
         ),
     ]

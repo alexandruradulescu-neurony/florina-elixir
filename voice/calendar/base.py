@@ -4,6 +4,7 @@ Abstract base class for Calendar providers.
 To add a new calendar provider, subclass CalendarProvider and implement all abstract methods.
 Then register it in voice/calendar/__init__.py CALENDAR_PROVIDERS dict.
 """
+
 from abc import ABC, abstractmethod
 from datetime import date
 

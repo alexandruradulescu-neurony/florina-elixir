@@ -38,28 +38,37 @@ class Command(BaseCommand):
     help = "Bootstrap the demo: admin + agents + clients + visits + content."
 
     def add_arguments(self, parser):
-        parser.add_argument('--date', type=str, default='2026-05-28',
-                            help='Date for the 3 demo visits. Default: 2026-05-28')
-        parser.add_argument('--admin-password', type=str, default='admin123',
-                            help='Password for the admin superuser.')
-        parser.add_argument('--skip-admin', action='store_true',
-                            help='Do not create or update the admin superuser.')
+        parser.add_argument(
+            "--date",
+            type=str,
+            default="2026-05-28",
+            help="Date for the 3 demo visits. Default: 2026-05-28",
+        )
+        parser.add_argument(
+            "--admin-password",
+            type=str,
+            default="admin123",
+            help="Password for the admin superuser.",
+        )
+        parser.add_argument(
+            "--skip-admin", action="store_true", help="Do not create or update the admin superuser."
+        )
 
     def handle(self, *args, **opts):
-        target_date = opts['date']
-        admin_password = opts['admin_password']
-        skip_admin = opts['skip_admin']
+        target_date = opts["date"]
+        admin_password = opts["admin_password"]
+        skip_admin = opts["skip_admin"]
 
         # ─── Step 1: admin superuser ───
         if not skip_admin:
             admin, created = User.objects.get_or_create(
-                username='admin',
+                username="admin",
                 defaults={
-                    'email': 'admin@demo.local',
-                    'is_superuser': True,
-                    'is_staff': True,
-                    'first_name': 'Demo',
-                    'last_name': 'Manager',
+                    "email": "admin@demo.local",
+                    "is_superuser": True,
+                    "is_staff": True,
+                    "first_name": "Demo",
+                    "last_name": "Manager",
                 },
             )
             # Always set the password + flags so this command idempotently
@@ -69,23 +78,23 @@ class Command(BaseCommand):
             admin.set_password(admin_password)
             admin.save()
             if created:
-                self.stdout.write(self.style.SUCCESS(
-                    f"✓ Created admin superuser: admin / {admin_password}"
-                ))
+                self.stdout.write(
+                    self.style.SUCCESS(f"✓ Created admin superuser: admin / {admin_password}")
+                )
             else:
-                self.stdout.write(self.style.SUCCESS(
-                    f"✓ Reset admin password: admin / {admin_password}"
-                ))
+                self.stdout.write(
+                    self.style.SUCCESS(f"✓ Reset admin password: admin / {admin_password}")
+                )
 
         # ─── Step 2: agents + clients + visits (seed_demo) ───
         self.stdout.write("")
         self.stdout.write("Running seed_demo…")
-        call_command('seed_demo', date=target_date)
+        call_command("seed_demo", date=target_date)
 
         # ─── Step 3: Romanian rename + statuses + methodologies + 12 prompts ───
         self.stdout.write("")
         self.stdout.write("Running seed_demo_content…")
-        call_command('seed_demo_content')
+        call_command("seed_demo_content")
 
         # ─── Step 4: handoff summary ───
         self.stdout.write("")
@@ -95,7 +104,12 @@ class Command(BaseCommand):
         self.stdout.write("")
         # Look up current visit IDs (auto-increment, change each wipe+reseed)
         from voice.models import Visit as _V
-        visits = _V.objects.filter(client__crm_id__startswith='DEMO-').select_related('client').order_by('start_time')
+
+        visits = (
+            _V.objects.filter(client__crm_id__startswith="DEMO-")
+            .select_related("client")
+            .order_by("start_time")
+        )
         self.stdout.write("Login URLs:")
         self.stdout.write("  /                      → role-aware landing")
         self.stdout.write("  /admin/                → Django admin")
@@ -103,7 +117,7 @@ class Command(BaseCommand):
         self.stdout.write("  /manager/visits/       → visits list")
         self.stdout.write("  /manager/calendar/     → calendar (week + day)")
         for v in visits:
-            client_name = v.client.name if v.client else '?'
+            client_name = v.client.name if v.client else "?"
             self.stdout.write(f"  /manager/visits/{v.id}/    → {client_name} visit detail")
         self.stdout.write("")
         self.stdout.write("Credentials:")

@@ -3,6 +3,7 @@ Activity Logging Service.
 
 Centralized logging for all system actions.
 """
+
 import json
 import logging
 from typing import Any
@@ -16,9 +17,9 @@ logger = logging.getLogger(__name__)
 def log_activity(
     meeting: Meeting | None = None,
     user: User | None = None,
-    action: str = '',
+    action: str = "",
     details: dict[str, Any] | None = None,
-    level: str = LogLevel.INFO
+    level: str = LogLevel.INFO,
 ) -> ActivityLog:
     """
     Centralized logging function for all system actions.
@@ -37,11 +38,7 @@ def log_activity(
         details = {}
 
     activity_log = ActivityLog.objects.create(
-        meeting=meeting,
-        user=user,
-        action=action,
-        details=details,
-        level=level
+        meeting=meeting, user=user, action=action, details=details, level=level
     )
 
     # Also log to Django's logging system

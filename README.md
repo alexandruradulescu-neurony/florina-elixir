@@ -1,7 +1,6 @@
 # MES Voice - Sales Training & Debrief Application
 
 [![CI](https://github.com/neurony/florina/actions/workflows/ci.yml/badge.svg)](https://github.com/neurony/florina/actions/workflows/ci.yml)
-[![CodeQL](https://github.com/neurony/florina/actions/workflows/codeql.yml/badge.svg)](https://github.com/neurony/florina/actions/workflows/codeql.yml)
 
 A Django-based sales enablement tool that automates voice coaching for sales agents. The system syncs meetings from Google Calendar, triggers AI-powered voice calls before and after meetings, and syncs call summaries to Pipedrive CRM.
 
@@ -192,7 +191,7 @@ The system uses a **hybrid approach** combining pre-programming with real-time c
 - OAuth 2.0 for Google Calendar
 - Database-stored OAuth credentials (encrypted in production)
 - Production-oriented Django security settings for SSL, HSTS, secure cookies, and frame/content protections
-- CI-enforced security checks: Ruff, djLint, Bandit, pip-audit, Django deploy checks, and CodeQL
+- CI-enforced security checks: Ruff, djLint, Bandit, pip-audit, and Django deploy checks
 
 ### Webhook Security Notes
 

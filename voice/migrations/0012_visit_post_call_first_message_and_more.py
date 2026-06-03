@@ -4,20 +4,27 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('voice', '0011_client_methodology_alter_callattempt_meeting_visit_and_more'),
+        ("voice", "0011_client_methodology_alter_callattempt_meeting_visit_and_more"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='visit',
-            name='post_call_first_message',
-            field=models.TextField(blank=True, default='', help_text='First message the AI says on the post-call (override). Sent verbatim to ElevenLabs.'),
+            model_name="visit",
+            name="post_call_first_message",
+            field=models.TextField(
+                blank=True,
+                default="",
+                help_text="First message the AI says on the post-call (override). Sent verbatim to ElevenLabs.",
+            ),
         ),
         migrations.AddField(
-            model_name='visit',
-            name='pre_call_first_message',
-            field=models.TextField(blank=True, default='', help_text='First message the AI says on the pre-call (override). Sent verbatim to ElevenLabs.'),
+            model_name="visit",
+            name="pre_call_first_message",
+            field=models.TextField(
+                blank=True,
+                default="",
+                help_text="First message the AI says on the pre-call (override). Sent verbatim to ElevenLabs.",
+            ),
         ),
     ]

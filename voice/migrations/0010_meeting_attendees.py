@@ -4,15 +4,19 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('voice', '0009_rename_voice_googlecalendarwatch_user_idx_voice_googl_user_id_c4f399_idx_and_more'),
+        (
+            "voice",
+            "0009_rename_voice_googlecalendarwatch_user_idx_voice_googl_user_id_c4f399_idx_and_more",
+        ),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='meeting',
-            name='attendees',
-            field=models.JSONField(blank=True, default=list, help_text='List of attendee emails from Google Calendar'),
+            model_name="meeting",
+            name="attendees",
+            field=models.JSONField(
+                blank=True, default=list, help_text="List of attendee emails from Google Calendar"
+            ),
         ),
     ]

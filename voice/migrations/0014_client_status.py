@@ -4,15 +4,20 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('voice', '0013_callattempt_analysis'),
+        ("voice", "0013_callattempt_analysis"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='client',
-            name='status',
-            field=models.CharField(choices=[('nou', 'Client nou'), ('existent', 'Client existent')], db_index=True, default='nou', help_text='Whether this is a new client (no prior history) or existing (prior orders/visits).', max_length=20),
+            model_name="client",
+            name="status",
+            field=models.CharField(
+                choices=[("nou", "Client nou"), ("existent", "Client existent")],
+                db_index=True,
+                default="nou",
+                help_text="Whether this is a new client (no prior history) or existing (prior orders/visits).",
+                max_length=20,
+            ),
         ),
     ]

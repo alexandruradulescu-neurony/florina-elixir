@@ -2,6 +2,7 @@
 Scheduled tasks for the voice app using APScheduler.
 These functions are registered with APScheduler in voice/apps.py.
 """
+
 import logging
 from datetime import timedelta
 from threading import Thread
@@ -47,35 +48,33 @@ def check_and_trigger_calls():
         # PRIMARY: Check for pre-programmed CallAttempts ready to execute
         # Look for scheduled calls where scheduled_time <= now
         ready_calls = CallAttempt.objects.filter(
-            status=CallStatus.SCHEDULED,
-            scheduled_time__lte=now
-        ).select_related('meeting', 'meeting__agent')
+            status=CallStatus.SCHEDULED, scheduled_time__lte=now
+        ).select_related("meeting", "meeting__agent")
 
         logger.info(f"Found {ready_calls.count()} pre-programmed calls ready to execute")
 
         for call_attempt in ready_calls:
             # Validate timing constraints
-            if call_attempt.phase == 'PRE':
+            if call_attempt.phase == "PRE":
                 # Pre-meeting: execute if meeting hasn't started or just started (within 5 minutes)
                 # This handles cases where meeting was created late
                 time_since_meeting_start = now - call_attempt.meeting.start_time
                 # Meeting hasn't started yet OR meeting just started (within 5 minutes grace period)
                 can_execute = (call_attempt.meeting.start_time > now) or (
-                    call_attempt.meeting.start_time <= now and
-                    0 <= time_since_meeting_start.total_seconds() <= 300
+                    call_attempt.meeting.start_time <= now
+                    and 0 <= time_since_meeting_start.total_seconds() <= 300
                 )
 
-                logger.info(f"Pre-meeting call {call_attempt.id} for meeting '{call_attempt.meeting.title}': "
-                           f"meeting_start={call_attempt.meeting.start_time}, now={now}, "
-                           f"can_execute={can_execute}")
+                logger.info(
+                    f"Pre-meeting call {call_attempt.id} for meeting '{call_attempt.meeting.title}': "
+                    f"meeting_start={call_attempt.meeting.start_time}, now={now}, "
+                    f"can_execute={can_execute}"
+                )
 
                 if can_execute:
                     # Execute the call using existing CallAttempt
                     logger.info(f"Triggering pre-meeting call {call_attempt.id}")
-                    thread = Thread(
-                        target=execute_scheduled_call,
-                        args=(call_attempt.id,)
-                    )
+                    thread = Thread(target=execute_scheduled_call, args=(call_attempt.id,))
                     thread.daemon = True
                     thread.start()
                     triggered_count += 1
@@ -83,17 +82,16 @@ def check_and_trigger_calls():
                 # Post-meeting: only execute if meeting has ended
                 can_execute = call_attempt.meeting.end_time < now
 
-                logger.info(f"Post-meeting call {call_attempt.id} for meeting '{call_attempt.meeting.title}': "
-                           f"meeting_end={call_attempt.meeting.end_time}, now={now}, "
-                           f"can_execute={can_execute}")
+                logger.info(
+                    f"Post-meeting call {call_attempt.id} for meeting '{call_attempt.meeting.title}': "
+                    f"meeting_end={call_attempt.meeting.end_time}, now={now}, "
+                    f"can_execute={can_execute}"
+                )
 
                 if can_execute:
                     # Execute the call using existing CallAttempt
                     logger.info(f"Triggering post-meeting call {call_attempt.id}")
-                    thread = Thread(
-                        target=execute_scheduled_call,
-                        args=(call_attempt.id,)
-                    )
+                    thread = Thread(target=execute_scheduled_call, args=(call_attempt.id,))
                     thread.daemon = True
                     thread.start()
                     triggered_count += 1
@@ -102,10 +100,10 @@ def check_and_trigger_calls():
         # Pre-meeting: retry failed calls every 5 minutes until meeting starts
         failed_pre_calls = CallAttempt.objects.filter(
             meeting__start_time__gt=now,  # Meeting hasn't started
-            phase='PRE',
+            phase="PRE",
             status__in=[CallStatus.NO_ANSWER, CallStatus.FAILED],
-            meeting__agent__is_sales_agent=True
-        ).select_related('meeting', 'meeting__agent')
+            meeting__agent__is_sales_agent=True,
+        ).select_related("meeting", "meeting__agent")
 
         for call_attempt in failed_pre_calls:
             # Check if it's been at least 5 minutes since last attempt
@@ -116,10 +114,7 @@ def check_and_trigger_calls():
                 and not call_attempt.meeting.is_pre_call_completed
             ):  # 5 minutes
                 # Retry the call
-                thread = Thread(
-                    target=retry_failed_call,
-                    args=(call_attempt.id,)
-                )
+                thread = Thread(target=retry_failed_call, args=(call_attempt.id,))
                 thread.daemon = True
                 thread.start()
                 triggered_count += 1
@@ -127,10 +122,10 @@ def check_and_trigger_calls():
         # Post-meeting: retry failed calls every 5 minutes after meeting ends
         failed_post_calls = CallAttempt.objects.filter(
             meeting__end_time__lt=now,  # Meeting has ended
-            phase='POST',
+            phase="POST",
             status__in=[CallStatus.NO_ANSWER, CallStatus.FAILED],
-            meeting__agent__is_sales_agent=True
-        ).select_related('meeting', 'meeting__agent')
+            meeting__agent__is_sales_agent=True,
+        ).select_related("meeting", "meeting__agent")
 
         for call_attempt in failed_post_calls:
             # Check if it's been at least 5 minutes since last attempt
@@ -140,10 +135,7 @@ def check_and_trigger_calls():
                 and not call_attempt.meeting.is_post_call_completed
             ):  # 5 minutes
                 # Retry the call
-                thread = Thread(
-                    target=retry_failed_call,
-                    args=(call_attempt.id,)
-                )
+                thread = Thread(target=retry_failed_call, args=(call_attempt.id,))
                 thread.daemon = True
                 thread.start()
                 triggered_count += 1
@@ -155,9 +147,9 @@ def check_and_trigger_calls():
             # Check if CallAttempt already exists
             existing = CallAttempt.objects.filter(
                 meeting=meeting,
-                phase='PRE',
+                phase="PRE",
                 scheduled_offset_minutes=offset,
-                status=CallStatus.SCHEDULED
+                status=CallStatus.SCHEDULED,
             ).exists()
 
             if not existing:
@@ -172,9 +164,9 @@ def check_and_trigger_calls():
             # Check if CallAttempt already exists
             existing = CallAttempt.objects.filter(
                 meeting=meeting,
-                phase='POST',
+                phase="POST",
                 scheduled_offset_minutes=offset,
-                status=CallStatus.SCHEDULED
+                status=CallStatus.SCHEDULED,
             ).exists()
 
             if not existing:
@@ -184,21 +176,21 @@ def check_and_trigger_calls():
                 thread.start()
                 triggered_count += 1
 
-        logger.info(f"Call check completed: {triggered_count} calls triggered ({len(ready_calls)} from pre-programmed, {len(pre_meeting_calls)} pre + {len(post_meeting_calls)} post from backup)")
+        logger.info(
+            f"Call check completed: {triggered_count} calls triggered ({len(ready_calls)} from pre-programmed, {len(pre_meeting_calls)} pre + {len(post_meeting_calls)} post from backup)"
+        )
 
         return {
-            'triggered': triggered_count,
-            'pre_programmed': len(ready_calls),
-            'backup_pre': len(pre_meeting_calls),
-            'backup_post': len(post_meeting_calls)
+            "triggered": triggered_count,
+            "pre_programmed": len(ready_calls),
+            "backup_pre": len(pre_meeting_calls),
+            "backup_post": len(post_meeting_calls),
         }
 
     except Exception as e:
         logger.error(f"Error in check_and_trigger_calls: {e}", exc_info=True)
         log_activity(
-            action="Call check task failed",
-            details={'error': str(e)},
-            level=LogLevel.ERROR
+            action="Call check task failed", details={"error": str(e)}, level=LogLevel.ERROR
         )
         raise
 
@@ -220,7 +212,7 @@ def execute_scheduled_call(call_attempt_id: int):
             logger.warning(f"Agent {agent.username} has no phone number for call {call_attempt_id}")
             call_attempt.status = CallStatus.FAILED
             call_attempt.save()
-            return {'success': False, 'error': 'No phone number'}
+            return {"success": False, "error": "No phone number"}
 
         # Get active prompt
         prompt = get_active_prompt(call_attempt.phase)
@@ -228,19 +220,21 @@ def execute_scheduled_call(call_attempt_id: int):
             logger.error(f"No active prompt found for phase {call_attempt.phase}")
             call_attempt.status = CallStatus.FAILED
             call_attempt.save()
-            return {'success': False, 'error': 'No active prompt'}
+            return {"success": False, "error": "No active prompt"}
 
         # Format prompt with meeting context
         formatted_prompt = format_prompt_with_context(prompt.system_prompt, meeting)
         formatted_first_message = None
         if prompt.first_message:
-            formatted_first_message = format_first_message_with_context(prompt.first_message, meeting)
+            formatted_first_message = format_first_message_with_context(
+                prompt.first_message, meeting
+            )
 
         # Prepare context data
         context_data = {
-            'meeting_id': meeting.id,
-            'offset_minutes': call_attempt.scheduled_offset_minutes,
-            'call_attempt_id': call_attempt.id,
+            "meeting_id": meeting.id,
+            "offset_minutes": call_attempt.scheduled_offset_minutes,
+            "call_attempt_id": call_attempt.id,
         }
 
         # Trigger the call using existing CallAttempt
@@ -249,25 +243,27 @@ def execute_scheduled_call(call_attempt_id: int):
             prompt_text=formatted_prompt,
             context_data=context_data,
             call_attempt=call_attempt,
-            first_message_text=formatted_first_message
+            first_message_text=formatted_first_message,
         )
 
-        if result['success']:
+        if result["success"]:
             logger.info(f"Scheduled call {call_attempt_id} executed successfully")
         else:
-            logger.error(f"Failed to execute scheduled call {call_attempt_id}: {result.get('error')}")
+            logger.error(
+                f"Failed to execute scheduled call {call_attempt_id}: {result.get('error')}"
+            )
 
         return result
 
     except CallAttempt.DoesNotExist:
         logger.error(f"CallAttempt {call_attempt_id} not found")
-        return {'success': False, 'error': 'CallAttempt not found'}
+        return {"success": False, "error": "CallAttempt not found"}
     except Exception as e:
         logger.error(f"Error executing scheduled call {call_attempt_id}: {e}", exc_info=True)
         log_activity(
             action="Scheduled call execution failed",
-            details={'call_attempt_id': call_attempt_id, 'error': str(e)},
-            level=LogLevel.ERROR
+            details={"call_attempt_id": call_attempt_id, "error": str(e)},
+            level=LogLevel.ERROR,
         )
         raise
 
@@ -287,14 +283,16 @@ def retry_failed_call(call_attempt_id: int):
 
         # Validate agent has phone number
         if not agent.phone_number:
-            logger.warning(f"Agent {agent.username} has no phone number for retry {call_attempt_id}")
-            return {'success': False, 'error': 'No phone number'}
+            logger.warning(
+                f"Agent {agent.username} has no phone number for retry {call_attempt_id}"
+            )
+            return {"success": False, "error": "No phone number"}
 
         # Get active prompt
         prompt = get_active_prompt(call_attempt.phase)
         if not prompt:
             logger.error(f"No active prompt found for phase {call_attempt.phase}")
-            return {'success': False, 'error': 'No active prompt'}
+            return {"success": False, "error": "No active prompt"}
 
         # Reset call attempt status to SCHEDULED for retry
         call_attempt.status = CallStatus.SCHEDULED
@@ -305,14 +303,16 @@ def retry_failed_call(call_attempt_id: int):
         formatted_prompt = format_prompt_with_context(prompt.system_prompt, meeting)
         formatted_first_message = None
         if prompt.first_message:
-            formatted_first_message = format_first_message_with_context(prompt.first_message, meeting)
+            formatted_first_message = format_first_message_with_context(
+                prompt.first_message, meeting
+            )
 
         # Prepare context data
         context_data = {
-            'meeting_id': meeting.id,
-            'offset_minutes': call_attempt.scheduled_offset_minutes,
-            'call_attempt_id': call_attempt.id,
-            'is_retry': True,
+            "meeting_id": meeting.id,
+            "offset_minutes": call_attempt.scheduled_offset_minutes,
+            "call_attempt_id": call_attempt.id,
+            "is_retry": True,
         }
 
         # Trigger the call using existing CallAttempt
@@ -321,16 +321,19 @@ def retry_failed_call(call_attempt_id: int):
             prompt_text=formatted_prompt,
             context_data=context_data,
             call_attempt=call_attempt,
-            first_message_text=formatted_first_message
+            first_message_text=formatted_first_message,
         )
 
-        if result['success']:
+        if result["success"]:
             logger.info(f"Retry call {call_attempt_id} executed successfully")
             log_activity(
                 meeting=meeting,
                 user=agent,
                 action=f"Retry call triggered for {call_attempt.get_phase_display()}",
-                details={'call_attempt_id': call_attempt_id, 'offset': call_attempt.scheduled_offset_minutes}
+                details={
+                    "call_attempt_id": call_attempt_id,
+                    "offset": call_attempt.scheduled_offset_minutes,
+                },
             )
         else:
             logger.error(f"Failed to retry call {call_attempt_id}: {result.get('error')}")
@@ -339,13 +342,13 @@ def retry_failed_call(call_attempt_id: int):
 
     except CallAttempt.DoesNotExist:
         logger.error(f"CallAttempt {call_attempt_id} not found for retry")
-        return {'success': False, 'error': 'CallAttempt not found'}
+        return {"success": False, "error": "CallAttempt not found"}
     except Exception as e:
         logger.error(f"Error retrying call {call_attempt_id}: {e}", exc_info=True)
         log_activity(
             action="Call retry failed",
-            details={'call_attempt_id': call_attempt_id, 'error': str(e)},
-            level=LogLevel.ERROR
+            details={"call_attempt_id": call_attempt_id, "error": str(e)},
+            level=LogLevel.ERROR,
         )
         raise
 
@@ -369,9 +372,9 @@ def trigger_pre_meeting_call(meeting_id: int, offset_minutes: int):
                 meeting=meeting,
                 user=agent,
                 action="Pre-meeting call skipped - no phone number",
-                level=LogLevel.WARNING
+                level=LogLevel.WARNING,
             )
-            return {'success': False, 'error': 'No phone number'}
+            return {"success": False, "error": "No phone number"}
 
         # Get active prompt for pre-meeting
         prompt = get_active_prompt(CallPhase.PRE_MEETING)
@@ -381,9 +384,9 @@ def trigger_pre_meeting_call(meeting_id: int, offset_minutes: int):
                 meeting=meeting,
                 user=agent,
                 action="Pre-meeting call failed - no active prompt",
-                level=LogLevel.ERROR
+                level=LogLevel.ERROR,
             )
-            return {'success': False, 'error': 'No active prompt'}
+            return {"success": False, "error": "No active prompt"}
 
         # Validate prompt has content
         if not prompt.system_prompt or not prompt.system_prompt.strip():
@@ -392,16 +395,16 @@ def trigger_pre_meeting_call(meeting_id: int, offset_minutes: int):
                 meeting=meeting,
                 user=agent,
                 action="Pre-meeting call failed - prompt has no content",
-                level=LogLevel.ERROR
+                level=LogLevel.ERROR,
             )
-            return {'success': False, 'error': 'Prompt has no content'}
+            return {"success": False, "error": "Prompt has no content"}
 
         # Check if CallAttempt already exists (from pre-programming)
         call_attempt = CallAttempt.objects.filter(
             meeting=meeting,
             phase=CallPhase.PRE_MEETING,
             scheduled_offset_minutes=offset_minutes,
-            status=CallStatus.SCHEDULED
+            status=CallStatus.SCHEDULED,
         ).first()
 
         if not call_attempt:
@@ -412,7 +415,7 @@ def trigger_pre_meeting_call(meeting_id: int, offset_minutes: int):
                 phase=CallPhase.PRE_MEETING,
                 scheduled_offset_minutes=offset_minutes,
                 scheduled_time=scheduled_time,
-                status=CallStatus.SCHEDULED
+                status=CallStatus.SCHEDULED,
             )
 
         # Format prompt with meeting context
@@ -421,13 +424,15 @@ def trigger_pre_meeting_call(meeting_id: int, offset_minutes: int):
         # Format first_message if available
         formatted_first_message = None
         if prompt.first_message:
-            formatted_first_message = format_first_message_with_context(prompt.first_message, meeting)
+            formatted_first_message = format_first_message_with_context(
+                prompt.first_message, meeting
+            )
 
         # Prepare context data
         context_data = {
-            'meeting_id': meeting.id,
-            'offset_minutes': offset_minutes,
-            'call_attempt_id': call_attempt.id,
+            "meeting_id": meeting.id,
+            "offset_minutes": offset_minutes,
+            "call_attempt_id": call_attempt.id,
         }
 
         # Trigger the call
@@ -436,11 +441,13 @@ def trigger_pre_meeting_call(meeting_id: int, offset_minutes: int):
             prompt_text=formatted_prompt,
             context_data=context_data,
             call_attempt=call_attempt,
-            first_message_text=formatted_first_message
+            first_message_text=formatted_first_message,
         )
 
-        if result['success']:
-            logger.info(f"Pre-meeting call triggered for meeting {meeting_id} at offset {offset_minutes}")
+        if result["success"]:
+            logger.info(
+                f"Pre-meeting call triggered for meeting {meeting_id} at offset {offset_minutes}"
+            )
         else:
             logger.error(f"Failed to trigger pre-meeting call: {result.get('error')}")
 
@@ -448,13 +455,13 @@ def trigger_pre_meeting_call(meeting_id: int, offset_minutes: int):
 
     except Meeting.DoesNotExist:
         logger.error(f"Meeting {meeting_id} not found")
-        return {'success': False, 'error': 'Meeting not found'}
+        return {"success": False, "error": "Meeting not found"}
     except Exception as e:
         logger.error(f"Error triggering pre-meeting call: {e}", exc_info=True)
         log_activity(
             action="Pre-meeting call trigger failed",
-            details={'meeting_id': meeting_id, 'error': str(e)},
-            level=LogLevel.ERROR
+            details={"meeting_id": meeting_id, "error": str(e)},
+            level=LogLevel.ERROR,
         )
         raise
 
@@ -478,9 +485,9 @@ def trigger_post_meeting_call(meeting_id: int, offset_minutes: int):
                 meeting=meeting,
                 user=agent,
                 action="Post-meeting call skipped - no phone number",
-                level=LogLevel.WARNING
+                level=LogLevel.WARNING,
             )
-            return {'success': False, 'error': 'No phone number'}
+            return {"success": False, "error": "No phone number"}
 
         # Get active prompt for post-meeting
         prompt = get_active_prompt(CallPhase.POST_MEETING)
@@ -490,9 +497,9 @@ def trigger_post_meeting_call(meeting_id: int, offset_minutes: int):
                 meeting=meeting,
                 user=agent,
                 action="Post-meeting call failed - no active prompt",
-                level=LogLevel.ERROR
+                level=LogLevel.ERROR,
             )
-            return {'success': False, 'error': 'No active prompt'}
+            return {"success": False, "error": "No active prompt"}
 
         # Validate prompt has content
         if not prompt.system_prompt or not prompt.system_prompt.strip():
@@ -501,16 +508,16 @@ def trigger_post_meeting_call(meeting_id: int, offset_minutes: int):
                 meeting=meeting,
                 user=agent,
                 action="Post-meeting call failed - prompt has no content",
-                level=LogLevel.ERROR
+                level=LogLevel.ERROR,
             )
-            return {'success': False, 'error': 'Prompt has no content'}
+            return {"success": False, "error": "Prompt has no content"}
 
         # Check if CallAttempt already exists (from pre-programming)
         call_attempt = CallAttempt.objects.filter(
             meeting=meeting,
             phase=CallPhase.POST_MEETING,
             scheduled_offset_minutes=offset_minutes,
-            status=CallStatus.SCHEDULED
+            status=CallStatus.SCHEDULED,
         ).first()
 
         if not call_attempt:
@@ -521,7 +528,7 @@ def trigger_post_meeting_call(meeting_id: int, offset_minutes: int):
                 phase=CallPhase.POST_MEETING,
                 scheduled_offset_minutes=offset_minutes,
                 scheduled_time=scheduled_time,
-                status=CallStatus.SCHEDULED
+                status=CallStatus.SCHEDULED,
             )
 
         # Format prompt with meeting context
@@ -530,13 +537,15 @@ def trigger_post_meeting_call(meeting_id: int, offset_minutes: int):
         # Format first_message if available
         formatted_first_message = None
         if prompt.first_message:
-            formatted_first_message = format_first_message_with_context(prompt.first_message, meeting)
+            formatted_first_message = format_first_message_with_context(
+                prompt.first_message, meeting
+            )
 
         # Prepare context data
         context_data = {
-            'meeting_id': meeting.id,
-            'offset_minutes': offset_minutes,
-            'call_attempt_id': call_attempt.id,
+            "meeting_id": meeting.id,
+            "offset_minutes": offset_minutes,
+            "call_attempt_id": call_attempt.id,
         }
 
         # Trigger the call
@@ -545,11 +554,13 @@ def trigger_post_meeting_call(meeting_id: int, offset_minutes: int):
             prompt_text=formatted_prompt,
             context_data=context_data,
             call_attempt=call_attempt,
-            first_message_text=formatted_first_message
+            first_message_text=formatted_first_message,
         )
 
-        if result['success']:
-            logger.info(f"Post-meeting call triggered for meeting {meeting_id} at offset {offset_minutes}")
+        if result["success"]:
+            logger.info(
+                f"Post-meeting call triggered for meeting {meeting_id} at offset {offset_minutes}"
+            )
         else:
             logger.error(f"Failed to trigger post-meeting call: {result.get('error')}")
 
@@ -557,13 +568,13 @@ def trigger_post_meeting_call(meeting_id: int, offset_minutes: int):
 
     except Meeting.DoesNotExist:
         logger.error(f"Meeting {meeting_id} not found")
-        return {'success': False, 'error': 'Meeting not found'}
+        return {"success": False, "error": "Meeting not found"}
     except Exception as e:
         logger.error(f"Error triggering post-meeting call: {e}", exc_info=True)
         log_activity(
             action="Post-meeting call trigger failed",
-            details={'meeting_id': meeting_id, 'error': str(e)},
-            level=LogLevel.ERROR
+            details={"meeting_id": meeting_id, "error": str(e)},
+            level=LogLevel.ERROR,
         )
         raise
 
@@ -580,7 +591,7 @@ def sync_google_calendar_for_user(user_id: int):
 
         if not user.is_sales_agent:
             logger.info(f"User {user.username} is not a sales agent, skipping calendar sync")
-            return {'success': False, 'error': 'Not a sales agent'}
+            return {"success": False, "error": "Not a sales agent"}
 
         # Sync calendar (session will be None for background tasks - needs to be handled differently)
         # For now, we'll log that sync needs to be done manually or via OAuth
@@ -588,23 +599,19 @@ def sync_google_calendar_for_user(user_id: int):
 
         # Note: Calendar sync requires user's OAuth session, which may not be available in background tasks
         # This task should be called from a view where session is available, or we need to store credentials
-        log_activity(
-            user=user,
-            action="Calendar sync task triggered",
-            details={'user_id': user_id}
-        )
+        log_activity(user=user, action="Calendar sync task triggered", details={"user_id": user_id})
 
-        return {'success': True, 'message': 'Sync task triggered'}
+        return {"success": True, "message": "Sync task triggered"}
 
     except User.DoesNotExist:
         logger.error(f"User {user_id} not found")
-        return {'success': False, 'error': 'User not found'}
+        return {"success": False, "error": "User not found"}
     except Exception as e:
         logger.error(f"Error syncing calendar for user {user_id}: {e}", exc_info=True)
         log_activity(
             action="Calendar sync task failed",
-            details={'user_id': user_id, 'error': str(e)},
-            level=LogLevel.ERROR
+            details={"user_id": user_id, "error": str(e)},
+            level=LogLevel.ERROR,
         )
         raise
 
@@ -637,19 +644,15 @@ def sync_all_user_calendars():
                     user=agent,
                     time_min=today_start,
                     time_max=today_end,
-                    session=None  # Background task - no session
+                    session=None,  # Background task - no session
                 )
 
-                if results.get('errors'):
-                    errors.extend([f"{agent.username}: {err}" for err in results['errors']])
+                if results.get("errors"):
+                    errors.extend([f"{agent.username}: {err}" for err in results["errors"]])
 
                 synced_count += 1
 
-                log_activity(
-                    user=agent,
-                    action="Calendar sync completed",
-                    details=results
-                )
+                log_activity(user=agent, action="Calendar sync completed", details=results)
 
             except Exception as e:
                 error_msg = f"Error syncing calendar for {agent.username}: {str(e)}"
@@ -658,23 +661,18 @@ def sync_all_user_calendars():
                 log_activity(
                     user=agent,
                     action="Calendar sync failed",
-                    details={'error': str(e)},
-                    level=LogLevel.ERROR
+                    details={"error": str(e)},
+                    level=LogLevel.ERROR,
                 )
 
         logger.info(f"Calendar sync completed: {synced_count} agents synced, {len(errors)} errors")
 
-        return {
-            'synced_count': synced_count,
-            'errors': errors
-        }
+        return {"synced_count": synced_count, "errors": errors}
 
     except Exception as e:
         logger.error(f"Error in sync_all_user_calendars: {e}", exc_info=True)
         log_activity(
-            action="Calendar sync task failed",
-            details={'error': str(e)},
-            level=LogLevel.ERROR
+            action="Calendar sync task failed", details={"error": str(e)}, level=LogLevel.ERROR
         )
         raise
 
@@ -701,7 +699,7 @@ def sync_pending_calls():
         pending_calls = CallAttempt.objects.filter(
             status__in=[CallStatus.INITIATED, CallStatus.IN_PROGRESS, CallStatus.SCHEDULED],
             external_call_id__isnull=False,
-            executed_at__lt=cutoff_time
+            executed_at__lt=cutoff_time,
         )
 
         synced_count = 0
@@ -712,19 +710,16 @@ def sync_pending_calls():
             except Exception as e:
                 logger.error(f"Error syncing call {call_attempt.id}: {e}", exc_info=True)
 
-        logger.info(f"Pending calls sync completed: {synced_count} calls synced out of {pending_calls.count()}")
+        logger.info(
+            f"Pending calls sync completed: {synced_count} calls synced out of {pending_calls.count()}"
+        )
 
-        return {
-            'synced_count': synced_count,
-            'total_pending': pending_calls.count()
-        }
+        return {"synced_count": synced_count, "total_pending": pending_calls.count()}
 
     except Exception as e:
         logger.error(f"Error in sync_pending_calls: {e}", exc_info=True)
         log_activity(
-            action="Pending calls sync task failed",
-            details={'error': str(e)},
-            level=LogLevel.ERROR
+            action="Pending calls sync task failed", details={"error": str(e)}, level=LogLevel.ERROR
         )
         raise
 
@@ -732,6 +727,7 @@ def sync_pending_calls():
 # ============================================================================
 # New Visit-based tasks
 # ============================================================================
+
 
 def sync_all_clients_task():
     """
@@ -752,7 +748,7 @@ def sync_all_clients_task():
         logger.error(f"Error in sync_all_clients_task: {e}", exc_info=True)
         log_activity(
             action="Client sync task failed",
-            details={'error': str(e)},
+            details={"error": str(e)},
             level=LogLevel.ERROR,
         )
         raise
@@ -778,7 +774,7 @@ def detect_visits_task():
         logger.error(f"Error in detect_visits_task: {e}", exc_info=True)
         log_activity(
             action="Visit detection task failed",
-            details={'error': str(e)},
+            details={"error": str(e)},
             level=LogLevel.ERROR,
         )
         raise
@@ -809,13 +805,21 @@ def process_visit_pre_calls():
             try:
                 # Skip if agent has no phone
                 if not visit.agent.phone_number:
-                    logger.warning(f"Agent {visit.agent.username} has no phone, skipping visit {visit.id}")
+                    logger.warning(
+                        f"Agent {visit.agent.username} has no phone, skipping visit {visit.id}"
+                    )
                     continue
 
                 # Skip if already has a scheduled/active pre-call
                 existing = CallAttempt.objects.filter(
-                    visit=visit, phase=CallPhase.PRE_MEETING,
-                    status__in=[CallStatus.SCHEDULED, CallStatus.INITIATED, CallStatus.IN_PROGRESS, CallStatus.COMPLETED],
+                    visit=visit,
+                    phase=CallPhase.PRE_MEETING,
+                    status__in=[
+                        CallStatus.SCHEDULED,
+                        CallStatus.INITIATED,
+                        CallStatus.IN_PROGRESS,
+                        CallStatus.COMPLETED,
+                    ],
                 ).exists()
                 if existing:
                     continue
@@ -843,24 +847,26 @@ def process_visit_pre_calls():
                 result = trigger_agent_call(
                     agent_phone=visit.agent.phone_number,
                     prompt_text=prompt,
-                    context_data={'visit_id': visit.id, 'client': visit.client.name},
+                    context_data={"visit_id": visit.id, "client": visit.client.name},
                     call_attempt=call,
                     first_message_text=None,
                 )
 
-                if result.get('success'):
+                if result.get("success"):
                     visit.status = VisitStatus.PRE_CALL_DONE
-                    visit.save(update_fields=['status', 'updated_at'])
+                    visit.save(update_fields=["status", "updated_at"])
                     triggered += 1
                 else:
-                    logger.error(f"Pre-call trigger failed for visit {visit.id}: {result.get('error')}")
+                    logger.error(
+                        f"Pre-call trigger failed for visit {visit.id}: {result.get('error')}"
+                    )
 
             except Exception as e:
                 logger.error(f"Error processing pre-call for visit {visit.id}: {e}", exc_info=True)
 
         if triggered:
             logger.info(f"Visit pre-calls: {triggered} triggered")
-        return {'triggered': triggered}
+        return {"triggered": triggered}
 
     except Exception as e:
         logger.error(f"Error in process_visit_pre_calls: {e}", exc_info=True)
@@ -893,8 +899,14 @@ def process_visit_post_calls():
 
                 # Skip if already has a scheduled/active post-call
                 existing = CallAttempt.objects.filter(
-                    visit=visit, phase=CallPhase.POST_MEETING,
-                    status__in=[CallStatus.SCHEDULED, CallStatus.INITIATED, CallStatus.IN_PROGRESS, CallStatus.COMPLETED],
+                    visit=visit,
+                    phase=CallPhase.POST_MEETING,
+                    status__in=[
+                        CallStatus.SCHEDULED,
+                        CallStatus.INITIATED,
+                        CallStatus.IN_PROGRESS,
+                        CallStatus.COMPLETED,
+                    ],
                 ).exists()
                 if existing:
                     continue
@@ -916,24 +928,26 @@ def process_visit_post_calls():
                 result = trigger_agent_call(
                     agent_phone=visit.agent.phone_number,
                     prompt_text=prompt,
-                    context_data={'visit_id': visit.id, 'client': visit.client.name},
+                    context_data={"visit_id": visit.id, "client": visit.client.name},
                     call_attempt=call,
                     first_message_text=None,
                 )
 
-                if result.get('success'):
+                if result.get("success"):
                     visit.status = VisitStatus.POST_CALL_DONE
-                    visit.save(update_fields=['status', 'updated_at'])
+                    visit.save(update_fields=["status", "updated_at"])
                     triggered += 1
                 else:
-                    logger.error(f"Post-call trigger failed for visit {visit.id}: {result.get('error')}")
+                    logger.error(
+                        f"Post-call trigger failed for visit {visit.id}: {result.get('error')}"
+                    )
 
             except Exception as e:
                 logger.error(f"Error processing post-call for visit {visit.id}: {e}", exc_info=True)
 
         if triggered:
             logger.info(f"Visit post-calls: {triggered} triggered")
-        return {'triggered': triggered}
+        return {"triggered": triggered}
 
     except Exception as e:
         logger.error(f"Error in process_visit_post_calls: {e}", exc_info=True)
@@ -955,7 +969,7 @@ def process_visit_post_call_completion(call_attempt_id: int):
     from .services.llm import summarize_call_transcript
 
     try:
-        call = CallAttempt.objects.select_related('visit', 'visit__client').get(id=call_attempt_id)
+        call = CallAttempt.objects.select_related("visit", "visit__client").get(id=call_attempt_id)
         visit = call.visit
         if not visit:
             return
@@ -967,7 +981,7 @@ def process_visit_post_call_completion(call_attempt_id: int):
             if summary:
                 visit.post_call_summary = summary
                 call.summary = summary
-                call.save(update_fields=['summary', 'updated_at'])
+                call.save(update_fields=["summary", "updated_at"])
 
         # Push to CRM
         if visit.crm_deal_id and (visit.post_call_summary or call.transcript):
@@ -976,23 +990,23 @@ def process_visit_post_call_completion(call_attempt_id: int):
                 note_text = visit.post_call_summary or call.transcript
                 subject = f"Post-Meeting Debrief: {visit.title} ({visit.client.name})"
                 result = crm.post_note_to_deal(visit.crm_deal_id, note_text, subject)
-                if result.get('success'):
+                if result.get("success"):
                     visit.crm_synced = True
                     log_activity(
                         user=visit.agent,
                         action=f"Post-call summary synced to CRM deal {visit.crm_deal_id}",
-                        details={'visit_id': visit.id, 'note_id': result.get('note_id')},
+                        details={"visit_id": visit.id, "note_id": result.get("note_id")},
                     )
                 else:
                     log_activity(
                         user=visit.agent,
                         action=f"CRM sync failed for visit {visit.id}",
-                        details={'error': result.get('error')},
+                        details={"error": result.get("error")},
                         level=LogLevel.ERROR,
                     )
 
         visit.status = VisitStatus.COMPLETE
-        visit.save(update_fields=['post_call_summary', 'crm_synced', 'status', 'updated_at'])
+        visit.save(update_fields=["post_call_summary", "crm_synced", "status", "updated_at"])
 
     except CallAttempt.DoesNotExist:
         logger.error(f"CallAttempt {call_attempt_id} not found for post-call completion")

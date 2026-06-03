@@ -4,15 +4,18 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('voice', '0006_callattempt_scheduled_time'),
+        ("voice", "0006_callattempt_scheduled_time"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='callattempt',
-            name='scheduled_time',
-            field=models.DateTimeField(blank=True, help_text='Calculated time when this call should be executed (meeting.start_time + offset for PRE, meeting.end_time + offset for POST)', null=True),
+            model_name="callattempt",
+            name="scheduled_time",
+            field=models.DateTimeField(
+                blank=True,
+                help_text="Calculated time when this call should be executed (meeting.start_time + offset for PRE, meeting.end_time + offset for POST)",
+                null=True,
+            ),
         ),
     ]

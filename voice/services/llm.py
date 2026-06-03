@@ -7,6 +7,7 @@ Handles all LLM calls for:
 - Post-call transcript summarization
 - Client profile AI summary generation
 """
+
 import logging
 
 from decouple import config
@@ -25,22 +26,23 @@ def _resolve_anthropic_key() -> str:
     the webhook silently in production-like setups. As a fallback, when
     decouple yields an empty value, we read .env directly.
     """
-    key = config('ANTHROPIC_API_KEY', default='') or ''
+    key = config("ANTHROPIC_API_KEY", default="") or ""
     if key.strip():
         return key.strip()
     try:
         import os
 
         from decouple import RepositoryEnv
-        env_path = os.path.join(os.getcwd(), '.env')
+
+        env_path = os.path.join(os.getcwd(), ".env")
         if os.path.exists(env_path):
             data = RepositoryEnv(env_path).data
-            fallback = (data.get('ANTHROPIC_API_KEY') or '').strip()
+            fallback = (data.get("ANTHROPIC_API_KEY") or "").strip()
             if fallback:
                 return fallback
     except Exception as e:
         logger.warning(f"Could not read ANTHROPIC_API_KEY from .env file: {e}")
-    return ''
+    return ""
 
 
 def _get_client():
@@ -48,6 +50,7 @@ def _get_client():
     global _client
     if _client is None:
         import anthropic
+
         api_key = _resolve_anthropic_key()
         if not api_key:
             raise ValueError("ANTHROPIC_API_KEY not configured in .env")
@@ -75,7 +78,7 @@ def _call_claude(system_prompt: str, user_message: str, max_tokens: int = 4096) 
     try:
         client = _get_client()
         response = client.messages.create(
-            model=config('LLM_MODEL', default='claude-sonnet-4-20250514'),
+            model=config("LLM_MODEL", default="claude-sonnet-4-20250514"),
             max_tokens=max_tokens,
             system=system_prompt,
             messages=[{"role": "user", "content": user_message}],
@@ -126,7 +129,7 @@ def generate_voice_prompt(meta_prompt: str, context: str) -> str | None:
     return _call_claude(meta_prompt, context, max_tokens=2048)
 
 
-def summarize_call_transcript(transcript: str, visit_context: str = '') -> str | None:
+def summarize_call_transcript(transcript: str, visit_context: str = "") -> str | None:
     """
     Summarize a post-call transcript into a structured note for CRM.
 
@@ -152,9 +155,9 @@ def summarize_call_transcript(transcript: str, visit_context: str = '') -> str |
 
 def summarize_call_transcript_ro(
     transcript: str,
-    phase: str = 'pre',
-    visit_context: str = '',
-    original_prompt: str = '',
+    phase: str = "pre",
+    visit_context: str = "",
+    original_prompt: str = "",
 ) -> str | None:
     """
     Summarize a call transcript in Romanian, suitable for the Visit Detail panel.
@@ -172,7 +175,7 @@ def summarize_call_transcript_ro(
     Returns:
         2-4 sentence Romanian summary string, or None on failure.
     """
-    if phase == 'post':
+    if phase == "post":
         phase_word = "apelului de debrief (după întâlnire)"
         guidance = (
             "Cum a decurs întâlnirea, ce intel nou avem despre client, dacă obiectivul a fost "
@@ -226,6 +229,7 @@ def generate_client_summary(client_data: dict) -> str | None:
         "Be concise — this will be used as context in a voice coaching call."
     )
     import json
+
     user_msg = json.dumps(client_data, indent=2, default=str)
     return _call_claude(system, user_msg, max_tokens=1024)
 
@@ -248,14 +252,14 @@ def extract_pdf_text(file_path: str) -> str:
             page_text = page.extract_text()
             if page_text:
                 text_parts.append(page_text)
-    return '\n\n'.join(text_parts)
+    return "\n\n".join(text_parts)
 
 
 def analyze_post_call(
     transcript: str,
-    post_call_prompt: str = '',
-    visit_context: str = '',
-    pre_call_summary: str = '',
+    post_call_prompt: str = "",
+    visit_context: str = "",
+    pre_call_summary: str = "",
 ) -> dict | None:
     """
     Analyze a post-call transcript and return structured fields for CRM/Visit Detail.
@@ -274,7 +278,7 @@ def analyze_post_call(
     """
     import json
 
-    schema = '''
+    schema = """
 {
   "summary": "<3-5 fraze în română, ton de notă CRM curată: ce s-a întâmplat, ce s-a aflat, ce urmează. Fără jargon corporate.>",
   "objective_attained": "attained" | "partial" | "missed",
@@ -310,7 +314,7 @@ def analyze_post_call(
     ]
   }
 }
-'''.strip()
+""".strip()
 
     system = (
         "Ești un analist senior de vânzări B2B în România. Vei citi transcriptul unui apel "
@@ -363,7 +367,9 @@ def analyze_post_call(
             f"## Sumar pre-call (folosește pentru consistency_check)\n{pre_call_summary.strip()}"
         )
     if post_call_prompt:
-        parts.append(f"## Promptul folosit de Florina în debrief (ce voia agentul să afle)\n{post_call_prompt}")
+        parts.append(
+            f"## Promptul folosit de Florina în debrief (ce voia agentul să afle)\n{post_call_prompt}"
+        )
     parts.append(f"## Transcript apel\n{transcript}")
     user_msg = "\n\n".join(parts)
 
@@ -418,7 +424,7 @@ def chat_with_data(messages: list, data_context: str) -> str | None:
     try:
         client = _get_client()
         response = client.messages.create(
-            model=config('LLM_MODEL', default='claude-sonnet-4-20250514'),
+            model=config("LLM_MODEL", default="claude-sonnet-4-20250514"),
             max_tokens=2048,
             system=system_prompt,
             messages=messages,

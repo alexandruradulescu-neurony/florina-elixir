@@ -1,4 +1,5 @@
 """Seed synthetic data for today's visits and call attempts."""
+
 import random
 from datetime import timedelta
 
@@ -62,13 +63,11 @@ Client: Oh yes, we're looking forward to it. Just finalizing our questions on pr
 Agent: Perfect. I wanted to walk you through a few key points our team will cover so you get the most value. The main focus today will be on your expansion needs and how our enterprise tier addresses those.
 Client: Sounds good. We've been talking internally and the budget is approved if the features check out.
 Agent: Excellent. We'll make sure to cover the feature roadmap in detail. See you in a bit.""",
-
     """Agent: Good morning! Quick prep call before your demo today.
 Client: Yes, hi. We've got three engineers on the call so please go technical.
 Agent: Absolutely. We'll be showing the API sandbox live. Do you have any specific integration scenarios you want us to walk through?
 Client: We use Salesforce and need real-time webhooks. That's our main concern.
 Agent: Perfect, we'll lead with that. Our Salesforce connector is native — no middleware needed. See you shortly.""",
-
     """Agent: Hi there, calling ahead of your renewal discussion this afternoon.
 Client: Right, yes. I'll be honest — we're getting competitive quotes. You'll need to be sharp on pricing.
 Agent: I appreciate the candor. We've prepared a value analysis based on your actual usage data that I think will reframe the conversation.
@@ -82,13 +81,11 @@ Client: It went well. We're definitely moving forward. Just need the contract to
 Agent: Understood. I'll have it to you by tomorrow. Is there anything from today's discussion I should clarify in writing?
 Client: The SLA terms — make sure the 99.9% uptime is explicit.
 Agent: Already in the draft. I'll flag it. Expect the doc by noon tomorrow.""",
-
     """Agent: Post-meeting check-in. How did your team feel about the demo?
 Client: Very positive. The CTO wants the sandbox access ASAP.
 Agent: I'm setting that up now — you'll have credentials within the hour. The GDPR concern your team raised — I'm looping in our compliance team.
 Client: Good. That's the blocker. Once that's cleared, we can talk timeline.
 Agent: Understood. I'll have a written response from compliance by end of week.""",
-
     """Agent: Just wrapping up our renewal call. Wanted to confirm the terms we agreed.
 Client: Yes — two years at the discounted rate, starting July 1st.
 Agent: Correct. $61k per year, 9% off list. I'll send the DocuSign today.
@@ -118,7 +115,9 @@ def make_visit(agent, client, template, start_hour, status, methodology, n):
         methodology=methodology,
         status=status,
         pre_call_prompt=template["pre_call_prompt"] if status != VisitStatus.PLANNED else None,
-        post_call_prompt=template["post_call_prompt"] if status in (VisitStatus.POST_CALL_DONE, VisitStatus.COMPLETE) else None,
+        post_call_prompt=template["post_call_prompt"]
+        if status in (VisitStatus.POST_CALL_DONE, VisitStatus.COMPLETE)
+        else None,
         post_call_summary=template["post_call_summary"] if status == VisitStatus.COMPLETE else None,
         crm_synced=status == VisitStatus.COMPLETE,
     )
@@ -134,8 +133,12 @@ def make_calls(visit, status):
 
     start_hour = visit.start_time.hour
 
-    if status in (VisitStatus.PRE_CALL_DONE, VisitStatus.IN_PROGRESS,
-                  VisitStatus.POST_CALL_DONE, VisitStatus.COMPLETE):
+    if status in (
+        VisitStatus.PRE_CALL_DONE,
+        VisitStatus.IN_PROGRESS,
+        VisitStatus.POST_CALL_DONE,
+        VisitStatus.COMPLETE,
+    ):
         transcript = random.choice(PRE_TRANSCRIPTS)  # nosec B311
         CallAttempt.objects.create(
             visit=visit,
@@ -180,15 +183,16 @@ class Command(BaseCommand):
     help = "Seed synthetic visits and call attempts for today"
 
     def add_arguments(self, parser):
-        parser.add_argument("--clear", action="store_true", help="Remove today's synthetic visits first")
+        parser.add_argument(
+            "--clear", action="store_true", help="Remove today's synthetic visits first"
+        )
 
     def handle(self, *args, **options):
         today = timezone.now().date()
 
         if options["clear"]:
             deleted, _ = Visit.objects.filter(
-                start_time__date=today,
-                calendar_event_id__startswith="synth-cal-"
+                start_time__date=today, calendar_event_id__startswith="synth-cal-"
             ).delete()
             self.stdout.write(f"Cleared {deleted} synthetic visits")
 
@@ -209,11 +213,16 @@ class Command(BaseCommand):
         # past (complete/post_call_done), present (in_progress/pre_call_done), future (planned)
         schedule = [
             # (hour, status)
-            (8,  VisitStatus.COMPLETE),
+            (8, VisitStatus.COMPLETE),
             (10, VisitStatus.POST_CALL_DONE),
             (11, VisitStatus.COMPLETE),
             (13, VisitStatus.PRE_CALL_DONE if now_hour >= 12 else VisitStatus.PLANNED),
-            (14, VisitStatus.IN_PROGRESS if now_hour == 14 else (VisitStatus.COMPLETE if now_hour > 14 else VisitStatus.PLANNED)),
+            (
+                14,
+                VisitStatus.IN_PROGRESS
+                if now_hour == 14
+                else (VisitStatus.COMPLETE if now_hour > 14 else VisitStatus.PLANNED),
+            ),
             (15, VisitStatus.PLANNED),
             (16, VisitStatus.PLANNED),
         ]
@@ -227,6 +236,8 @@ class Command(BaseCommand):
             visit = make_visit(agent, client, template, hour, status, methodology, i + 1)
             make_calls(visit, status)
             created += 1
-            self.stdout.write(f"  {visit.start_time.strftime('%H:%M')} {status:>20}  {agent.username:<10} → {client.name}")
+            self.stdout.write(
+                f"  {visit.start_time.strftime('%H:%M')} {status:>20}  {agent.username:<10} → {client.name}"
+            )
 
         self.stdout.write(self.style.SUCCESS(f"\nCreated {created} visits for {today}"))

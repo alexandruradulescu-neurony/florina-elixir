@@ -2,6 +2,7 @@
 Management command to debug transcript issues.
 Shows recent calls, transcript status, and webhook activity logs.
 """
+
 import json
 from datetime import timedelta
 
@@ -12,24 +13,17 @@ from voice.models import ActivityLog, CallAttempt
 
 
 class Command(BaseCommand):
-    help = 'Debug transcript issues by showing recent calls and webhook activity'
+    help = "Debug transcript issues by showing recent calls and webhook activity"
 
     def add_arguments(self, parser):
         parser.add_argument(
-            '--hours',
-            type=int,
-            default=24,
-            help='Number of hours to look back (default: 24)'
+            "--hours", type=int, default=24, help="Number of hours to look back (default: 24)"
         )
-        parser.add_argument(
-            '--call-id',
-            type=str,
-            help='Specific call attempt ID to debug'
-        )
+        parser.add_argument("--call-id", type=str, help="Specific call attempt ID to debug")
 
     def handle(self, *args, **options):
-        hours = options['hours']
-        call_id = options.get('call_id')
+        hours = options["hours"]
+        call_id = options.get("call_id")
 
         self.stdout.write("=" * 80)
         self.stdout.write("Transcript Debugging Report")
@@ -47,9 +41,9 @@ class Command(BaseCommand):
         else:
             # Show recent completed calls
             time_threshold = timezone.now() - timedelta(hours=hours)
-            recent_calls = CallAttempt.objects.filter(
-                created_at__gte=time_threshold
-            ).order_by('-created_at')[:20]
+            recent_calls = CallAttempt.objects.filter(created_at__gte=time_threshold).order_by(
+                "-created_at"
+            )[:20]
 
             self.stdout.write(f"Found {recent_calls.count()} calls in last {hours} hours:")
             self.stdout.write("")
@@ -67,9 +61,8 @@ class Command(BaseCommand):
             self.stdout.write("")
 
             webhook_logs = ActivityLog.objects.filter(
-                action__icontains='call completed',
-                timestamp__gte=time_threshold
-            ).order_by('-timestamp')[:10]
+                action__icontains="call completed", timestamp__gte=time_threshold
+            ).order_by("-timestamp")[:10]
 
             for log in webhook_logs:
                 self._debug_activity_log(log, options)
@@ -93,7 +86,9 @@ class Command(BaseCommand):
         self.stdout.write(f"Transcript length: {transcript_length} chars")
 
         if call.transcript:
-            preview = call.transcript[:200] + "..." if len(call.transcript) > 200 else call.transcript
+            preview = (
+                call.transcript[:200] + "..." if len(call.transcript) > 200 else call.transcript
+            )
             self.stdout.write(f"Transcript preview: {preview}")
         else:
             self.stdout.write(self.style.WARNING("Transcript: [EMPTY]"))
@@ -103,9 +98,8 @@ class Command(BaseCommand):
 
         # Check for related activity logs
         related_logs = ActivityLog.objects.filter(
-            meeting=call.meeting,
-            action__icontains='call'
-        ).order_by('-timestamp')[:3]
+            meeting=call.meeting, action__icontains="call"
+        ).order_by("-timestamp")[:3]
 
         if related_logs:
             self.stdout.write(f"Related activity logs: {related_logs.count()}")
@@ -123,47 +117,59 @@ class Command(BaseCommand):
             self.stdout.write("Details:")
 
             # Show key fields
-            if 'call_id' in details:
+            if "call_id" in details:
                 self.stdout.write(f"  - call_id: {details['call_id']}")
-            if 'has_transcript' in details:
+            if "has_transcript" in details:
                 self.stdout.write(f"  - has_transcript: {details['has_transcript']}")
-            if 'transcript_length' in details:
+            if "transcript_length" in details:
                 self.stdout.write(f"  - transcript_length: {details['transcript_length']}")
-            if 'webhook_type' in details:
+            if "webhook_type" in details:
                 self.stdout.write(f"  - webhook_type: {details['webhook_type']}")
 
             # Show raw payload if available
-            if 'raw_payload' in details:
-                payload = details['raw_payload']
+            if "raw_payload" in details:
+                payload = details["raw_payload"]
                 self.stdout.write("  - raw_payload available: Yes")
                 self.stdout.write(f"  - raw_payload type: {type(payload).__name__}")
                 if isinstance(payload, dict):
                     self.stdout.write(f"  - raw_payload keys: {list(payload.keys())}")
                     # Show transcript data structure if present
-                    data = payload.get('data', {})
+                    data = payload.get("data", {})
                     if isinstance(data, dict):
-                        transcript_data = data.get('transcript')
+                        transcript_data = data.get("transcript")
                         if transcript_data:
-                            self.stdout.write(f"  - transcript_data type: {type(transcript_data).__name__}")
+                            self.stdout.write(
+                                f"  - transcript_data type: {type(transcript_data).__name__}"
+                            )
                             if isinstance(transcript_data, dict):
-                                self.stdout.write(f"  - transcript_data keys: {list(transcript_data.keys())}")
-                                turns = transcript_data.get('turns', [])
+                                self.stdout.write(
+                                    f"  - transcript_data keys: {list(transcript_data.keys())}"
+                                )
+                                turns = transcript_data.get("turns", [])
                                 if turns:
-                                    self.stdout.write(f"  - transcript_data.turns: {len(turns)} turns")
+                                    self.stdout.write(
+                                        f"  - transcript_data.turns: {len(turns)} turns"
+                                    )
                                     # Show first turn structure
                                     if turns and isinstance(turns[0], dict):
-                                        self.stdout.write(f"  - first turn keys: {list(turns[0].keys())}")
+                                        self.stdout.write(
+                                            f"  - first turn keys: {list(turns[0].keys())}"
+                                        )
                             elif isinstance(transcript_data, list):
-                                self.stdout.write(f"  - transcript_data is a LIST with {len(transcript_data)} items")
+                                self.stdout.write(
+                                    f"  - transcript_data is a LIST with {len(transcript_data)} items"
+                                )
                                 if transcript_data and isinstance(transcript_data[0], dict):
-                                    self.stdout.write(f"  - first item keys: {list(transcript_data[0].keys())}")
+                                    self.stdout.write(
+                                        f"  - first item keys: {list(transcript_data[0].keys())}"
+                                    )
                                 # Show first few items
                                 for idx, item in enumerate(transcript_data[:3]):
                                     if isinstance(item, dict):
                                         self.stdout.write(f"  - item {idx}: {list(item.keys())}")
 
             # Show full details as JSON if verbose
-            verbosity = options.get('verbosity', 1) if options else 1
+            verbosity = options.get("verbosity", 1) if options else 1
             if verbosity >= 2:
                 self.stdout.write(f"  - Full details: {json.dumps(details, indent=2, default=str)}")
         else:

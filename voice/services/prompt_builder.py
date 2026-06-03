@@ -9,6 +9,7 @@ Two-step architecture:
   2. Send meta-prompt + context to Claude → get voice prompt
   3. Voice prompt is injected into ElevenLabs call
 """
+
 import logging
 
 from voice.constants import LogLevel
@@ -68,11 +69,15 @@ def _assemble_pre_call_context(visit: Visit) -> str:
         recent = client.interaction_history[:5]  # Last 5 interactions
         parts.append("\n### Recent Interactions")
         for interaction in recent:
-            parts.append(f"- [{interaction.get('type', 'note')}] {interaction.get('date', '')}: {interaction.get('content', '')[:200]}")
+            parts.append(
+                f"- [{interaction.get('type', 'note')}] {interaction.get('date', '')}: {interaction.get('content', '')[:200]}"
+            )
     if client.deal_history:
         parts.append("\n### Active Deals")
         for deal in client.deal_history[:3]:
-            parts.append(f"- {deal.get('title', 'Untitled')} (status: {deal.get('status', 'unknown')})")
+            parts.append(
+                f"- {deal.get('title', 'Untitled')} (status: {deal.get('status', 'unknown')})"
+            )
 
     # Methodology
     methodology = visit.get_effective_methodology()
@@ -94,7 +99,7 @@ def _assemble_pre_call_context(visit: Visit) -> str:
     if visit.manager_notes:
         parts.append(f"\n## Manager Notes\n{visit.manager_notes}")
 
-    return '\n'.join(parts)
+    return "\n".join(parts)
 
 
 def _assemble_post_call_context(visit: Visit) -> str:
@@ -118,7 +123,7 @@ def _assemble_post_call_context(visit: Visit) -> str:
     if visit.manager_notes:
         parts.append(f"\n## Manager Notes\n{visit.manager_notes}")
 
-    return '\n'.join(parts)
+    return "\n".join(parts)
 
 
 def generate_pre_call_prompt(visit: Visit) -> str | None:
@@ -145,17 +150,17 @@ def generate_pre_call_prompt(visit: Visit) -> str | None:
     prompt = generate_voice_prompt(meta_prompt, context)
     if prompt:
         visit.pre_call_prompt = prompt
-        visit.save(update_fields=['pre_call_prompt', 'updated_at'])
+        visit.save(update_fields=["pre_call_prompt", "updated_at"])
         log_activity(
             user=visit.agent,
             action=f"Pre-call prompt generated for visit: {visit.title}",
-            details={'visit_id': visit.id, 'prompt_length': len(prompt)},
+            details={"visit_id": visit.id, "prompt_length": len(prompt)},
         )
     else:
         log_activity(
             user=visit.agent,
             action=f"Pre-call prompt generation failed for visit: {visit.title}",
-            details={'visit_id': visit.id},
+            details={"visit_id": visit.id},
             level=LogLevel.ERROR,
         )
 
@@ -180,17 +185,17 @@ def generate_post_call_prompt(visit: Visit) -> str | None:
     prompt = generate_voice_prompt(meta_prompt, context)
     if prompt:
         visit.post_call_prompt = prompt
-        visit.save(update_fields=['post_call_prompt', 'updated_at'])
+        visit.save(update_fields=["post_call_prompt", "updated_at"])
         log_activity(
             user=visit.agent,
             action=f"Post-call prompt generated for visit: {visit.title}",
-            details={'visit_id': visit.id, 'prompt_length': len(prompt)},
+            details={"visit_id": visit.id, "prompt_length": len(prompt)},
         )
     else:
         log_activity(
             user=visit.agent,
             action=f"Post-call prompt generation failed for visit: {visit.title}",
-            details={'visit_id': visit.id},
+            details={"visit_id": visit.id},
             level=LogLevel.ERROR,
         )
 

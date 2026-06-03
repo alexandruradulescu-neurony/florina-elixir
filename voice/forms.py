@@ -1,6 +1,7 @@
 """
 Forms for the voice app.
 """
+
 from django import forms
 from django.contrib.auth.password_validation import validate_password
 
@@ -12,71 +13,96 @@ class AgentCreateForm(forms.ModelForm):
     """Form for creating a new sales agent."""
 
     password1 = forms.CharField(
-        label='Password',
-        widget=forms.PasswordInput(attrs={
-            'class': 'input input-bordered w-full',
-            'placeholder': 'Enter password',
-        }),
+        label="Password",
+        widget=forms.PasswordInput(
+            attrs={
+                "class": "input input-bordered w-full",
+                "placeholder": "Enter password",
+            }
+        ),
     )
     password2 = forms.CharField(
-        label='Confirm Password',
-        widget=forms.PasswordInput(attrs={
-            'class': 'input input-bordered w-full',
-            'placeholder': 'Confirm password',
-        }),
+        label="Confirm Password",
+        widget=forms.PasswordInput(
+            attrs={
+                "class": "input input-bordered w-full",
+                "placeholder": "Confirm password",
+            }
+        ),
     )
 
     class Meta:
         model = User
-        fields = ['username', 'first_name', 'last_name', 'email', 'phone_number', 'pipedrive_user_id']
+        fields = [
+            "username",
+            "first_name",
+            "last_name",
+            "email",
+            "phone_number",
+            "pipedrive_user_id",
+        ]
         widgets = {
-            'username': forms.TextInput(attrs={
-                'class': 'input input-bordered w-full',
-                'placeholder': 'e.g. jdoe',
-            }),
-            'first_name': forms.TextInput(attrs={
-                'class': 'input input-bordered w-full',
-                'placeholder': 'First name',
-            }),
-            'last_name': forms.TextInput(attrs={
-                'class': 'input input-bordered w-full',
-                'placeholder': 'Last name',
-            }),
-            'email': forms.EmailInput(attrs={
-                'class': 'input input-bordered w-full',
-                'placeholder': 'agent@company.com',
-            }),
-            'phone_number': forms.TextInput(attrs={
-                'class': 'input input-bordered w-full',
-                'placeholder': '+1234567890',
-            }),
-            'pipedrive_user_id': forms.NumberInput(attrs={
-                'class': 'input input-bordered w-full',
-                'placeholder': 'Pipedrive User ID',
-            }),
+            "username": forms.TextInput(
+                attrs={
+                    "class": "input input-bordered w-full",
+                    "placeholder": "e.g. jdoe",
+                }
+            ),
+            "first_name": forms.TextInput(
+                attrs={
+                    "class": "input input-bordered w-full",
+                    "placeholder": "First name",
+                }
+            ),
+            "last_name": forms.TextInput(
+                attrs={
+                    "class": "input input-bordered w-full",
+                    "placeholder": "Last name",
+                }
+            ),
+            "email": forms.EmailInput(
+                attrs={
+                    "class": "input input-bordered w-full",
+                    "placeholder": "agent@company.com",
+                }
+            ),
+            "phone_number": forms.TextInput(
+                attrs={
+                    "class": "input input-bordered w-full",
+                    "placeholder": "+1234567890",
+                }
+            ),
+            "pipedrive_user_id": forms.NumberInput(
+                attrs={
+                    "class": "input input-bordered w-full",
+                    "placeholder": "Pipedrive User ID",
+                }
+            ),
         }
 
     def clean_phone_number(self):
-        phone = self.cleaned_data.get('phone_number')
+        phone = self.cleaned_data.get("phone_number")
         if phone:
             formatted = format_phone_number(phone)
             if not formatted:
-                raise forms.ValidationError('Invalid phone number. Use E.164 format (e.g. +1234567890).')
+                raise forms.ValidationError(
+                    "Invalid phone number. Use E.164 format (e.g. +1234567890)."
+                )
             return formatted
         return phone
 
     def clean_password2(self):
-        password1 = self.cleaned_data.get('password1')
-        password2 = self.cleaned_data.get('password2')
+        password1 = self.cleaned_data.get("password1")
+        password2 = self.cleaned_data.get("password2")
         if password1 and password2 and password1 != password2:
-            raise forms.ValidationError('Passwords do not match.')
+            raise forms.ValidationError("Passwords do not match.")
         if password1:
             validate_password(password1)
         return password2
 
     def save(self, commit=True):
         user = super().save(commit=False)
-        user.set_password(self.cleaned_data['password1'])
+        user.set_password(self.cleaned_data["password1"])
         user.is_sales_agent = True
         if commit:
             user.save()
@@ -88,24 +114,32 @@ class MethodologyForm(forms.ModelForm):
 
     class Meta:
         model = Methodology
-        fields = ['name', 'description', 'source_material', 'ai_summary', 'is_active']
+        fields = ["name", "description", "source_material", "ai_summary", "is_active"]
         widgets = {
-            'name': forms.TextInput(attrs={
-                'class': 'input input-bordered w-full',
-                'placeholder': 'e.g. SPIN Selling',
-            }),
-            'description': forms.Textarea(attrs={
-                'class': 'textarea textarea-bordered w-full h-24',
-                'placeholder': 'Brief description of the methodology...',
-            }),
-            'ai_summary': forms.Textarea(attrs={
-                'class': 'textarea textarea-bordered w-full h-64',
-                'placeholder': 'AI-generated summary will appear here after PDF processing. You can edit it.',
-            }),
-            'source_material': forms.ClearableFileInput(attrs={
-                'class': 'file-input file-input-bordered w-full',
-                'accept': '.pdf',
-            }),
+            "name": forms.TextInput(
+                attrs={
+                    "class": "input input-bordered w-full",
+                    "placeholder": "e.g. SPIN Selling",
+                }
+            ),
+            "description": forms.Textarea(
+                attrs={
+                    "class": "textarea textarea-bordered w-full h-24",
+                    "placeholder": "Brief description of the methodology...",
+                }
+            ),
+            "ai_summary": forms.Textarea(
+                attrs={
+                    "class": "textarea textarea-bordered w-full h-64",
+                    "placeholder": "AI-generated summary will appear here after PDF processing. You can edit it.",
+                }
+            ),
+            "source_material": forms.ClearableFileInput(
+                attrs={
+                    "class": "file-input file-input-bordered w-full",
+                    "accept": ".pdf",
+                }
+            ),
         }
 
 
@@ -115,32 +149,46 @@ class GlobalSettingsForm(forms.ModelForm):
     class Meta:
         model = GlobalSettings
         fields = [
-            'pre_call_offset_minutes', 'post_call_offset_minutes',
-            'retry_interval_minutes',
-            'pre_call_meta_prompt', 'post_call_meta_prompt',
-            'default_methodology',
+            "pre_call_offset_minutes",
+            "post_call_offset_minutes",
+            "retry_interval_minutes",
+            "pre_call_meta_prompt",
+            "post_call_meta_prompt",
+            "default_methodology",
         ]
         widgets = {
-            'pre_call_offset_minutes': forms.NumberInput(attrs={
-                'class': 'input input-bordered w-full',
-            }),
-            'post_call_offset_minutes': forms.NumberInput(attrs={
-                'class': 'input input-bordered w-full',
-            }),
-            'retry_interval_minutes': forms.NumberInput(attrs={
-                'class': 'input input-bordered w-full',
-            }),
-            'pre_call_meta_prompt': forms.Textarea(attrs={
-                'class': 'textarea textarea-bordered w-full h-48',
-                'placeholder': 'Meta-prompt for generating pre-call voice prompts...',
-            }),
-            'post_call_meta_prompt': forms.Textarea(attrs={
-                'class': 'textarea textarea-bordered w-full h-48',
-                'placeholder': 'Meta-prompt for generating post-call voice prompts...',
-            }),
-            'default_methodology': forms.Select(attrs={
-                'class': 'select select-bordered w-full',
-            }),
+            "pre_call_offset_minutes": forms.NumberInput(
+                attrs={
+                    "class": "input input-bordered w-full",
+                }
+            ),
+            "post_call_offset_minutes": forms.NumberInput(
+                attrs={
+                    "class": "input input-bordered w-full",
+                }
+            ),
+            "retry_interval_minutes": forms.NumberInput(
+                attrs={
+                    "class": "input input-bordered w-full",
+                }
+            ),
+            "pre_call_meta_prompt": forms.Textarea(
+                attrs={
+                    "class": "textarea textarea-bordered w-full h-48",
+                    "placeholder": "Meta-prompt for generating pre-call voice prompts...",
+                }
+            ),
+            "post_call_meta_prompt": forms.Textarea(
+                attrs={
+                    "class": "textarea textarea-bordered w-full h-48",
+                    "placeholder": "Meta-prompt for generating post-call voice prompts...",
+                }
+            ),
+            "default_methodology": forms.Select(
+                attrs={
+                    "class": "select select-bordered w-full",
+                }
+            ),
         }
 
 
@@ -158,59 +206,76 @@ class VisitManagerNotesForm(forms.ModelForm):
     # Three browser-native pickers, all populated from instance in __init__.
     visit_date = forms.DateField(
         required=False,
-        widget=forms.DateInput(attrs={'type': 'date'}),
+        widget=forms.DateInput(attrs={"type": "date"}),
     )
     visit_start_time = forms.TimeField(
         required=False,
-        widget=forms.TimeInput(attrs={'type': 'time', 'step': '60'}),
+        widget=forms.TimeInput(attrs={"type": "time", "step": "60"}),
     )
     visit_duration_minutes = forms.IntegerField(
         required=False,
         min_value=5,
         max_value=480,
-        widget=forms.NumberInput(attrs={'step': '5', 'min': '5', 'max': '480'}),
+        widget=forms.NumberInput(attrs={"step": "5", "min": "5", "max": "480"}),
     )
 
     class Meta:
         model = Visit
-        fields = ['manager_notes', 'methodology',
-                  'pre_call_prompt', 'pre_call_first_message',
-                  'post_call_prompt', 'post_call_first_message']
+        fields = [
+            "manager_notes",
+            "methodology",
+            "pre_call_prompt",
+            "pre_call_first_message",
+            "post_call_prompt",
+            "post_call_first_message",
+        ]
         widgets = {
-            'manager_notes': forms.Textarea(attrs={
-                'placeholder': 'Special requirements for this visit (e.g., "Push for Q3 close", "Ask about new CTO")...',
-            }),
-            'methodology': forms.Select(),
-            'pre_call_prompt': forms.Textarea(attrs={
-                'placeholder': 'Paste the pre-call AI prompt here. Sent verbatim to ElevenLabs.',
-                'style': 'min-height:180px;font-family:ui-monospace,Menlo,monospace;font-size:12px;line-height:1.5;',
-            }),
-            'pre_call_first_message': forms.Textarea(attrs={
-                'placeholder': 'Paste the first message the AI should say on the pre-call.',
-                'style': 'min-height:80px;font-family:ui-monospace,Menlo,monospace;font-size:12px;line-height:1.5;',
-            }),
-            'post_call_prompt': forms.Textarea(attrs={
-                'placeholder': 'Paste the post-call AI prompt here. Sent verbatim to ElevenLabs.',
-                'style': 'min-height:180px;font-family:ui-monospace,Menlo,monospace;font-size:12px;line-height:1.5;',
-            }),
-            'post_call_first_message': forms.Textarea(attrs={
-                'placeholder': 'Paste the first message the AI should say on the post-call.',
-                'style': 'min-height:80px;font-family:ui-monospace,Menlo,monospace;font-size:12px;line-height:1.5;',
-            }),
+            "manager_notes": forms.Textarea(
+                attrs={
+                    "placeholder": 'Special requirements for this visit (e.g., "Push for Q3 close", "Ask about new CTO")...',
+                }
+            ),
+            "methodology": forms.Select(),
+            "pre_call_prompt": forms.Textarea(
+                attrs={
+                    "placeholder": "Paste the pre-call AI prompt here. Sent verbatim to ElevenLabs.",
+                    "style": "min-height:180px;font-family:ui-monospace,Menlo,monospace;font-size:12px;line-height:1.5;",
+                }
+            ),
+            "pre_call_first_message": forms.Textarea(
+                attrs={
+                    "placeholder": "Paste the first message the AI should say on the pre-call.",
+                    "style": "min-height:80px;font-family:ui-monospace,Menlo,monospace;font-size:12px;line-height:1.5;",
+                }
+            ),
+            "post_call_prompt": forms.Textarea(
+                attrs={
+                    "placeholder": "Paste the post-call AI prompt here. Sent verbatim to ElevenLabs.",
+                    "style": "min-height:180px;font-family:ui-monospace,Menlo,monospace;font-size:12px;line-height:1.5;",
+                }
+            ),
+            "post_call_first_message": forms.Textarea(
+                attrs={
+                    "placeholder": "Paste the first message the AI should say on the post-call.",
+                    "style": "min-height:80px;font-family:ui-monospace,Menlo,monospace;font-size:12px;line-height:1.5;",
+                }
+            ),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # Populate the three schedule pickers from the instance.
-        instance = kwargs.get('instance') or self.instance
+        instance = kwargs.get("instance") or self.instance
         if instance and instance.pk and instance.start_time:
-            self.fields['visit_date'].initial = instance.start_time.date()
-            self.fields['visit_start_time'].initial = instance.start_time.time().replace(microsecond=0, second=0)
+            self.fields["visit_date"].initial = instance.start_time.date()
+            self.fields["visit_start_time"].initial = instance.start_time.time().replace(
+                microsecond=0, second=0
+            )
             if instance.end_time:
                 delta = instance.end_time - instance.start_time
                 minutes = int(delta.total_seconds() // 60)
                 if minutes > 0:
-                    self.fields['visit_duration_minutes'].initial = minutes
+                    self.fields["visit_duration_minutes"].initial = minutes
 
     def save(self, commit=True):
         from datetime import datetime as _dt
@@ -220,9 +285,9 @@ class VisitManagerNotesForm(forms.ModelForm):
 
         instance = super().save(commit=False)
 
-        d = self.cleaned_data.get('visit_date')
-        t = self.cleaned_data.get('visit_start_time')
-        dur = self.cleaned_data.get('visit_duration_minutes')
+        d = self.cleaned_data.get("visit_date")
+        t = self.cleaned_data.get("visit_start_time")
+        dur = self.cleaned_data.get("visit_duration_minutes")
 
         if d and t:
             naive = _dt.combine(d, t)
@@ -242,13 +307,15 @@ class ClientForm(forms.ModelForm):
 
     class Meta:
         model = Client
-        fields = ['name', 'crm_id', 'domain', 'industry', 'ai_summary']
+        fields = ["name", "crm_id", "domain", "industry", "ai_summary"]
         widgets = {
-            'name': forms.TextInput(attrs={'placeholder': 'Company name'}),
-            'crm_id': forms.TextInput(attrs={'placeholder': 'CRM organization ID'}),
-            'domain': forms.TextInput(attrs={'placeholder': 'e.g. acme.com'}),
-            'industry': forms.TextInput(attrs={'placeholder': 'e.g. Technology'}),
-            'ai_summary': forms.Textarea(attrs={'placeholder': 'Brief client summary...', 'rows': 6}),
+            "name": forms.TextInput(attrs={"placeholder": "Company name"}),
+            "crm_id": forms.TextInput(attrs={"placeholder": "CRM organization ID"}),
+            "domain": forms.TextInput(attrs={"placeholder": "e.g. acme.com"}),
+            "industry": forms.TextInput(attrs={"placeholder": "e.g. Technology"}),
+            "ai_summary": forms.Textarea(
+                attrs={"placeholder": "Brief client summary...", "rows": 6}
+            ),
         }
 
 
@@ -257,9 +324,11 @@ class AgentMethodologyForm(forms.ModelForm):
 
     class Meta:
         model = User
-        fields = ['default_methodology']
+        fields = ["default_methodology"]
         widgets = {
-            'default_methodology': forms.Select(attrs={
-                'class': 'select select-bordered w-full',
-            }),
+            "default_methodology": forms.Select(
+                attrs={
+                    "class": "select select-bordered w-full",
+                }
+            ),
         }
