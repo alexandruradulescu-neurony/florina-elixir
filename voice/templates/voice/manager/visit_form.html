@@ -1,0 +1,176 @@
+{% extends 'voice/base.html' %}
+
+{% block title %}
+  {% if editing %}
+    Edit visit
+  {% else %}
+    New visit
+  {% endif %}
+  - Sales Assistant
+{% endblock %}
+
+{% block page_header %}
+  <div>
+    <div class="flex items-center gap-2 text-xs text-slate-400 mb-1">
+      <a href="{% url 'voice:visit_list' %}"
+         class="hover:text-teal-600 transition-colors">Visits</a>
+      <span>/</span>
+      <span class="text-slate-500">
+        {% if editing %}
+          {{ visit.title }}
+        {% else %}
+          New
+        {% endif %}
+      </span>
+    </div>
+    <h1 class="text-xl font-bold text-slate-900">
+      {% if editing %}
+        Edit visit
+      {% else %}
+        New visit
+      {% endif %}
+    </h1>
+    <p class="text-sm text-slate-500">
+      {% if editing %}
+        Update visit details
+      {% else %}
+        Add a visit manually
+      {% endif %}
+    </p>
+  </div>
+{% endblock %}
+
+{% block content %}
+
+  {% if form.non_field_errors %}
+    <div class="mb-5 rounded-xl bg-red-50 border border-red-200 px-4 py-3">
+      {% for error in form.non_field_errors %}
+        <p class="text-sm text-red-700">{{ error }}</p>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  <form method="post" class="max-w-3xl">
+    {% csrf_token %}
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+      <!-- Left: Form fields -->
+      <div class="lg:col-span-2 space-y-6">
+
+        <div class="bg-white rounded-xl border border-slate-200 p-5">
+          <h2 class="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4">
+            Visit Information
+          </h2>
+
+          <div class="mb-4">
+            <label class="block text-xs font-medium text-slate-700 mb-1.5">
+              Title <span class="text-red-400">*</span>
+            </label>
+            {{ form.title }}
+            {% if form.title.errors %}
+              <p class="text-xs text-red-500 mt-1">{{ form.title.errors.0 }}</p>
+            {% endif %}
+          </div>
+
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-medium text-slate-700 mb-1.5">
+                Agent <span class="text-red-400">*</span>
+              </label>
+              {{ form.agent }}
+              {% if form.agent.errors %}
+                <p class="text-xs text-red-500 mt-1">{{ form.agent.errors.0 }}</p>
+              {% endif %}
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-700 mb-1.5">
+                Client <span class="text-red-400">*</span>
+              </label>
+              {{ form.client }}
+              {% if form.client.errors %}
+                <p class="text-xs text-red-500 mt-1">{{ form.client.errors.0 }}</p>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-xl border border-slate-200 p-5">
+          <h2 class="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4">Schedule</h2>
+          <div class="grid grid-cols-3 gap-4">
+            <div>
+              <label class="block text-xs font-medium text-slate-700 mb-1.5">
+                Date <span class="text-red-400">*</span>
+              </label>
+              {{ form.visit_date }}
+              {% if form.visit_date.errors %}
+                <p class="text-xs text-red-500 mt-1">{{ form.visit_date.errors.0 }}</p>
+              {% endif %}
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-700 mb-1.5">
+                Start time <span class="text-red-400">*</span>
+              </label>
+              {{ form.visit_start_time }}
+              {% if form.visit_start_time.errors %}
+                <p class="text-xs text-red-500 mt-1">{{ form.visit_start_time.errors.0 }}</p>
+              {% endif %}
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-700 mb-1.5">
+                Length (min) <span class="text-red-400">*</span>
+              </label>
+              {{ form.visit_duration_minutes }}
+              {% if form.visit_duration_minutes.errors %}
+                <p class="text-xs text-red-500 mt-1">{{ form.visit_duration_minutes.errors.0 }}</p>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-xl border border-slate-200 p-5">
+          <h2 class="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4">Coaching</h2>
+          <div class="mb-4">
+            <label class="block text-xs font-medium text-slate-700 mb-1.5">Methodology override</label>
+            {{ form.methodology }}
+            <p class="text-[10px] text-slate-400 mt-1.5">
+              Optional. Falls back to the agent's default, then the system default.
+            </p>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-700 mb-1.5">Manager notes</label>
+            {{ form.manager_notes }}
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Right: Actions -->
+      <div>
+        <div class="bg-white rounded-xl border border-slate-200 p-5 sticky top-4">
+          <button type="submit"
+                  class="w-full h-10 rounded-lg bg-teal-500 hover:bg-teal-600 text-white text-sm font-medium transition-colors mb-3">
+            {% if editing %}
+              Save Changes
+            {% else %}
+              Create Visit
+            {% endif %}
+          </button>
+          <a href="{% if editing %}{% url 'voice:visit_detail' visit.id %}{% else %}{% url 'voice:visit_list' %}{% endif %}"
+             class="block w-full h-10 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium text-center leading-10 hover:bg-slate-50 transition-colors">
+            Cancel
+          </a>
+
+          {% if not editing %}
+            <p class="text-[10px] text-slate-400 mt-4 leading-relaxed">
+              New visits are saved as <strong>Planned</strong>. The system automatically places
+              the AI pre-call and post-call at the scheduled times.
+            </p>
+          {% endif %}
+        </div>
+      </div>
+
+    </div>
+  </form>
+
+{% endblock %}

@@ -58,7 +58,13 @@ urlpatterns = [
     path("manager/settings/", views.GlobalSettingsView.as_view(), name="global_settings"),
     # Visits
     path("manager/visits/", views.VisitListView.as_view(), name="visit_list"),
+    path("manager/visits/add/", views.VisitCreateView.as_view(), name="visit_create"),
     path("manager/visits/<int:visit_id>/", views.VisitDetailView.as_view(), name="visit_detail"),
+    path(
+        "manager/visits/<int:visit_id>/edit/",
+        views.VisitEditView.as_view(),
+        name="visit_edit",
+    ),
     path(
         "manager/visits/<int:visit_id>/call/<str:phase>/",
         views.VisitCallNowView.as_view(),

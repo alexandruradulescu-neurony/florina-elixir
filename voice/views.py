@@ -29,6 +29,7 @@ from .forms import (
     ClientForm,
     GlobalSettingsForm,
     MethodologyForm,
+    VisitForm,
     VisitManagerNotesForm,
 )
 from .models import (
@@ -1657,6 +1658,66 @@ class VisitDetailView(SuperuserRequiredMixin, View):
 
         context = self._build_context(visit, form)
         return render(request, "voice/manager/visit_detail.html", context)
+
+
+class VisitCreateView(SuperuserRequiredMixin, View):
+    """Create a new visit manually."""
+
+    def get(self, request):
+        form = VisitForm()
+        return render(request, "voice/manager/visit_form.html", {"form": form})
+
+    def post(self, request):
+        form = VisitForm(request.POST)
+        if form.is_valid():
+            visit = form.save()
+            log_activity(
+                user=request.user,
+                action=f"Manager created visit: {visit.title}",
+                details={"visit_id": visit.id, "client": visit.client.name},
+            )
+            messages.success(request, f'Visit "{visit.title}" created.')
+            return redirect("voice:visit_detail", visit_id=visit.id)
+        return render(request, "voice/manager/visit_form.html", {"form": form})
+
+
+class VisitEditView(SuperuserRequiredMixin, View):
+    """Edit an existing visit's core details."""
+
+    def get(self, request, visit_id):
+        try:
+            visit = Visit.objects.get(id=visit_id)
+        except Visit.DoesNotExist:
+            messages.error(request, "Visit not found.")
+            return redirect("voice:visit_list")
+        form = VisitForm(instance=visit)
+        return render(
+            request,
+            "voice/manager/visit_form.html",
+            {"form": form, "visit": visit, "editing": True},
+        )
+
+    def post(self, request, visit_id):
+        try:
+            visit = Visit.objects.get(id=visit_id)
+        except Visit.DoesNotExist:
+            messages.error(request, "Visit not found.")
+            return redirect("voice:visit_list")
+        form = VisitForm(request.POST, instance=visit)
+        if form.is_valid():
+            form.save()
+            log_activity(
+                user=request.user,
+                action=f"Manager edited visit: {visit.title}",
+                details={"visit_id": visit.id},
+            )
+            messages.success(request, "Visit updated.")
+            return redirect("voice:visit_detail", visit_id=visit.id)
+        return render(
+            request,
+            "voice/manager/visit_form.html",
+            {"form": form, "visit": visit, "editing": True},
+        )
 
 
 class VisitCallNowView(SuperuserRequiredMixin, View):

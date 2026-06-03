@@ -34,6 +34,8 @@
 {% endblock %}
 
 {% block header_actions %}
+  <a href="{% url 'voice:visit_edit' visit.id %}"
+     class="btn btn-secondary">Edit</a>
   {% if visit.client.crm_id %}<a href="#" class="btn btn-secondary">Open in CRM</a>{% endif %}
   <button type="button" class="btn btn-secondary">Share</button>
   <button type="button" class="icon-btn" aria-label="More">
