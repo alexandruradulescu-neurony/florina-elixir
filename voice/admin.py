@@ -323,3 +323,46 @@ class GlobalSettingsAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+
+from voice.models import GenerationRun, MegaPrompt, Scenario
+
+
+@admin.register(MegaPrompt)
+class MegaPromptAdmin(admin.ModelAdmin):
+    list_display = ("domain", "name", "version", "is_active", "updated_at")
+    list_filter = ("domain", "is_active")
+    search_fields = ("name", "meta_prompt")
+    readonly_fields = ("version", "created_at", "updated_at", "created_by")
+    ordering = ("domain", "-version")
+
+    def has_delete_permission(self, request, obj=None):
+        # App-layer guard (spec §7): never delete the currently active version of any domain.
+        # Deletion of non-active versions is allowed only via the per-object delete page.
+        if obj is not None and obj.is_active:
+            return False
+        return super().has_delete_permission(request, obj)
+
+    def get_actions(self, request):
+        # Remove the bulk "delete selected" action so a careless admin can't wipe
+        # multiple versions (including active ones) in one click.
+        actions = super().get_actions(request)
+        actions.pop("delete_selected", None)
+        return actions
+
+
+@admin.register(Scenario)
+class ScenarioAdmin(admin.ModelAdmin):
+    list_display = ("name", "slug", "is_active", "updated_at")
+    list_filter = ("is_active",)
+    search_fields = ("name", "slug", "description")
+    prepopulated_fields = {"slug": ("name",)}
+
+
+@admin.register(GenerationRun)
+class GenerationRunAdmin(admin.ModelAdmin):
+    list_display = ("created_at", "domain", "visit", "client", "success", "input_tokens", "output_tokens")
+    list_filter = ("domain", "success", "triggered_by")
+    search_fields = ("error", "claude_response")
+    readonly_fields = [f.name for f in GenerationRun._meta.get_fields()]
+    ordering = ("-created_at",)
