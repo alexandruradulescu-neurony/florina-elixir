@@ -657,3 +657,70 @@ class Scenario(models.Model):
 
     def __str__(self) -> str:
         return self.name
+
+
+class GenerationRun(models.Model):
+    """Audit log of every Auto Prompt Assembler run (pre, post, lessons distill).
+
+    Visit is set for PRE_CALL/POST_CALL runs; Client is set for LESSONS_DISTILL
+    runs. Kept forever for now — re-evaluate when volume forces it.
+    """
+
+    class TriggeredBy(models.TextChoices):
+        MANUAL = "MANUAL", _("Manual")
+        SCHEDULED = "SCHEDULED", _("Scheduled")
+        END_OF_MEETING = "END_OF_MEETING", _("End of meeting")
+
+    visit = models.ForeignKey(
+        "Visit",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="generation_runs",
+        help_text="Set for PRE_CALL/POST_CALL; NULL for LESSONS_DISTILL",
+    )
+    client = models.ForeignKey(
+        "Client",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="generation_runs",
+        help_text="Set for LESSONS_DISTILL; NULL for PRE_CALL/POST_CALL (reach via visit.client)",
+    )
+    domain = models.CharField(
+        max_length=20,
+        choices=MegaPrompt.Domain.choices,
+        db_index=True,
+    )
+    mega_prompt = models.ForeignKey(
+        MegaPrompt,
+        on_delete=models.PROTECT,
+        related_name="generation_runs",
+        help_text="The exact MegaPrompt version that was used",
+    )
+    triggered_by = models.CharField(max_length=20, choices=TriggeredBy.choices)
+    context_bundle = models.JSONField(default=dict, blank=True)
+    claude_request = models.TextField(blank=True, default="")
+    claude_response = models.TextField(blank=True, default="")
+    parsed_outputs = models.JSONField(default=dict, blank=True)
+    input_tokens = models.PositiveIntegerField(default=0)
+    output_tokens = models.PositiveIntegerField(default=0)
+    success = models.BooleanField(default=False, db_index=True)
+    error = models.TextField(blank=True, default="")
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="generation_runs",
+    )
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        verbose_name = _("Generation Run")
+        verbose_name_plural = _("Generation Runs")
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        target = self.visit_id or self.client_id or "?"
+        return f"GenerationRun #{self.pk} [{self.domain}] target={target} ok={self.success}"
