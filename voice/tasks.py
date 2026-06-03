@@ -904,9 +904,9 @@ def process_visit_post_calls():
       3. (After call completes via webhook): summarize transcript, push to CRM
     """
     from .constants import VisitStatus
-    from .models import CallAttempt, GlobalSettings
+    from .models import CallAttempt, GenerationRun, GlobalSettings
     from .selectors import get_visits_needing_post_call
-    from .services.prompt_builder import generate_post_call_prompt
+    from .services.assembler import assemble_post_call
 
     try:
         visits = get_visits_needing_post_call()
@@ -932,9 +932,31 @@ def process_visit_post_calls():
                     continue
 
                 settings = GlobalSettings.load()
-                prompt = generate_post_call_prompt(visit)
+                # Auto-assemble post-call prompt via the assembler service.
+                # `transcript=""` is intentional here — at scheduled-dial time
+                # the meeting may have just ended and no transcript exists yet.
+                # The end-of-meeting webhook will re-assemble with a fresh
+                # transcript once one becomes available (see Task 27).
+                run = assemble_post_call(
+                    visit,
+                    transcript="",
+                    triggered_by=GenerationRun.TriggeredBy.SCHEDULED,
+                )
+                if not run.success:
+                    logger.error(
+                        "Failed to generate post-call prompt for visit %s: %s",
+                        visit.id,
+                        run.error,
+                    )
+                    continue
+                visit.refresh_from_db()
+                prompt = visit.post_call_prompt
                 if not prompt:
-                    logger.error(f"Failed to generate post-call prompt for visit {visit.id}")
+                    logger.error(
+                        "Post-call prompt empty after assembly for visit %s "
+                        "(likely both fields locked)",
+                        visit.id,
+                    )
                     continue
 
                 call = CallAttempt.objects.create(
@@ -1027,6 +1049,25 @@ def process_visit_post_call_completion(call_attempt_id: int):
 
         visit.status = VisitStatus.COMPLETE
         visit.save(update_fields=["post_call_summary", "crm_synced", "status", "updated_at"])
+
+        # Closed-loop: distill new lessons into the client's memory after
+        # every successful post-call summary. Failures are logged but never
+        # propagated — the post-call summary itself is the user-visible
+        # success and must not be invalidated by a downstream LLM hiccup.
+        try:
+            from .services.lessons import distill_lessons
+
+            evaluation_outcome = getattr(call, "outcome", "") or ""
+            distill_lessons(
+                client=visit.client,
+                new_post_call_summary=visit.post_call_summary or "",
+                evaluation_outcome=evaluation_outcome,
+            )
+        except Exception:
+            logger.exception(
+                "distill_lessons failed for visit=%s — debrief still complete",
+                visit.id,
+            )
 
     except CallAttempt.DoesNotExist:
         logger.error(f"CallAttempt {call_attempt_id} not found for post-call completion")
