@@ -3,7 +3,8 @@ Forms for the voice app.
 """
 from django import forms
 from django.contrib.auth.password_validation import validate_password
-from .models import User, Methodology, GlobalSettings, Visit, Client
+
+from .models import Client, GlobalSettings, Methodology, User, Visit
 from .utils import format_phone_number
 
 
@@ -212,7 +213,9 @@ class VisitManagerNotesForm(forms.ModelForm):
                     self.fields['visit_duration_minutes'].initial = minutes
 
     def save(self, commit=True):
-        from datetime import datetime as _dt, timedelta as _td
+        from datetime import datetime as _dt
+        from datetime import timedelta as _td
+
         from django.utils import timezone as _tz
 
         instance = super().save(commit=False)

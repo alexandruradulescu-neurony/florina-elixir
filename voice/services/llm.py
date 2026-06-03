@@ -8,7 +8,6 @@ Handles all LLM calls for:
 - Client profile AI summary generation
 """
 import logging
-from typing import Optional
 
 from decouple import config
 
@@ -30,8 +29,9 @@ def _resolve_anthropic_key() -> str:
     if key.strip():
         return key.strip()
     try:
-        from decouple import RepositoryEnv
         import os
+
+        from decouple import RepositoryEnv
         env_path = os.path.join(os.getcwd(), '.env')
         if os.path.exists(env_path):
             data = RepositoryEnv(env_path).data
@@ -60,7 +60,7 @@ def is_configured() -> bool:
     return bool(_resolve_anthropic_key())
 
 
-def _call_claude(system_prompt: str, user_message: str, max_tokens: int = 4096) -> Optional[str]:
+def _call_claude(system_prompt: str, user_message: str, max_tokens: int = 4096) -> str | None:
     """
     Make a single Claude API call.
 
@@ -86,7 +86,7 @@ def _call_claude(system_prompt: str, user_message: str, max_tokens: int = 4096) 
         return None
 
 
-def summarize_methodology_pdf(pdf_text: str) -> Optional[str]:
+def summarize_methodology_pdf(pdf_text: str) -> str | None:
     """
     Summarize a methodology PDF into a structured reference for voice prompts.
 
@@ -107,7 +107,7 @@ def summarize_methodology_pdf(pdf_text: str) -> Optional[str]:
     return _call_claude(system, pdf_text, max_tokens=2048)
 
 
-def generate_voice_prompt(meta_prompt: str, context: str) -> Optional[str]:
+def generate_voice_prompt(meta_prompt: str, context: str) -> str | None:
     """
     Generate a voice call prompt using a meta-prompt and assembled context.
 
@@ -126,7 +126,7 @@ def generate_voice_prompt(meta_prompt: str, context: str) -> Optional[str]:
     return _call_claude(meta_prompt, context, max_tokens=2048)
 
 
-def summarize_call_transcript(transcript: str, visit_context: str = '') -> Optional[str]:
+def summarize_call_transcript(transcript: str, visit_context: str = '') -> str | None:
     """
     Summarize a post-call transcript into a structured note for CRM.
 
@@ -155,7 +155,7 @@ def summarize_call_transcript_ro(
     phase: str = 'pre',
     visit_context: str = '',
     original_prompt: str = '',
-) -> Optional[str]:
+) -> str | None:
     """
     Summarize a call transcript in Romanian, suitable for the Visit Detail panel.
 
@@ -207,7 +207,7 @@ def summarize_call_transcript_ro(
     return _call_claude(system, user_msg, max_tokens=512)
 
 
-def generate_client_summary(client_data: dict) -> Optional[str]:
+def generate_client_summary(client_data: dict) -> str | None:
     """
     Generate an AI summary of a client from CRM data.
 
@@ -256,7 +256,7 @@ def analyze_post_call(
     post_call_prompt: str = '',
     visit_context: str = '',
     pre_call_summary: str = '',
-) -> Optional[dict]:
+) -> dict | None:
     """
     Analyze a post-call transcript and return structured fields for CRM/Visit Detail.
 
@@ -394,7 +394,7 @@ def analyze_post_call(
         return None
 
 
-def chat_with_data(messages: list, data_context: str) -> Optional[str]:
+def chat_with_data(messages: list, data_context: str) -> str | None:
     """
     Multi-turn chat with database context for the Live Agent feature.
 

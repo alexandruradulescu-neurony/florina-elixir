@@ -6,16 +6,17 @@ Handles all interactions with ElevenLabs API including:
 - Call status polling (fallback for webhooks)
 - Webhook configuration management
 """
-import logging
 import json
+import logging
 from datetime import timedelta
-from typing import Optional, Dict, Any
+from typing import Any
 
 from django.utils import timezone
 
+from voice.constants import PRE_MEETING_OFFSETS, CallPhase, CallStatus, LogLevel
 from voice.models import CallAttempt
-from voice.constants import LogLevel, CallPhase, CallStatus, PRE_MEETING_OFFSETS
 from voice.utils import format_phone_number
+
 from .logging import log_activity
 from .pipedrive import sync_note_to_pipedrive
 
@@ -26,21 +27,21 @@ logger = logging.getLogger(__name__)
 # ElevenLabs API Polling Service (Fallback when webhooks fail)
 # ============================================================================
 
-def fetch_call_status_from_elevenlabs(call_id: str) -> Dict[str, Any]:
+def fetch_call_status_from_elevenlabs(call_id: str) -> dict[str, Any]:
     """
     Fetch call status, transcript, and summary from ElevenLabs API.
     This is a fallback when webhooks are not received.
     Tries multiple API endpoints to find the correct one.
-    
+
     Args:
         call_id: ElevenLabs conversation_id/call_id
-        
+
     Returns:
         Dictionary with call data: {'success': bool, 'status': str, 'transcript': str, 'recording_url': str, 'summary': str, 'summary_title': str, 'error': str}
     """
-    from decouple import config
     import requests
-    
+    from decouple import config
+
     result = {
         'success': False,
         'status': None,
@@ -51,16 +52,16 @@ def fetch_call_status_from_elevenlabs(call_id: str) -> Dict[str, Any]:
         'error': None,
         'endpoint_used': None
     }
-    
+
     elevenlabs_api_key = config('ELEVENLABS_API_KEY', default='')
     if not elevenlabs_api_key:
         result['error'] = 'Missing ElevenLabs API key'
         return result
-    
+
     headers = {
         'xi-api-key': elevenlabs_api_key
     }
-    
+
     # Try multiple possible endpoints
     # ElevenLabs API endpoints may vary - we try common patterns
     endpoints_to_try = [
@@ -69,24 +70,24 @@ def fetch_call_status_from_elevenlabs(call_id: str) -> Dict[str, Any]:
         f'https://api.elevenlabs.io/v1/conversations/{call_id}',
         f'https://api.elevenlabs.io/v1/calls/{call_id}',
     ]
-    
+
     logger.info(f"Fetching call status from ElevenLabs API for call_id: {call_id}")
-    
+
     for api_url in endpoints_to_try:
         try:
             response = requests.get(api_url, headers=headers, timeout=30)
-            
+
             if response.status_code == 200:
                 data = response.json()
-                logger.info(f"Successfully fetched call status from ElevenLabs API")
-                
+                logger.info("Successfully fetched call status from ElevenLabs API")
+
                 result['success'] = True
                 result['endpoint_used'] = api_url
-                
+
                 # Extract status
                 status = data.get('status', '').lower()
                 result['status'] = status
-                
+
                 # Extract transcript - try multiple locations
                 transcript_data = None
                 transcript_locations = [
@@ -94,12 +95,12 @@ def fetch_call_status_from_elevenlabs(call_id: str) -> Dict[str, Any]:
                     data.get('conversation_transcript'),
                     data.get('data', {}).get('transcript') if isinstance(data.get('data'), dict) else None,
                 ]
-                
+
                 for loc in transcript_locations:
                     if loc:
                         transcript_data = loc
                         break
-                
+
                 if transcript_data:
                     if isinstance(transcript_data, list):
                         # ElevenLabs sends transcript as a list of turn objects
@@ -128,8 +129,8 @@ def fetch_call_status_from_elevenlabs(call_id: str) -> Dict[str, Any]:
                         else:
                             # Try direct text fields
                             result['transcript'] = (
-                                transcript_data.get('text') or 
-                                transcript_data.get('content') or 
+                                transcript_data.get('text') or
+                                transcript_data.get('content') or
                                 transcript_data.get('transcript') or
                                 str(transcript_data) if transcript_data else None
                             )
@@ -139,7 +140,7 @@ def fetch_call_status_from_elevenlabs(call_id: str) -> Dict[str, Any]:
                         result['transcript'] = str(transcript_data) if transcript_data else None
                 else:
                     result['transcript'] = None
-                
+
                 # Extract recording URL - try multiple locations
                 recording_url = None
                 recording_locations = [
@@ -149,14 +150,14 @@ def fetch_call_status_from_elevenlabs(call_id: str) -> Dict[str, Any]:
                     data.get('metadata', {}).get('audio_url') if isinstance(data.get('metadata'), dict) else None,
                     data.get('data', {}).get('metadata', {}).get('recording_url') if isinstance(data.get('data', {}).get('metadata'), dict) else None,
                 ]
-                
+
                 for loc in recording_locations:
                     if loc:
                         recording_url = loc
                         break
-                
+
                 result['recording_url'] = recording_url
-                
+
                 # Extract summary from analysis data
                 analysis = data.get('analysis', {})
                 if isinstance(analysis, dict):
@@ -165,10 +166,10 @@ def fetch_call_status_from_elevenlabs(call_id: str) -> Dict[str, Any]:
                 else:
                     result['summary'] = None
                     result['summary_title'] = None
-                
+
                 # Success - return early
                 return result
-            
+
             elif response.status_code == 404:
                 # Continue to next endpoint
                 continue
@@ -177,9 +178,9 @@ def fetch_call_status_from_elevenlabs(call_id: str) -> Dict[str, Any]:
                 try:
                     error_data = response.json()
                     error_msg = error_data.get('detail', error_data.get('message', error_data.get('error', 'Unknown error')))
-                except:
+                except ValueError:
                     error_msg = response.text[:200]
-                
+
                 # Continue to next endpoint unless it's a clear auth error
                 if response.status_code == 401:
                     result['error'] = f"Authentication failed: {error_msg}"
@@ -187,7 +188,7 @@ def fetch_call_status_from_elevenlabs(call_id: str) -> Dict[str, Any]:
                 elif response.status_code == 403:
                     result['error'] = f"Permission denied: {error_msg}"
                     return result
-                
+
         except requests.exceptions.Timeout:
             continue
         except requests.exceptions.RequestException as e:
@@ -196,11 +197,11 @@ def fetch_call_status_from_elevenlabs(call_id: str) -> Dict[str, Any]:
         except Exception as e:
             logger.warning(f"Unexpected error for {api_url}: {str(e)}")
             continue
-    
+
     # If we get here, all endpoints failed
     if not result['error']:
         result['error'] = f"All endpoints failed. Tried {len(endpoints_to_try)} endpoints."
-    
+
     logger.error(f"Failed to fetch call status for {call_id}: {result['error']}")
     return result
 
@@ -208,47 +209,47 @@ def fetch_call_status_from_elevenlabs(call_id: str) -> Dict[str, Any]:
 def sync_call_status_from_api(call_attempt: CallAttempt) -> bool:
     """
     Sync call status from ElevenLabs API if webhook hasn't updated it.
-    
+
     Args:
         call_attempt: CallAttempt instance to update
-        
+
     Returns:
         True if successfully synced, False otherwise
     """
     if not call_attempt.external_call_id:
         logger.warning(f"Call attempt {call_attempt.id} has no external_call_id")
         return False
-    
+
     # Only sync if call is still in progress or initiated
     if call_attempt.status not in [CallStatus.INITIATED, CallStatus.IN_PROGRESS, CallStatus.SCHEDULED]:
         return False  # Already completed/failed
-    
+
     # Fetch from API
     call_data = fetch_call_status_from_elevenlabs(call_attempt.external_call_id)
-    
+
     if not call_data['success']:
         logger.warning(f"Failed to fetch call status for {call_attempt.external_call_id}: {call_data.get('error')}")
         return False
-    
+
     # Update call attempt
     updated = False
-    
+
     if call_data.get('transcript'):
         call_attempt.transcript = call_data['transcript']
         updated = True
-    
+
     if call_data.get('summary'):
         call_attempt.summary = call_data['summary']
         updated = True
-    
+
     if call_data.get('summary_title'):
         call_attempt.summary_title = call_data['summary_title']
         updated = True
-    
+
     if call_data.get('recording_url'):
         call_attempt.recording_url = call_data['recording_url']
         updated = True
-    
+
     # Update status
     status = call_data.get('status', '').upper()
     status_mapping = {
@@ -257,16 +258,16 @@ def sync_call_status_from_api(call_attempt: CallAttempt) -> bool:
         'FAILED': CallStatus.FAILED,
         'NO_ANSWER': CallStatus.NO_ANSWER,
     }
-    
+
     if status in status_mapping:
         new_status = status_mapping[status]
         if call_attempt.status != new_status:
             call_attempt.status = new_status
             updated = True
-    
+
     if updated:
         call_attempt.save()
-        
+
         # Update meeting if completed
         if call_attempt.status == CallStatus.COMPLETED:
             meeting = call_attempt.meeting
@@ -275,7 +276,7 @@ def sync_call_status_from_api(call_attempt: CallAttempt) -> bool:
             elif call_attempt.phase == CallPhase.POST_MEETING:
                 meeting.is_post_call_completed = True
             meeting.save()
-            
+
             # Trigger Pipedrive sync for post-meeting calls
             if call_attempt.phase == CallPhase.POST_MEETING:
                 # Use summary if available, fallback to transcript
@@ -295,9 +296,9 @@ def sync_call_status_from_api(call_attempt: CallAttempt) -> bool:
                             details={'error': str(e)},
                             level=LogLevel.ERROR
                         )
-        
+
         # Handle pre-meeting call failure: create -30 call if -60 failed
-        if (call_attempt.phase == CallPhase.PRE_MEETING and 
+        if (call_attempt.phase == CallPhase.PRE_MEETING and
             call_attempt.status in [CallStatus.NO_ANSWER, CallStatus.FAILED] and
             call_attempt.scheduled_offset_minutes == PRE_MEETING_OFFSETS[0]):  # -60 minutes
             # Check if -30 call doesn't exist yet
@@ -306,7 +307,7 @@ def sync_call_status_from_api(call_attempt: CallAttempt) -> bool:
                 phase=CallPhase.PRE_MEETING,
                 scheduled_offset_minutes=PRE_MEETING_OFFSETS[1]  # -30 minutes
             ).exists()
-            
+
             if not existing_30 and call_attempt.meeting.start_time > timezone.now():
                 # Create -30 minute call attempt
                 scheduled_time = call_attempt.meeting.start_time + timedelta(minutes=PRE_MEETING_OFFSETS[1])
@@ -323,11 +324,11 @@ def sync_call_status_from_api(call_attempt: CallAttempt) -> bool:
                     action="Created -30 minute retry call after -60 call failed",
                     details={'failed_call_id': call_attempt.id, 'failed_status': call_attempt.status}
                 )
-        
+
         log_activity(
             meeting=call_attempt.meeting,
             user=call_attempt.meeting.agent,
-            action=f"Call status synced from API",
+            action="Call status synced from API",
             details={
                 'call_id': call_attempt.external_call_id,
                 'status': call_attempt.status,
@@ -335,7 +336,7 @@ def sync_call_status_from_api(call_attempt: CallAttempt) -> bool:
             }
         )
         return True
-    
+
     return False
 
 
@@ -343,38 +344,38 @@ def sync_call_status_from_api(call_attempt: CallAttempt) -> bool:
 # ElevenLabs Webhook Management API
 # ============================================================================
 
-def get_elevenlabs_webhook_config() -> Optional[Dict[str, Any]]:
+def get_elevenlabs_webhook_config() -> dict[str, Any] | None:
     """
     Get current webhook configuration from ElevenLabs.
-    
+
     Note: This function attempts to query ElevenLabs API for webhook configuration.
     The exact endpoint may vary - this is a placeholder that can be updated
     when ElevenLabs API documentation is available.
-    
+
     Returns:
         Dictionary with webhook config: {'url': str, 'events': list, ...} or None if not available
     """
-    from decouple import config
     import requests
-    
+    from decouple import config
+
     elevenlabs_api_key = config('ELEVENLABS_API_KEY', default='')
     if not elevenlabs_api_key:
         return None
-    
+
     try:
         headers = {
             'xi-api-key': elevenlabs_api_key
         }
-        
+
         # Try to get webhook configuration
         # Possible endpoints (to be verified with ElevenLabs docs):
         # - GET /v1/webhooks
         # - GET /v1/convai/webhooks
-        
+
         # Try webhooks endpoint first
         api_url = 'https://api.elevenlabs.io/v1/webhooks'
         response = requests.get(api_url, headers=headers, timeout=10)
-        
+
         if response.status_code == 200:
             data = response.json()
             # Return first webhook if available
@@ -386,10 +387,10 @@ def get_elevenlabs_webhook_config() -> Optional[Dict[str, Any]]:
                     return webhooks[0]
             elif isinstance(data, dict):
                 return data
-        
+
         # If not found, return None (webhook not configured)
         return None
-        
+
     except requests.exceptions.RequestException:
         # API endpoint may not exist or may require different authentication
         # Return None to indicate we can't check via API
@@ -399,55 +400,55 @@ def get_elevenlabs_webhook_config() -> Optional[Dict[str, Any]]:
         return None
 
 
-def update_elevenlabs_webhook(webhook_url: str) -> Dict[str, Any]:
+def update_elevenlabs_webhook(webhook_url: str) -> dict[str, Any]:
     """
     Update webhook URL in ElevenLabs.
-    
+
     Note: This function attempts to update webhook via ElevenLabs API.
     The exact endpoint may vary - this is a placeholder that can be updated
     when ElevenLabs API documentation is available.
-    
+
     Args:
         webhook_url: Full webhook URL to configure
-        
+
     Returns:
         Dictionary with result: {'success': bool, 'error': str}
     """
-    from decouple import config
     import requests
-    
+    from decouple import config
+
     result = {'success': False, 'error': None}
-    
+
     elevenlabs_api_key = config('ELEVENLABS_API_KEY', default='')
     if not elevenlabs_api_key:
         result['error'] = 'Missing ElevenLabs API key'
         return result
-    
+
     try:
         headers = {
             'Content-Type': 'application/json',
             'xi-api-key': elevenlabs_api_key
         }
-        
+
         # Try to update webhook configuration
         # Possible endpoints (to be verified with ElevenLabs docs):
         # - POST /v1/webhooks (create new)
         # - PUT /v1/webhooks/{webhook_id} (update existing)
         # - PATCH /v1/webhooks/{webhook_id} (update existing)
-        
+
         # First, try to get existing webhook
         existing_webhook = get_elevenlabs_webhook_config()
-        
+
         if existing_webhook and existing_webhook.get('id'):
             # Update existing webhook
             webhook_id = existing_webhook['id']
             api_url = f'https://api.elevenlabs.io/v1/webhooks/{webhook_id}'
-            
+
             payload = {
                 'url': webhook_url,
                 'events': ['post_call_transcription']  # Default event type
             }
-            
+
             # Try PUT first, then PATCH
             for method in ['put', 'patch']:
                 try:
@@ -455,26 +456,26 @@ def update_elevenlabs_webhook(webhook_url: str) -> Dict[str, Any]:
                     if response.status_code in [200, 201, 204]:
                         result['success'] = True
                         return result
-                except:
+                except requests.exceptions.RequestException:
                     continue
         else:
             # Create new webhook
             api_url = 'https://api.elevenlabs.io/v1/webhooks'
-            
+
             payload = {
                 'url': webhook_url,
                 'events': ['post_call_transcription']
             }
-            
+
             response = requests.post(api_url, headers=headers, json=payload, timeout=10)
             if response.status_code in [200, 201]:
                 result['success'] = True
                 return result
-        
+
         # If we get here, update failed
         result['error'] = f"API returned status {response.status_code}: {response.text[:200]}"
         return result
-        
+
     except requests.exceptions.RequestException as e:
         result['error'] = f"Request failed: {str(e)}"
         logger.warning(f"Could not update ElevenLabs webhook via API: {e}")
@@ -590,17 +591,17 @@ def format_prompt_for_visit(template: str, visit, phase: str = 'pre') -> str:
 def format_prompt_with_context(prompt_template: str, meeting) -> str:
     """
     Inject meeting details into the prompt template.
-    
+
     Args:
         prompt_template: Prompt template with placeholders
         meeting: Meeting instance with context data
-        
+
     Returns:
         Formatted prompt with meeting details injected
     """
     # Replace placeholders in the prompt template
     formatted_prompt = prompt_template
-    
+
     # Available context variables
     context = {
         '{customer_name}': meeting.customer_name or 'the customer',
@@ -611,12 +612,12 @@ def format_prompt_with_context(prompt_template: str, meeting) -> str:
         '{meeting_date}': meeting.start_time.strftime('%B %d, %Y'),
         '{meeting_time}': meeting.start_time.strftime('%I:%M %p'),
     }
-    
+
     # Replace all placeholders
     for placeholder, value in context.items():
         if placeholder in formatted_prompt:
             formatted_prompt = formatted_prompt.replace(placeholder, str(value))
-    
+
     return formatted_prompt
 
 
@@ -624,11 +625,11 @@ def format_first_message_with_context(first_message_template: str, meeting) -> s
     """
     Inject meeting details into the first message template.
     Uses the same context variables as format_prompt_with_context.
-    
+
     Args:
         first_message_template: First message template with placeholders
         meeting: Meeting instance with context data
-        
+
     Returns:
         Formatted first message with meeting details injected
     """
@@ -639,38 +640,38 @@ def format_first_message_with_context(first_message_template: str, meeting) -> s
 def trigger_agent_call(
     agent_phone: str,
     prompt_text: str,
-    context_data: Dict[str, Any],
+    context_data: dict[str, Any],
     call_attempt: CallAttempt,
-    first_message_text: Optional[str] = None
-) -> Dict[str, Any]:
+    first_message_text: str | None = None
+) -> dict[str, Any]:
     """
     Initiate a voice call using ElevenLabs Conversational AI.
-    
+
     Note: Twilio number must be configured in ElevenLabs dashboard.
     ElevenLabs handles all Twilio operations internally.
-    
+
     Prompt Overrides:
     - If prompt_text is provided and ELEVENLABS_USE_PROMPT_OVERRIDES=True,
       the prompt will be sent as an override to customize the agent's behavior for this call.
     - If first_message_text is provided, it will be sent as the first message override.
     - Requires "Allow Overrides" to be enabled in the agent's Security settings in ElevenLabs dashboard.
     - If overrides are not enabled, the call will use the agent's default prompt.
-    
+
     Args:
         agent_phone: Agent's phone number in E.164 format (recipient of the call)
         prompt_text: System prompt for the AI agent (will be sent as override if configured)
         context_data: Additional context data for the call (for logging/debugging)
         call_attempt: CallAttempt instance to update
         first_message_text: First message/greeting for the AI agent (optional, will be sent as override if provided)
-        
+
     Returns:
         Dictionary with call result: {'success': bool, 'call_id': str, 'error': str}
     """
-    from decouple import config
     import requests
-    
+    from decouple import config
+
     result = {'success': False, 'call_id': None, 'error': None}
-    
+
     # Validate phone number
     formatted_phone = format_phone_number(agent_phone)
     if not formatted_phone:
@@ -686,12 +687,12 @@ def trigger_agent_call(
         call_attempt.status = CallStatus.FAILED
         call_attempt.save()
         return result
-    
+
     # Get ElevenLabs API key and configuration
     elevenlabs_api_key = config('ELEVENLABS_API_KEY', default='')
     elevenlabs_agent_id = config('ELEVENLABS_AGENT_ID', default='')
     elevenlabs_phone_number_id = config('ELEVENLABS_PHONE_NUMBER_ID', default='')
-    
+
     if not elevenlabs_api_key:
         error_msg = "Missing ElevenLabs API key"
         result['error'] = error_msg
@@ -705,7 +706,7 @@ def trigger_agent_call(
         call_attempt.status = CallStatus.FAILED
         call_attempt.save()
         return result
-    
+
     if not elevenlabs_agent_id:
         error_msg = "Missing ElevenLabs Agent ID"
         result['error'] = error_msg
@@ -719,7 +720,7 @@ def trigger_agent_call(
         call_attempt.status = CallStatus.FAILED
         call_attempt.save()
         return result
-    
+
     if not elevenlabs_phone_number_id:
         error_msg = "Missing ElevenLabs Phone Number ID"
         result['error'] = error_msg
@@ -733,47 +734,47 @@ def trigger_agent_call(
         call_attempt.status = CallStatus.FAILED
         call_attempt.save()
         return result
-    
+
     try:
         # Note: Using requests directly as ElevenLabs SDK may not have this endpoint
         # API endpoint: POST https://api.elevenlabs.io/v1/convai/twilio/outbound-call
-        
+
         # Create call attempt record and mark as initiated
         call_attempt.status = CallStatus.INITIATED
         call_attempt.executed_at = timezone.now()
         call_attempt.save()
-        
+
         # Note: We'll log after building the payload to include prompt info
-        
+
         # Make API call to ElevenLabs outbound call endpoint
         api_url = 'https://api.elevenlabs.io/v1/convai/twilio/outbound-call'
         headers = {
             'Content-Type': 'application/json',
             'xi-api-key': elevenlabs_api_key
         }
-        
+
         # Build payload
         payload = {
             'agent_id': elevenlabs_agent_id,
             'agent_phone_number_id': elevenlabs_phone_number_id,
             'to_number': formatted_phone
         }
-        
+
         # ElevenLabs Override Behavior:
         # - If overrides are ENABLED in ElevenLabs dashboard: providing an override is optional
         #   * If we provide an override → it's used
         #   * If we don't provide an override → ElevenLabs uses default values from dashboard
         # - If overrides are DISABLED in ElevenLabs dashboard: providing an override will throw an error
-        # 
+        #
         # Therefore: We only include override in payload if we have actual values to override.
         # This allows ElevenLabs to use defaults when we don't provide overrides (if enabled),
         # and return an error if we provide overrides when they're disabled.
-        # 
+        #
         # Only include override in payload if we have actual values to override
         # If prompt_text is empty/None, we don't send override → ElevenLabs uses default (if overrides enabled)
         if prompt_text and prompt_text.strip():
             prompt_to_send = prompt_text.strip()
-            
+
             # According to ElevenLabs documentation for /v1/convai/twilio/outbound-call:
             # Overrides must be wrapped in conversation_initiation_client_data
             agent_config = {
@@ -781,43 +782,43 @@ def trigger_agent_call(
                     'prompt': prompt_to_send
                 }
             }
-            
+
             # Add first_message override only if provided (optional field)
             if first_message_text and first_message_text.strip():
                 agent_config['first_message'] = first_message_text.strip()
-            
+
             payload['conversation_initiation_client_data'] = {
                 'conversation_config_override': {
                     'agent': agent_config
                 }
             }
-        
+
         # Make the API call
         response = requests.post(api_url, headers=headers, json=payload, timeout=30)
-        
+
         # Handle API response
         if response.status_code == 200:
             call_data = response.json()
-            
+
             # Check if response contains any warnings
             if isinstance(call_data, dict) and 'warnings' in call_data:
                 logger.warning(f"ElevenLabs returned warnings: {call_data['warnings']}")
-            
+
             # Extract call_id from response (may be 'call_id', 'id', or 'call_sid')
             call_id = (
-                call_data.get('call_id') or 
-                call_data.get('id') or 
+                call_data.get('call_id') or
+                call_data.get('id') or
                 call_data.get('call_sid') or
                 call_data.get('conversation_id')
             )
-            
+
             if call_id:
                 result['success'] = True
                 result['call_id'] = call_id
                 call_attempt.external_call_id = call_id
                 call_attempt.status = CallStatus.IN_PROGRESS
                 call_attempt.save()
-                
+
                 # Log successful call initiation
                 log_activity(
                     meeting=call_attempt.meeting,
@@ -852,11 +853,11 @@ def trigger_agent_call(
                 error_data = response.json()
                 error_detail = error_data.get('detail', error_data.get('message', error_data.get('error', 'Unknown error')))
                 error_msg = f"ElevenLabs API error ({response.status_code}): {error_detail}"
-                
+
                 # Check if error is related to overrides not being enabled
                 error_lower = str(error_detail).lower()
                 error_text_lower = response.text.lower()
-                
+
                 if 'override' in error_lower or 'override' in error_text_lower or 'permission' in error_lower or 'security' in error_lower or 'not allowed' in error_lower or 'disabled' in error_lower:
                     override_error_msg = (
                         "Prompt overrides are not enabled for this agent. "
@@ -864,13 +865,13 @@ def trigger_agent_call(
                         "in the ElevenLabs dashboard."
                     )
                     error_msg = f"{error_msg}. {override_error_msg}"
-                    
+
             except (ValueError, KeyError, json.JSONDecodeError):
                 error_msg = f"ElevenLabs API error ({response.status_code}): {response.text[:200]}"
-            
+
             result['error'] = error_msg
             logger.error(f"ElevenLabs API call failed: {error_msg}")
-            
+
             log_activity(
                 meeting=call_attempt.meeting,
                 user=call_attempt.meeting.agent,
@@ -878,15 +879,15 @@ def trigger_agent_call(
                 details={'error': error_msg, 'status_code': response.status_code, 'phone_number': formatted_phone},
                 level=LogLevel.ERROR
             )
-            
+
             call_attempt.status = CallStatus.FAILED
             call_attempt.save()
-        
+
     except Exception as e:
         error_msg = f"Failed to initiate call: {str(e)}"
         result['error'] = error_msg
         logger.error(error_msg, exc_info=True)
-        
+
         log_activity(
             meeting=call_attempt.meeting,
             user=call_attempt.meeting.agent,
@@ -894,7 +895,7 @@ def trigger_agent_call(
             details={'error': error_msg, 'phone_number': formatted_phone},
             level=LogLevel.ERROR
         )
-        
+
         call_attempt.status = CallStatus.FAILED
         call_attempt.save()
 
@@ -909,7 +910,7 @@ def trigger_agent_call(
 # ============================================================================
 
 
-def trigger_visit_call(visit, phase: str) -> Dict[str, Any]:
+def trigger_visit_call(visit, phase: str) -> dict[str, Any]:
     """Initiate an EL outbound call for a Visit and phase ('pre' or 'post').
 
     - Reads the pre-rendered prompt directly from visit.pre_call_prompt
@@ -920,8 +921,9 @@ def trigger_visit_call(visit, phase: str) -> Dict[str, Any]:
 
     Returns: {'success': bool, 'call_id': str|None, 'error': str|None}.
     """
-    from decouple import config
     import requests
+    from decouple import config
+
     from voice.constants import CallPhase
 
     result = {'success': False, 'call_id': None, 'error': None}

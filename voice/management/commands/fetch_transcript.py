@@ -2,9 +2,10 @@
 Management command to manually fetch transcripts from ElevenLabs API.
 Useful when webhooks fail or transcripts are missing.
 """
+from datetime import timedelta
+
 from django.core.management.base import BaseCommand
 from django.utils import timezone
-from datetime import timedelta
 
 from voice.models import CallAttempt
 from voice.services import fetch_call_status_from_elevenlabs, sync_call_status_from_api
@@ -40,12 +41,12 @@ class Command(BaseCommand):
         call_id = options.get('call_id')
         external_call_id = options.get('external_call_id')
         all_pending = options.get('all_pending')
-        
+
         self.stdout.write("=" * 80)
         self.stdout.write("Fetch Transcripts from ElevenLabs API")
         self.stdout.write("=" * 80)
         self.stdout.write("")
-        
+
         if call_id:
             # Fetch for specific call attempt
             try:
@@ -54,7 +55,7 @@ class Command(BaseCommand):
             except CallAttempt.DoesNotExist:
                 self.stdout.write(self.style.ERROR(f"Call attempt {call_id} not found"))
                 return
-        
+
         elif external_call_id:
             # Fetch by external call ID
             call = CallAttempt.objects.filter(external_call_id=external_call_id).first()
@@ -66,12 +67,12 @@ class Command(BaseCommand):
                 self.stdout.write(f"\nAttempting to fetch directly from API for external_call_id: {external_call_id}")
                 result = fetch_call_status_from_elevenlabs(external_call_id)
                 self._display_result(result, external_call_id)
-        
+
         elif all_pending:
             # Fetch for all completed calls without transcripts
             hours = options['hours']
             time_threshold = timezone.now() - timedelta(hours=hours)
-            
+
             calls = CallAttempt.objects.filter(
                 status='COMPLETED',
                 transcript__isnull=True
@@ -82,13 +83,13 @@ class Command(BaseCommand):
             ).filter(
                 created_at__gte=time_threshold
             )
-            
+
             self.stdout.write(f"Found {calls.count()} completed calls without transcripts in last {hours} hours")
             self.stdout.write("")
-            
+
             success_count = 0
             fail_count = 0
-            
+
             for call in calls:
                 self.stdout.write(f"Fetching transcript for call {call.id} (external_id: {call.external_call_id})...")
                 if self._fetch_for_call(call, verbose=False):
@@ -96,11 +97,11 @@ class Command(BaseCommand):
                 else:
                     fail_count += 1
                 self.stdout.write("")
-            
+
             self.stdout.write("=" * 80)
             self.stdout.write(f"Summary: {success_count} succeeded, {fail_count} failed")
             self.stdout.write("=" * 80)
-        
+
         else:
             self.stdout.write(self.style.ERROR("Please specify --call-id, --external-call-id, or --all-pending"))
             self.stdout.write("\nUsage examples:")
@@ -117,18 +118,18 @@ class Command(BaseCommand):
             self.stdout.write(f"Current Status: {call.status}")
             self.stdout.write(f"Has Transcript: {bool(call.transcript)}")
             self.stdout.write("")
-        
+
         if not call.external_call_id:
             if verbose:
                 self.stdout.write(self.style.ERROR("No external_call_id available - cannot fetch from API"))
             return False
-        
+
         if verbose:
-            self.stdout.write(f"Fetching from ElevenLabs API...")
-        
+            self.stdout.write("Fetching from ElevenLabs API...")
+
         # Use the sync function which handles all the logic
         result = sync_call_status_from_api(call)
-        
+
         if result:
             call.refresh_from_db()
             if verbose:
@@ -157,7 +158,7 @@ class Command(BaseCommand):
         """Display the result of a direct API fetch."""
         self.stdout.write(f"\nAPI Result for call_id: {call_id}")
         self.stdout.write(f"Success: {result.get('success', False)}")
-        
+
         if result.get('success'):
             self.stdout.write(f"Status: {result.get('status', 'Unknown')}")
             transcript = result.get('transcript')
@@ -172,7 +173,7 @@ class Command(BaseCommand):
                     self.stdout.write(f"Transcript preview: {preview_safe}")
             else:
                 self.stdout.write(self.style.WARNING("No transcript in API response"))
-            
+
             recording_url = result.get('recording_url')
             if recording_url:
                 self.stdout.write(f"Recording URL: {recording_url}")

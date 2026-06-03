@@ -15,35 +15,32 @@ Flow:
 """
 import logging
 from datetime import date
-from typing import Optional
 
 from django.utils import timezone
 
-from voice.models import User, Client, Visit, GlobalSettings
-from voice.constants import LogLevel, VisitStatus
 from voice.calendar import get_calendar_provider
+from voice.constants import VisitStatus
 from voice.crm import get_crm_provider
+from voice.models import Client, User, Visit
+
 from .logging import log_activity
 
 logger = logging.getLogger(__name__)
 
 
-def extract_domain_from_email(email: str) -> Optional[str]:
+def extract_domain_from_email(email: str) -> str | None:
     """Extract domain from an email address."""
     if not email or '@' not in email:
         return None
-    try:
-        parts = email.split('@')
-        if len(parts) == 2:
-            domain = parts[1].strip().lower()
-            if '.' in domain and len(domain) > 3:
-                return domain
-    except Exception:
-        pass
+    parts = email.split('@')
+    if len(parts) == 2:
+        domain = parts[1].strip().lower()
+        if '.' in domain and len(domain) > 3:
+            return domain
     return None
 
 
-def match_client_by_attendees(attendees: list[str]) -> Optional[Client]:
+def match_client_by_attendees(attendees: list[str]) -> Client | None:
     """
     Try to find a Client by matching attendee email domains.
 
@@ -68,7 +65,7 @@ def match_client_by_attendees(attendees: list[str]) -> Optional[Client]:
     return None
 
 
-def resolve_crm_deal(client: Client) -> Optional[str]:
+def resolve_crm_deal(client: Client) -> str | None:
     """
     Find the most relevant open deal for a client in the CRM.
 

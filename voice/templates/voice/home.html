@@ -5,15 +5,16 @@
 {% block display_title %}Welcome, {{ user.get_full_name|default:user.username }}{% endblock %}
 
 {% block content %}
-<div class="card">
+  <div class="card">
     <p class="t-body" style="margin:0 0 16px;">You're signed in to Sales Assistant.</p>
     <div style="display:flex;gap:8px;">
-        {% if user.is_superuser %}
-            <a class="btn btn-primary" href="{% url 'voice:superuser_dashboard' %}">Go to Dashboard</a>
-        {% elif user.is_sales_agent %}
-            <a class="btn btn-primary" href="{% url 'voice:sales_agent_dashboard' %}">Go to My Schedule</a>
-        {% endif %}
-        <a class="btn btn-secondary" href="{% url 'voice:logout' %}">Log out</a>
+      {% if user.is_superuser %}
+        <a class="btn btn-primary" href="{% url 'voice:superuser_dashboard' %}">Go to Dashboard</a>
+      {% elif user.is_sales_agent %}
+        <a class="btn btn-primary"
+           href="{% url 'voice:sales_agent_dashboard' %}">Go to My Schedule</a>
+      {% endif %}
+      <a class="btn btn-secondary" href="{% url 'voice:logout' %}">Log out</a>
     </div>
-</div>
+  </div>
 {% endblock %}

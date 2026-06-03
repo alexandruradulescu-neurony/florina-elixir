@@ -7,6 +7,7 @@ Usage:
     events = cal.get_events_for_date(user, date.today())
 """
 import logging
+
 from decouple import config
 
 from .base import CalendarProvider

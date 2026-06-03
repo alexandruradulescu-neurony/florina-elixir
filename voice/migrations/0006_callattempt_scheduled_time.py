@@ -1,7 +1,6 @@
 # Generated migration for adding scheduled_time to CallAttempt
 
 from django.db import migrations, models
-import django.utils.timezone
 
 
 class Migration(migrations.Migration):

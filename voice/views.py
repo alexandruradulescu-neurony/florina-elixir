@@ -3,55 +3,75 @@ Views for the voice app.
 Using class-based views (thing view pattern) following DRY principles.
 """
 import logging
-from django.shortcuts import render, redirect
-from django.views.generic import View
-from django.contrib.auth import logout
-from django.contrib.auth.views import LoginView
-from django.contrib.auth.mixins import LoginRequiredMixin
-from django.views.decorators.csrf import csrf_protect
-from django.utils.decorators import method_decorator
+from contextlib import suppress
+from datetime import datetime, time, timedelta
+
 from django.contrib import messages
+from django.contrib.auth import logout
+from django.contrib.auth.mixins import LoginRequiredMixin
+from django.contrib.auth.views import LoginView
+from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils import timezone
-from datetime import timedelta, datetime, time
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_protect
+from django.views.generic import View
 from google_auth_oauthlib.flow import Flow
-from google.oauth2.credentials import Credentials
 
-from .services import sync_google_calendar, log_activity, format_prompt_with_context, format_first_message_with_context, get_elevenlabs_webhook_config, update_elevenlabs_webhook
-from .selectors import (
-    get_recent_activity_logs,
-    get_system_statistics,
-    get_recent_calls,
-    get_failed_calls_today,
-    get_all_meetings,
-    get_activity_logs_filtered,
-    get_agent_meetings,
-    get_agent_call_statistics,
-    get_upcoming_meetings_for_agent,
-    get_agent_timeline_data,
-    get_dashboard_visit_summary,
-    get_agent_readiness,
-    get_dashboard_action_items,
-    get_weekly_summary,
-    get_recent_post_call_summaries,
-    get_next_upcoming_visit,
-    get_visits_for_date,
-    get_clients_with_stats,
-    get_client_detail,
-    get_agent_visits,
-)
-from .models import Meeting, VoicePrompt, User, CallAttempt, Methodology, GlobalSettings, Visit, Client
-from .decorators import SuperuserRequiredMixin, SalesAgentRequiredMixin
-from .forms import AgentCreateForm, MethodologyForm, GlobalSettingsForm, VisitManagerNotesForm, AgentMethodologyForm, ClientForm
-from .utils import get_ngrok_url, validate_ngrok_url, build_webhook_url
 from voice import placeholders
+
+from .decorators import SalesAgentRequiredMixin, SuperuserRequiredMixin
+from .forms import (
+    AgentCreateForm,
+    AgentMethodologyForm,
+    ClientForm,
+    GlobalSettingsForm,
+    MethodologyForm,
+    VisitManagerNotesForm,
+)
+from .models import (
+    CallAttempt,
+    Client,
+    GlobalSettings,
+    Meeting,
+    Methodology,
+    User,
+    Visit,
+    VoicePrompt,
+)
+from .selectors import (
+    get_activity_logs_filtered,
+    get_agent_call_statistics,
+    get_agent_readiness,
+    get_agent_timeline_data,
+    get_agent_visits,
+    get_client_detail,
+    get_clients_with_stats,
+    get_dashboard_action_items,
+    get_dashboard_visit_summary,
+    get_next_upcoming_visit,
+    get_recent_activity_logs,
+    get_recent_post_call_summaries,
+    get_upcoming_meetings_for_agent,
+    get_visits_for_date,
+    get_weekly_summary,
+)
+from .services import (
+    format_first_message_with_context,
+    format_prompt_with_context,
+    get_elevenlabs_webhook_config,
+    log_activity,
+    sync_google_calendar,
+    update_elevenlabs_webhook,
+)
+from .utils import build_webhook_url, get_ngrok_url
 
 logger = logging.getLogger(__name__)
 
 
 class HomeView(LoginRequiredMixin, View):
     """Home page view - redirects based on user role."""
-    
+
     def get(self, request):
         if request.user.is_superuser:
             return redirect('voice:superuser_dashboard')
@@ -65,14 +85,14 @@ class CustomLoginView(LoginView):
     """Custom login view with template and remember me functionality."""
     template_name = 'voice/login.html'
     redirect_authenticated_user = True
-    
+
     def form_valid(self, form):
         """Handle successful login with remember me option."""
         remember_me = self.request.POST.get('remember_me', False)
-        
+
         # Let parent class handle the login
         response = super().form_valid(form)
-        
+
         # Set session expiry based on remember me
         if remember_me:
             # Set session to expire in 2 weeks
@@ -80,19 +100,19 @@ class CustomLoginView(LoginView):
         else:
             # Session expires when browser closes
             self.request.session.set_expiry(0)
-        
+
         return response
 
 
 @method_decorator(csrf_protect, name='dispatch')
 class CustomLogoutView(View):
     """Custom logout view with template."""
-    
+
     def post(self, request):
         """Handle POST request for logout."""
         logout(request)
         return render(request, 'voice/logged_out.html')
-    
+
     def get(self, request):
         """Handle GET request for logout (also logs out)."""
         logout(request)
@@ -101,14 +121,14 @@ class CustomLogoutView(View):
 
 class GoogleCalendarOAuthView(LoginRequiredMixin, View):
     """Initiate Google OAuth flow for calendar access."""
-    
+
     def get(self, request):
         """Start OAuth flow."""
         from decouple import config
-        
+
         client_id = config('GOOGLE_CLIENT_ID', default='')
         client_secret = config('GOOGLE_CLIENT_SECRET', default='')
-        
+
         # Try to use ngrok URL for HTTPS (required by Google OAuth)
         ngrok_url = get_ngrok_url()
         if ngrok_url:
@@ -121,28 +141,28 @@ class GoogleCalendarOAuthView(LoginRequiredMixin, View):
             # Check if it's HTTP (not allowed by Google OAuth)
             if redirect_uri.startswith('http://') and 'localhost' in redirect_uri:
                 messages.error(
-                    request, 
+                    request,
                     'OAuth requires HTTPS. Please start ngrok and run "python manage.py detect_ngrok" to configure it, '
                     'or update GOOGLE_REDIRECT_URI in .env to use an HTTPS URL.'
                 )
                 return redirect('voice:calendar_sync_status')
-        
+
         # Debug logging
         logger.info(f"OAuth flow - Client ID: {client_id[:30]}... (length: {len(client_id)})")
         logger.info(f"OAuth flow - Client Secret: {'*' * 10}... (length: {len(client_secret)})")
         logger.info(f"OAuth flow - Redirect URI: {redirect_uri}")
-        
+
         if not client_id or not client_secret:
             logger.error("OAuth flow - Missing credentials!")
             messages.error(request, 'Google Calendar integration is not configured.')
             return redirect('voice:calendar_sync_status')
-        
+
         # Validate client_id format
         if 'your-google-client-id' in client_id or client_id == '':
             logger.error(f"OAuth flow - Invalid client_id detected: {client_id}")
             messages.error(request, 'Google Calendar Client ID is not properly configured. Please check your .env file.')
             return redirect('voice:calendar_sync_status')
-        
+
         flow = Flow.from_client_config(
             {
                 "web": {
@@ -156,43 +176,44 @@ class GoogleCalendarOAuthView(LoginRequiredMixin, View):
             scopes=['https://www.googleapis.com/auth/calendar.readonly']
         )
         flow.redirect_uri = redirect_uri
-        
+
         authorization_url, state = flow.authorization_url(
             access_type='offline',
             include_granted_scopes='true',
             prompt='consent'
         )
-        
+
         # Store state in session for verification
         request.session['google_oauth_state'] = state
-        
+
         return redirect(authorization_url)
 
 
 class GoogleCalendarCallbackView(LoginRequiredMixin, View):
     """Handle Google OAuth callback."""
-    
+
     def get(self, request):
         """Process OAuth callback and store credentials."""
         from decouple import config
+
         # Import get_ngrok_url locally to avoid scoping issues
         from .utils import get_ngrok_url
-        
+
         state = request.session.get('google_oauth_state')
         if not state or state != request.GET.get('state'):
             messages.error(request, 'Invalid OAuth state. Please try again.')
             return redirect('voice:calendar_sync_status')
-        
+
         client_id = config('GOOGLE_CLIENT_ID', default='')
         client_secret = config('GOOGLE_CLIENT_SECRET', default='')
-        
+
         # Use the same redirect URI logic as OAuth view (ngrok if available)
         ngrok_url = get_ngrok_url()
         if ngrok_url:
             redirect_uri = f"{ngrok_url}/calendar/callback/"
         else:
             redirect_uri = config('GOOGLE_REDIRECT_URI', default=request.build_absolute_uri(reverse('voice:google_calendar_callback')))
-        
+
         flow = Flow.from_client_config(
             {
                 "web": {
@@ -206,7 +227,7 @@ class GoogleCalendarCallbackView(LoginRequiredMixin, View):
             scopes=['https://www.googleapis.com/auth/calendar.readonly']
         )
         flow.redirect_uri = redirect_uri
-        
+
         try:
             # Build authorization_response URL - use ngrok URL if available to ensure HTTPS
             if ngrok_url:
@@ -220,11 +241,11 @@ class GoogleCalendarCallbackView(LoginRequiredMixin, View):
                 if request.META.get('HTTP_X_FORWARDED_PROTO') == 'https':
                     authorization_response = authorization_response.replace('http://', 'https://', 1)
                 logger.info(f"OAuth callback - Using request URI: {authorization_response}")
-            
+
             flow.fetch_token(authorization_response=authorization_response)
-            
+
             credentials = flow.credentials
-            
+
             # Save or update credentials in database (enables background tasks)
             from .models import GoogleOauthCredential
             GoogleOauthCredential.objects.update_or_create(
@@ -237,12 +258,12 @@ class GoogleCalendarCallbackView(LoginRequiredMixin, View):
                     'client_secret': credentials.client_secret,
                     'scopes': list(credentials.scopes),
                     'expires_at': (
-                        timezone.make_aware(credentials.expiry) if timezone.is_naive(credentials.expiry) 
+                        timezone.make_aware(credentials.expiry) if timezone.is_naive(credentials.expiry)
                         else credentials.expiry
                     ).astimezone(timezone.utc) if credentials.expiry else None,
                 }
             )
-            
+
             # Also keep session for backward compatibility during transition
             request.session['google_credentials'] = {
                 'token': credentials.token,
@@ -252,22 +273,22 @@ class GoogleCalendarCallbackView(LoginRequiredMixin, View):
                 'client_secret': credentials.client_secret,
                 'scopes': credentials.scopes
             }
-            
+
             # Clear OAuth state
             del request.session['google_oauth_state']
-            
+
             log_activity(
                 user=request.user,
                 action="Google Calendar OAuth completed",
                 level='INFO'
             )
-            
+
             messages.success(request, 'Google Calendar connected successfully!')
-            
+
             # Set up push notifications (watch) for real-time updates
             try:
                 from .services import setup_google_calendar_watch
-                
+
                 # Get webhook URL (use ngrok if available, otherwise use configured URL)
                 # Reuse ngrok_url from above (already set in this function scope)
                 if ngrok_url:
@@ -278,7 +299,7 @@ class GoogleCalendarCallbackView(LoginRequiredMixin, View):
                     if not webhook_url:
                         # Fallback to request URL
                         webhook_url = request.build_absolute_uri(reverse('voice:google_calendar_webhook'))
-                
+
                 watch_result = setup_google_calendar_watch(request.user, webhook_url, session=request.session)
                 if watch_result.get('success'):
                     messages.info(request, 'Real-time calendar notifications enabled!')
@@ -287,9 +308,9 @@ class GoogleCalendarCallbackView(LoginRequiredMixin, View):
             except Exception as e:
                 logger.error(f"Error setting up calendar watch: {e}", exc_info=True)
                 # Don't fail the OAuth flow if watch setup fails
-            
+
             return redirect('voice:calendar_sync_status')
-            
+
         except Exception as e:
             log_activity(
                 user=request.user,
@@ -303,25 +324,25 @@ class GoogleCalendarCallbackView(LoginRequiredMixin, View):
 
 class CalendarSyncTriggerView(LoginRequiredMixin, View):
     """Trigger manual calendar sync."""
-    
+
     def post(self, request):
         """Trigger calendar sync for the current user."""
         if not request.user.is_sales_agent:
             messages.error(request, 'Only sales agents can sync calendars.')
             return redirect('voice:calendar_sync_status')
-        
+
         # Sync today's meetings only (start of day to end of day in UTC)
         now = timezone.now()
         today_start = timezone.make_aware(datetime.combine(now.date(), time.min))
         today_end = timezone.make_aware(datetime.combine(now.date(), time.max))
-        
+
         results = sync_google_calendar(
             user=request.user,
             time_min=today_start,
             time_max=today_end,
             session=request.session
         )
-        
+
         if results['errors']:
             messages.warning(
                 request,
@@ -333,31 +354,31 @@ class CalendarSyncTriggerView(LoginRequiredMixin, View):
                 request,
                 f"Sync completed: {results['created']} meetings created, {results['updated']} meetings updated."
             )
-        
+
         return redirect('voice:calendar_sync_status')
 
 
 class CalendarSyncStatusView(LoginRequiredMixin, View):
     """Display calendar sync status and recent meetings."""
-    
+
     def get(self, request):
         """Show sync status dashboard."""
         # Check if user has Google credentials
         has_credentials = 'google_credentials' in request.session
-        
+
         # Get user's meetings
         meetings = Meeting.objects.filter(agent=request.user).order_by('-start_time')[:20]
-        
+
         # Get recent activity logs
         recent_logs = get_recent_activity_logs(limit=10)
-        
+
         context = {
             'has_credentials': has_credentials,
             'meetings': meetings,
             'recent_logs': recent_logs,
             'is_sales_agent': request.user.is_sales_agent,
         }
-        
+
         return render(request, 'voice/calendar_sync_status.html', context)
 
 
@@ -403,41 +424,43 @@ class SuperuserDashboardView(SuperuserRequiredMixin, View):
 
 class TestCallView(SuperuserRequiredMixin, View):
     """Test call view - allows superuser to trigger a test call to their phone."""
-    
+
     def post(self, request):
         """Handle test call request."""
-        from django.utils import timezone
         from datetime import timedelta
-        from .models import Meeting, CallAttempt
+
+        from django.utils import timezone
+
         from .constants import CallPhase, CallStatus
-        from .services import trigger_agent_call, format_prompt_with_context
+        from .models import CallAttempt, Meeting
         from .selectors import get_active_prompt
-        
+        from .services import trigger_agent_call
+
         phone_number = request.POST.get('phone_number', '').strip()
-        
+
         # If no phone number provided, try to use superuser's phone number
         if not phone_number:
             phone_number = request.user.phone_number
-        
+
         if not phone_number:
             messages.error(request, 'Please provide a phone number or set your phone number in your profile.')
             return redirect('voice:superuser_dashboard')
-        
+
         # Validate phone number
-        from .utils import validate_phone_number, format_phone_number
+        from .utils import format_phone_number, validate_phone_number
         if not validate_phone_number(phone_number):
             messages.error(request, 'Invalid phone number format. Please use E.164 format (e.g., +1234567890).')
             return redirect('voice:superuser_dashboard')
-        
+
         formatted_phone = format_phone_number(phone_number)
-        
+
         try:
             # Get active prompt (use pre-meeting as default for test)
             prompt = get_active_prompt(CallPhase.PRE_MEETING)
             if not prompt:
                 messages.error(request, 'No active pre-meeting prompt found. Please create a prompt first.')
                 return redirect('voice:superuser_dashboard')
-            
+
             # Create a temporary test meeting
             test_meeting = Meeting.objects.create(
                 agent=request.user,
@@ -447,7 +470,7 @@ class TestCallView(SuperuserRequiredMixin, View):
                 start_time=timezone.now() + timedelta(hours=1),
                 end_time=timezone.now() + timedelta(hours=2),
             )
-            
+
             # Create call attempt
             call_attempt = CallAttempt.objects.create(
                 meeting=test_meeting,
@@ -455,15 +478,15 @@ class TestCallView(SuperuserRequiredMixin, View):
                 scheduled_offset_minutes=-60,  # Standard pre-meeting offset
                 status=CallStatus.SCHEDULED
             )
-            
+
             # Format prompt with meeting context
             formatted_prompt = format_prompt_with_context(prompt.system_prompt, test_meeting)
-            
+
             # Format first_message if available
             formatted_first_message = None
             if prompt.first_message:
                 formatted_first_message = format_first_message_with_context(prompt.first_message, test_meeting)
-            
+
             # Prepare context data
             context_data = {
                 'meeting_id': test_meeting.id,
@@ -471,7 +494,7 @@ class TestCallView(SuperuserRequiredMixin, View):
                 'call_attempt_id': call_attempt.id,
                 'is_test_call': True,
             }
-            
+
             # Trigger the call
             result = trigger_agent_call(
                 agent_phone=formatted_phone,
@@ -480,7 +503,7 @@ class TestCallView(SuperuserRequiredMixin, View):
                 call_attempt=call_attempt,
                 first_message_text=formatted_first_message
             )
-            
+
             if result['success']:
                 messages.success(request, f'Test call initiated! Call ID: {result.get("call_id", "N/A")}. You should receive a call shortly.')
             else:
@@ -488,11 +511,11 @@ class TestCallView(SuperuserRequiredMixin, View):
                 messages.error(request, f'Failed to initiate test call: {error_msg}')
                 # Clean up test meeting if call failed
                 test_meeting.delete()
-            
+
         except Exception as e:
             logger.error(f"Error initiating test call: {e}", exc_info=True)
             messages.error(request, f'Error initiating test call: {str(e)}')
-        
+
         return redirect('voice:superuser_dashboard')
 
 
@@ -518,53 +541,53 @@ class PromptListView(SuperuserRequiredMixin, View):
 
 class PromptEditView(SuperuserRequiredMixin, View):
     """Edit a voice prompt with preview."""
-    
+
     def get(self, request, prompt_id):
         try:
             prompt = VoicePrompt.objects.get(id=prompt_id)
         except VoicePrompt.DoesNotExist:
             messages.error(request, 'Prompt not found.')
             return redirect('voice:prompt_list')
-        
+
         # Preview with dummy data
         preview_text = prompt.system_prompt.replace('{agent_name}', 'John Doe')
         preview_text = preview_text.replace('{customer_name}', 'Acme Corporation')
         preview_text = preview_text.replace('{meeting_title}', 'Q4 Product Demo')
-        
+
         # Preview first_message if available
         preview_first_message = None
         if prompt.first_message:
             preview_first_message = prompt.first_message.replace('{agent_name}', 'John Doe')
             preview_first_message = preview_first_message.replace('{customer_name}', 'Acme Corporation')
             preview_first_message = preview_first_message.replace('{meeting_title}', 'Q4 Product Demo')
-        
+
         context = {
             'prompt': prompt,
             'preview_text': preview_text,
             'preview_first_message': preview_first_message,
         }
         return render(request, 'voice/manager/prompt_form.html', context)
-    
+
     def post(self, request, prompt_id):
         try:
             prompt = VoicePrompt.objects.get(id=prompt_id)
         except VoicePrompt.DoesNotExist:
             messages.error(request, 'Prompt not found.')
             return redirect('voice:prompt_list')
-        
+
         prompt.name = request.POST.get('name', prompt.name)
         prompt.system_prompt = request.POST.get('system_prompt', prompt.system_prompt)
         prompt.first_message = request.POST.get('first_message', '') or None
         prompt.prompt_type = request.POST.get('prompt_type', prompt.prompt_type)
         prompt.is_active = request.POST.get('is_active') == 'on'
-        
+
         # Ensure only one active prompt per type
         if prompt.is_active:
             VoicePrompt.objects.filter(
                 prompt_type=prompt.prompt_type,
                 is_active=True
             ).exclude(id=prompt.id).update(is_active=False)
-        
+
         prompt.save()
         messages.success(request, 'Prompt updated successfully.')
         return redirect('voice:prompt_list')
@@ -638,6 +661,7 @@ class AgentDetailView(SuperuserRequiredMixin, View):
 
     def post(self, request, agent_id):
         from django.shortcuts import get_object_or_404
+
         from .utils import format_phone_number
 
         agent = get_object_or_404(User, id=agent_id, is_sales_agent=True)
@@ -654,10 +678,8 @@ class AgentDetailView(SuperuserRequiredMixin, View):
 
         meth_id = request.POST.get('default_methodology')
         if meth_id:
-            try:
+            with suppress(Methodology.DoesNotExist, ValueError):
                 agent.default_methodology = Methodology.objects.get(id=meth_id)
-            except (Methodology.DoesNotExist, ValueError):
-                pass
         else:
             agent.default_methodology = None
 
@@ -694,17 +716,17 @@ class AgentCreateView(SuperuserRequiredMixin, View):
 
 class AuditLogExplorerView(SuperuserRequiredMixin, View):
     """Filterable activity log viewer."""
-    
+
     def get(self, request):
         level = request.GET.get('level')
         user_id = request.GET.get('user_id')
-        
+
         # Convert user_id to int with error handling
         try:
             user_id = int(user_id) if user_id else None
         except (ValueError, TypeError):
             user_id = None
-        
+
         logs = get_activity_logs_filtered(level=level, user_id=user_id, limit=100)
         log_count = logs.count() if hasattr(logs, 'count') else len(logs)
 
@@ -720,27 +742,27 @@ class AuditLogExplorerView(SuperuserRequiredMixin, View):
 
 class NgrokWebhookStatusView(SuperuserRequiredMixin, View):
     """Dashboard view showing ngrok URL and webhook configuration status."""
-    
+
     def get(self, request):
         from decouple import config
-        
+
         # Get ngrok URL
         ngrok_api_url = config('NGROK_API_URL', default='http://localhost:4040/api/tunnels')
         ngrok_url = get_ngrok_url(ngrok_api_url)
-        
+
         # Build webhook URL
         webhook_url = None
         if ngrok_url:
             webhook_url = build_webhook_url(ngrok_url)
-        
+
         # Try to get current webhook config from ElevenLabs
         webhook_config = get_elevenlabs_webhook_config()
         current_webhook_url = webhook_config.get('url') if webhook_config else None
         webhook_configured = current_webhook_url == webhook_url if (current_webhook_url and webhook_url) else False
-        
+
         # Check if update is needed
         update_needed = ngrok_url and webhook_url and current_webhook_url != webhook_url
-        
+
         context = {
             'ngrok_url': ngrok_url,
             'webhook_url': webhook_url,
@@ -750,35 +772,35 @@ class NgrokWebhookStatusView(SuperuserRequiredMixin, View):
             'webhook_config': webhook_config,
             'ngrok_running': ngrok_url is not None,
         }
-        
+
         return render(request, 'voice/manager/ngrok_webhook_status.html', context)
-    
+
     def post(self, request):
         """Handle webhook URL update request."""
         from decouple import config
-        
+
         ngrok_api_url = config('NGROK_API_URL', default='http://localhost:4040/api/tunnels')
         ngrok_url = get_ngrok_url(ngrok_api_url)
-        
+
         if not ngrok_url:
             messages.error(request, 'Ngrok is not running. Please start ngrok first.')
             return redirect('voice:ngrok_webhook_status')
-        
+
         webhook_url = build_webhook_url(ngrok_url)
-        
+
         # Attempt to update webhook
         result = update_elevenlabs_webhook(webhook_url)
-        
+
         if result.get('success'):
             messages.success(request, 'Webhook URL updated successfully in ElevenLabs!')
         else:
             error_msg = result.get('error', 'Unknown error')
             messages.warning(
-                request, 
+                request,
                 f'Could not update webhook automatically: {error_msg}. '
                 f'Please update manually in ElevenLabs dashboard. Webhook URL: {webhook_url}'
             )
-        
+
         return redirect('voice:ngrok_webhook_status')
 
 
@@ -788,16 +810,16 @@ class NgrokWebhookStatusView(SuperuserRequiredMixin, View):
 
 class SalesAgentDashboardView(SalesAgentRequiredMixin, View):
     """Sales agent dashboard with timeline view."""
-    
+
     def get(self, request):
         agent = request.user
         timeline_data = get_agent_timeline_data(agent)
         upcoming_meetings = get_upcoming_meetings_for_agent(agent, limit=10)
         call_stats = get_agent_call_statistics(agent)
-        
+
         # Calculate count for template (works with both QuerySet and list)
         upcoming_meetings_count = upcoming_meetings.count() if hasattr(upcoming_meetings, 'count') else len(upcoming_meetings)
-        
+
         context = {
             'timeline_data': timeline_data,
             'upcoming_meetings': upcoming_meetings,
@@ -809,7 +831,7 @@ class SalesAgentDashboardView(SalesAgentRequiredMixin, View):
 
 class MeetingDetailView(LoginRequiredMixin, View):
     """Detailed meeting view with tabs for pre/post meeting calls."""
-    
+
     def get(self, request, meeting_id):
         try:
             # Superusers can view any meeting, sales agents can only view their own
@@ -823,13 +845,13 @@ class MeetingDetailView(LoginRequiredMixin, View):
                 return redirect('voice:programmed_calls')
             else:
                 return redirect('voice:sales_agent_dashboard')
-        
-        from .selectors import get_call_attempts_for_meeting
+
         from .constants import CallPhase
-        
+        from .selectors import get_call_attempts_for_meeting
+
         pre_calls = get_call_attempts_for_meeting(meeting, phase=CallPhase.PRE_MEETING)
         post_calls = get_call_attempts_for_meeting(meeting, phase=CallPhase.POST_MEETING)
-        
+
         context = {
             'meeting': meeting,
             'pre_calls': pre_calls,
@@ -840,19 +862,19 @@ class MeetingDetailView(LoginRequiredMixin, View):
 
 class SalesAgentProfileView(SalesAgentRequiredMixin, View):
     """Sales agent profile settings."""
-    
+
     def get(self, request):
         context = {
             'user': request.user,
         }
         return render(request, 'voice/agent/profile.html', context)
-    
+
     def post(self, request):
         user = request.user
         phone_number = request.POST.get('phone_number', '').strip()
-        
+
         if phone_number:
-            from .utils import validate_phone_number, format_phone_number
+            from .utils import format_phone_number, validate_phone_number
             try:
                 if validate_phone_number(phone_number):
                     user.phone_number = format_phone_number(phone_number)
@@ -869,24 +891,23 @@ class SalesAgentProfileView(SalesAgentRequiredMixin, View):
                 messages.success(request, 'Phone number cleared.')
             except Exception as e:
                 messages.error(request, f'Error clearing phone number: {str(e)}')
-        
+
         return redirect('voice:sales_agent_profile')
 
 
 class ProgrammedCallsView(SuperuserRequiredMixin, View):
     """View all programmed/scheduled calls for superuser."""
-    
+
     def get(self, request):
-        from .constants import PRE_MEETING_OFFSETS, POST_MEETING_OFFSETS
-        from .selectors import get_meetings_for_pre_call_check, get_meetings_for_post_call_check
-        from .services import should_trigger_pre_call, should_trigger_post_call
-        
+        from .selectors import get_meetings_for_post_call_check, get_meetings_for_pre_call_check
+        from .services import should_trigger_post_call, should_trigger_pre_call
+
         # Get filter parameters
         status_filter = request.GET.get('status', '')
         phase_filter = request.GET.get('phase', '')
         agent_filter = request.GET.get('agent', '')
         show_upcoming = request.GET.get('show_upcoming', 'true') == 'true'
-        
+
         # Base queryset for actual CallAttempt records
         calls = CallAttempt.objects.select_related(
             'meeting', 'meeting__agent', 'visit', 'visit__agent', 'visit__client',
@@ -923,7 +944,7 @@ class ProgrammedCallsView(SuperuserRequiredMixin, View):
                 call.scheduled_time = start + timedelta(minutes=call.scheduled_offset_minutes)
             else:
                 call.scheduled_time = end + timedelta(minutes=call.scheduled_offset_minutes)
-        
+
         # Get upcoming scheduled calls (not yet triggered)
         upcoming_calls = []
         if show_upcoming:
@@ -936,7 +957,7 @@ class ProgrammedCallsView(SuperuserRequiredMixin, View):
                         continue
                     if phase_filter and phase_filter != 'PRE':
                         continue
-                    
+
                     # Create a virtual call object
                     virtual_call = type('VirtualCall', (), {
                         'id': None,
@@ -955,7 +976,7 @@ class ProgrammedCallsView(SuperuserRequiredMixin, View):
                         'is_upcoming': True,
                     })()
                     upcoming_calls.append(virtual_call)
-            
+
             # Get meetings that need post-meeting calls
             post_meetings = get_meetings_for_post_call_check()
             for meeting, offset in post_meetings:
@@ -965,7 +986,7 @@ class ProgrammedCallsView(SuperuserRequiredMixin, View):
                         continue
                     if phase_filter and phase_filter != 'POST':
                         continue
-                    
+
                     # Create a virtual call object
                     virtual_call = type('VirtualCall', (), {
                         'id': None,
@@ -984,14 +1005,14 @@ class ProgrammedCallsView(SuperuserRequiredMixin, View):
                         'is_upcoming': True,
                     })()
                     upcoming_calls.append(virtual_call)
-            
+
             # Sort upcoming calls by scheduled_time
             upcoming_calls.sort(key=lambda x: x.scheduled_time if x.scheduled_time else timezone.now())
-        
+
         # Combine actual calls and upcoming calls
         all_calls = list(calls) + upcoming_calls
         now = timezone.now()
-        
+
         # Add helper flags for template rendering
         for call in all_calls:
             # Resolve start/end from visit or meeting
@@ -1027,7 +1048,7 @@ class ProgrammedCallsView(SuperuserRequiredMixin, View):
             else:
                 call.can_retry = False
                 call.can_trigger = False
-        
+
         # Sort by scheduled_time (most recent first) or created_at
         def get_sort_key(x):
             if hasattr(x, 'scheduled_time') and x.scheduled_time:
@@ -1037,17 +1058,17 @@ class ProgrammedCallsView(SuperuserRequiredMixin, View):
             else:
                 return timezone.now()
         all_calls.sort(key=get_sort_key, reverse=True)
-        
+
         # Get all agents for filter dropdown
         agents = User.objects.filter(is_sales_agent=True).order_by('username')
-        
+
         # Get statistics (only for actual calls)
         total_calls = CallAttempt.objects.count()
         scheduled_calls = CallAttempt.objects.filter(status='SCHEDULED').count()
         in_progress_calls = CallAttempt.objects.filter(status='IN_PROGRESS').count()
         completed_calls = CallAttempt.objects.filter(status='COMPLETED').count()
         failed_calls = CallAttempt.objects.filter(status__in=['NO_ANSWER', 'FAILED']).count()
-        
+
         context = {
             'calls': all_calls,
             'upcoming_count': len(upcoming_calls),
@@ -1066,48 +1087,48 @@ class ProgrammedCallsView(SuperuserRequiredMixin, View):
                 'failed': failed_calls,
             }
         }
-        
+
         return render(request, 'voice/manager/programmed_calls.html', context)
 
 
 class ManualCallTriggerView(SuperuserRequiredMixin, View):
     """Manually trigger a call for a meeting."""
-    
+
     def post(self, request):
-        from .tasks import trigger_pre_meeting_call, trigger_post_meeting_call
-        from .constants import PRE_MEETING_OFFSETS, POST_MEETING_OFFSETS, CallPhase
-        
+        from .constants import POST_MEETING_OFFSETS, PRE_MEETING_OFFSETS
+        from .tasks import trigger_post_meeting_call, trigger_pre_meeting_call
+
         meeting_id = request.POST.get('meeting_id')
         phase = request.POST.get('phase')  # 'PRE' or 'POST'
         offset_minutes = request.POST.get('offset_minutes')
-        
+
         if not meeting_id or not phase or not offset_minutes:
             messages.error(request, 'Missing required parameters')
             return redirect('voice:programmed_calls')
-        
+
         try:
             meeting = Meeting.objects.get(id=meeting_id)
             offset = int(offset_minutes)
             now = timezone.now()
-            
+
             # Validation based on phase
             if phase == 'PRE':
                 # Pre-meeting: only allow if current time is before meeting start
                 if now >= meeting.start_time:
                     messages.error(
-                        request, 
+                        request,
                         f'Cannot trigger pre-meeting call: Meeting has already started (started at {meeting.start_time.strftime("%Y-%m-%d %H:%M")})'
                     )
                     return redirect('voice:programmed_calls')
-                
+
                 # Validate offset is in allowed pre-meeting offsets
                 if offset not in PRE_MEETING_OFFSETS:
                     messages.error(request, f'Invalid pre-meeting offset: {offset}. Allowed: {PRE_MEETING_OFFSETS}')
                     return redirect('voice:programmed_calls')
-                
+
                 # Trigger pre-meeting call
                 result = trigger_pre_meeting_call(meeting_id, offset)
-                
+
             elif phase == 'POST':
                 # Post-meeting: only allow if current time is after meeting end
                 if now < meeting.end_time:
@@ -1116,24 +1137,24 @@ class ManualCallTriggerView(SuperuserRequiredMixin, View):
                         f'Cannot trigger post-meeting call: Meeting has not ended yet (ends at {meeting.end_time.strftime("%Y-%m-%d %H:%M")})'
                     )
                     return redirect('voice:programmed_calls')
-                
+
                 # Validate offset is in allowed post-meeting offsets
                 if offset not in POST_MEETING_OFFSETS:
                     messages.error(request, f'Invalid post-meeting offset: {offset}. Allowed: {POST_MEETING_OFFSETS}')
                     return redirect('voice:programmed_calls')
-                
+
                 # Trigger post-meeting call
                 result = trigger_post_meeting_call(meeting_id, offset)
             else:
                 messages.error(request, f'Invalid phase: {phase}')
                 return redirect('voice:programmed_calls')
-            
+
             if result.get('success'):
                 messages.success(request, f'Call triggered successfully! Call ID: {result.get("call_id", "N/A")}')
             else:
                 error_msg = result.get('error', 'Unknown error')
                 messages.error(request, f'Failed to trigger call: {error_msg}')
-        
+
         except Meeting.DoesNotExist:
             messages.error(request, 'Meeting not found')
         except ValueError:
@@ -1201,7 +1222,11 @@ class MethodologyCreateView(SuperuserRequiredMixin, View):
             # Process PDF if uploaded
             if methodology.source_material:
                 try:
-                    from .services.llm import extract_pdf_text, summarize_methodology_pdf, is_configured
+                    from .services.llm import (
+                        extract_pdf_text,
+                        is_configured,
+                        summarize_methodology_pdf,
+                    )
                     if is_configured():
                         pdf_text = extract_pdf_text(methodology.source_material.path)
                         if pdf_text:
@@ -1211,11 +1236,11 @@ class MethodologyCreateView(SuperuserRequiredMixin, View):
                                 methodology.save(update_fields=['ai_summary'])
                                 messages.success(request, f'Methodology "{methodology.name}" created with AI summary.')
                             else:
-                                messages.warning(request, f'Methodology created but AI summary generation failed. You can add it manually.')
+                                messages.warning(request, 'Methodology created but AI summary generation failed. You can add it manually.')
                         else:
-                            messages.warning(request, f'Methodology created but PDF text extraction failed.')
+                            messages.warning(request, 'Methodology created but PDF text extraction failed.')
                     else:
-                        messages.info(request, f'Methodology created. Configure ANTHROPIC_API_KEY to enable AI summarization.')
+                        messages.info(request, 'Methodology created. Configure ANTHROPIC_API_KEY to enable AI summarization.')
                 except Exception as e:
                     logger.error(f"Error processing methodology PDF: {e}", exc_info=True)
                     messages.warning(request, f'Methodology created but PDF processing failed: {e}')
@@ -1256,7 +1281,11 @@ class MethodologyEditView(SuperuserRequiredMixin, View):
             # Re-process PDF if a new one was uploaded
             if 'source_material' in request.FILES:
                 try:
-                    from .services.llm import extract_pdf_text, summarize_methodology_pdf, is_configured
+                    from .services.llm import (
+                        extract_pdf_text,
+                        is_configured,
+                        summarize_methodology_pdf,
+                    )
                     if is_configured():
                         pdf_text = extract_pdf_text(methodology.source_material.path)
                         if pdf_text:
@@ -1325,10 +1354,8 @@ class VisitListView(SuperuserRequiredMixin, View):
 
         agent = None
         if agent_id:
-            try:
+            with suppress(User.DoesNotExist):
                 agent = User.objects.get(id=agent_id, is_sales_agent=True)
-            except User.DoesNotExist:
-                pass
 
         from .constants import VisitStatus
         visits = get_visits_for_date(target_date, agent=agent)
@@ -1485,6 +1512,7 @@ class VisitCallNowView(SuperuserRequiredMixin, View):
 
     def post(self, request, visit_id, phase):
         from django.shortcuts import get_object_or_404
+
         from voice.services.elevenlabs import trigger_visit_call
 
         visit = get_object_or_404(Visit, id=visit_id)
@@ -1509,6 +1537,7 @@ class VisitStatusUpdateView(SuperuserRequiredMixin, View):
 
     def post(self, request, visit_id, status):
         from django.shortcuts import get_object_or_404
+
         from .constants import VisitStatus
 
         visit = get_object_or_404(Visit, id=visit_id)
@@ -1672,9 +1701,11 @@ class LiveAgentChatAPI(SuperuserRequiredMixin, View):
 
     def post(self, request):
         import json
+
         from django.http import JsonResponse
-        from .services.llm import chat_with_data, is_configured
+
         from .services.data_context import assemble_data_context
+        from .services.llm import chat_with_data, is_configured
 
         try:
             body = json.loads(request.body)
@@ -1739,9 +1770,9 @@ class VisitCalendarView(SuperuserRequiredMixin, View):
     """Weekly/monthly calendar view of all visits."""
 
     def get(self, request):
-        from .selectors import get_visits_for_range
+
         from .constants import VisitStatus
-        import calendar as cal_mod
+        from .selectors import get_visits_for_range
 
         view_mode = request.GET.get('view', 'week')
         agent_id = request.GET.get('agent', '')
@@ -1768,10 +1799,8 @@ class VisitCalendarView(SuperuserRequiredMixin, View):
 
         agent = None
         if agent_id:
-            try:
+            with suppress(User.DoesNotExist):
                 agent = User.objects.get(id=agent_id, is_sales_agent=True)
-            except User.DoesNotExist:
-                pass
 
         if view_mode == 'day':
             visits_for_day = list(get_visits_for_range(target_date, target_date, agent=agent))
@@ -1812,14 +1841,12 @@ class VisitCalendarView(SuperuserRequiredMixin, View):
 
         # Period summary stats
         total_visits = visits.count()
-        from .constants import VisitStatus
         complete_count = visits.filter(status=VisitStatus.COMPLETE).count()
         planned_count = visits.filter(status=VisitStatus.PLANNED).count()
 
         # Per-agent visit counts for this period
         agent_colors = ['bg-teal-500', 'bg-indigo-500', 'bg-amber-500', 'bg-rose-500', 'bg-violet-500', 'bg-cyan-500', 'bg-lime-500', 'bg-orange-500']
         agent_text_colors = ['text-teal-700', 'text-indigo-700', 'text-amber-700', 'text-rose-700', 'text-violet-700', 'text-cyan-700', 'text-lime-700', 'text-orange-700']
-        agent_bg_colors = ['bg-teal-100', 'text-teal-800', 'bg-indigo-100', 'text-indigo-800', 'bg-amber-100', 'text-amber-800', 'bg-rose-100', 'text-rose-800', 'bg-violet-100', 'text-violet-800', 'bg-cyan-100', 'text-cyan-800']
         agent_color_map = {}
         for i, a in enumerate(agents):
             color_idx = i % len(agent_colors)

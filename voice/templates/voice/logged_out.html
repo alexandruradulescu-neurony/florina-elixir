@@ -3,9 +3,9 @@
 {% block title %}Signed out — Sales Assistant{% endblock %}
 
 {% block unauth_content %}
-<div class="auth-card">
+  <div class="auth-card">
     <h1>You've been signed out</h1>
     <p class="sub">Thanks for using Sales Assistant. See you next time.</p>
     <a href="{% url 'voice:login' %}" class="btn btn-primary">Sign in again</a>
-</div>
+  </div>
 {% endblock %}

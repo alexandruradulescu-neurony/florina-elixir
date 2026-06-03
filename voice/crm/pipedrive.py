@@ -2,7 +2,6 @@
 Pipedrive CRM provider implementation.
 """
 import logging
-from typing import Optional
 
 import requests
 from decouple import config
@@ -34,7 +33,7 @@ class PipedriveProvider(CRMProvider):
             self._session.params = {'api_token': self.api_token}
         return self._session
 
-    def _get(self, path: str, **kwargs) -> Optional[dict]:
+    def _get(self, path: str, **kwargs) -> dict | None:
         """Make a GET request and return parsed JSON data or None."""
         try:
             resp = self.session.get(f"{self.base_url}{path}", **kwargs)
@@ -46,7 +45,7 @@ class PipedriveProvider(CRMProvider):
             logger.error(f"Pipedrive GET {path} failed: {e}", exc_info=True)
         return None
 
-    def _post(self, path: str, json_data: dict) -> Optional[dict]:
+    def _post(self, path: str, json_data: dict) -> dict | None:
         """Make a POST request and return parsed JSON data or None."""
         try:
             resp = self.session.post(f"{self.base_url}{path}", json=json_data)
@@ -58,7 +57,7 @@ class PipedriveProvider(CRMProvider):
             logger.error(f"Pipedrive POST {path} failed: {e}", exc_info=True)
         return None
 
-    def _put(self, path: str, json_data: dict) -> Optional[dict]:
+    def _put(self, path: str, json_data: dict) -> dict | None:
         """Make a PUT request and return parsed JSON data or None."""
         try:
             resp = self.session.put(f"{self.base_url}{path}", json=json_data)
@@ -74,13 +73,13 @@ class PipedriveProvider(CRMProvider):
     # CRMProvider interface
     # ------------------------------------------------------------------ #
 
-    def get_client(self, client_id: str) -> Optional[dict]:
+    def get_client(self, client_id: str) -> dict | None:
         org = self._get(f"/organizations/{client_id}")
         if not org:
             return None
         return self._normalize_client(org)
 
-    def search_client_by_domain(self, domain: str) -> Optional[dict]:
+    def search_client_by_domain(self, domain: str) -> dict | None:
         try:
             resp = self.session.get(
                 f"{self.base_url}/organizations/search",
@@ -113,7 +112,7 @@ class PipedriveProvider(CRMProvider):
         )
         return [self._normalize_deal(d) for d in deals]
 
-    def get_deal(self, deal_id: str) -> Optional[dict]:
+    def get_deal(self, deal_id: str) -> dict | None:
         data = self._get(f"/deals/{deal_id}")
         if not data:
             return None
@@ -214,7 +213,7 @@ class PipedriveProvider(CRMProvider):
                 break
         return clients
 
-    def search_deal_by_term(self, term: str) -> Optional[dict]:
+    def search_deal_by_term(self, term: str) -> dict | None:
         try:
             resp = self.session.get(
                 f"{self.base_url}/deals/search",

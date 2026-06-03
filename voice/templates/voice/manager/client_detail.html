@@ -4,19 +4,19 @@
 {% block title %}{{ client.name }} — Sales Assistant{% endblock %}
 
 {% block header_utility %}
-<nav class="breadcrumb">
+  <nav class="breadcrumb">
     <a href="{% url 'voice:client_list' %}">Clients</a>
     <span class="sep">/</span>
     <span class="cur">{{ client.name }}</span>
-</nav>
+  </nav>
 {% endblock %}
 
 {% block display_title %}{{ client.name }}{% endblock %}
 
 {% block display_subtitle %}
-<div class="metastrip">
+  <div class="metastrip">
     {% if client_status_label %}
-    <span class="client-status-badge {{ client_status_class }}">{{ client_status_label }}</span>
+      <span class="client-status-badge {{ client_status_class }}">{{ client_status_label }}</span>
     {% endif %}
     <span>{{ client.industry|default:"No industry" }}</span>
     <span>·</span>
@@ -25,152 +25,182 @@
     <span class="vid">CRM {{ client.crm_id|default:"—" }}</span>
     <span>·</span>
     <span>Synced {{ client_last_synced_ago }}</span>
-</div>
+  </div>
 {% endblock %}
 
 {% block header_actions %}
-<a href="{% url 'voice:client_edit' client_id=client.id %}" class="btn btn-secondary">Edit</a>
-<button type="button" class="icon-btn" aria-label="More"><span class="ic ic-menu-dots ic-16"></span></button>
+  <a href="{% url 'voice:client_edit' client_id=client.id %}"
+     class="btn btn-secondary">Edit</a>
+  <button type="button" class="icon-btn" aria-label="More">
+    <span class="ic ic-menu-dots ic-16"></span>
+  </button>
 {% endblock %}
 
 {% block content %}
 
-{# ─── Stat row ─── #}
-<div class="stats">
+  {# ─── Stat row ─── #}
+  <div class="stats">
     {% for s in client_stat_row %}
-    {% include "voice/partials/stat_card.html" with label=s.label value=s.value tone=s.tone %}
+      {% include "voice/partials/stat_card.html" with label=s.label value=s.value tone=s.tone %}
     {% endfor %}
-</div>
+  </div>
 
-{# ─── 70/30 detail grid ─── #}
-<div class="detail-grid">
+  {# ─── 70/30 detail grid ─── #}
+  <div class="detail-grid">
     <div class="detail-col">
 
-        {# Meta card #}
-        <div class="dcard">
-            <div class="kv-strip">
-                {% for kv in client_kv_strip %}
-                <div class="kv">
-                    <div class="label">{{ kv.label }}</div>
-                    <div class="value">{{ kv.value }}</div>
-                    {% if kv.sub %}<div class="sub">{{ kv.sub }}</div>{% endif %}
-                </div>
-                {% endfor %}
+      {# Meta card #}
+      <div class="dcard">
+        <div class="kv-strip">
+          {% for kv in client_kv_strip %}
+            <div class="kv">
+              <div class="label">{{ kv.label }}</div>
+              <div class="value">{{ kv.value }}</div>
+              {% if kv.sub %}<div class="sub">{{ kv.sub }}</div>{% endif %}
             </div>
+          {% endfor %}
         </div>
+      </div>
 
-        {# Visit History #}
-        <div class="dcard">
-            <h3>Visit history</h3>
-            <table class="tbl">
-                <thead>
-                    <tr>
-                        <th>Date</th>
-                        <th>Agent</th>
-                        <th>Methodology</th>
-                        <th>Status</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for v in visits_enriched %}
-                    <tr>
-                        <td>{{ v.visit.start_time|date:"M j H:i" }}</td>
-                        <td>
-                            <div style="display:flex;align-items:center;gap:8px;">
-                                {% include "voice/partials/avatar.html" with initial=v.visit.agent.username|first|upper palette=v.avatar_palette size=24 %}
-                                <span>{{ v.agent_name }}</span>
-                            </div>
-                        </td>
-                        <td><span class="meth-pill">{{ v.methodology_name }}</span></td>
-                        <td>
-                            {% if v.visit.status == "PLANNED" %}{% include "voice/partials/status_pill.html" with variant="cream" label="Planned" %}
-                            {% elif v.visit.status == "PRE_CALL_DONE" %}{% include "voice/partials/status_pill.html" with variant="cyan" label="Pre-Call" %}
-                            {% elif v.visit.status == "IN_PROGRESS" %}{% include "voice/partials/status_pill.html" with variant="cyan-filled" label="Active" %}
-                            {% elif v.visit.status == "POST_CALL_DONE" %}{% include "voice/partials/status_pill.html" with variant="cream" label="Debrief" %}
-                            {% elif v.visit.status == "COMPLETE" %}{% include "voice/partials/status_pill.html" with variant="green" label="Complete" %}{% endif %}
-                        </td>
-                    </tr>
-                    {% empty %}
-                    <tr><td colspan="4" style="text-align:center;padding:24px;color:var(--fg-muted);">No visits yet.</td></tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
+      {# Visit History #}
+      <div class="dcard">
+        <h3>Visit history</h3>
+        <table class="tbl">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Agent</th>
+              <th>Methodology</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for v in visits_enriched %}
+              <tr>
+                <td>{{ v.visit.start_time|date:"M j H:i" }}</td>
+                <td>
+                  <div style="display:flex;align-items:center;gap:8px;">
+                    {% include "voice/partials/avatar.html" with initial=v.visit.agent.username|first|upper palette=v.avatar_palette size=24 %}
+                    <span>{{ v.agent_name }}</span>
+                  </div>
+                </td>
+                <td>
+                  <span class="meth-pill">{{ v.methodology_name }}</span>
+                </td>
+                <td>
+                  {% if v.visit.status == "PLANNED" %}
+                    {% include "voice/partials/status_pill.html" with variant="cream" label="Planned" %}
+                  {% elif v.visit.status == "PRE_CALL_DONE" %}
+                    {% include "voice/partials/status_pill.html" with variant="cyan" label="Pre-Call" %}
+                  {% elif v.visit.status == "IN_PROGRESS" %}
+                    {% include "voice/partials/status_pill.html" with variant="cyan-filled" label="Active" %}
+                  {% elif v.visit.status == "POST_CALL_DONE" %}
+                    {% include "voice/partials/status_pill.html" with variant="cream" label="Debrief" %}
+                  {% elif v.visit.status == "COMPLETE" %}
+                    {% include "voice/partials/status_pill.html" with variant="green" label="Complete" %}
+                  {% endif %}
+                </td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="4"
+                    style="text-align:center;
+                           padding:24px;
+                           color:var(--fg-muted)">No visits yet.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
 
-        {# Recent Calls #}
-        <div class="dcard">
-            <h3>Recent calls</h3>
-            <div style="display:flex;flex-direction:column;gap:12px;">
-                {% for c in recent_calls_enriched %}
-                <div style="display:flex;align-items:center;gap:10px;font-size:13px;">
-                    {% include "voice/partials/avatar.html" with initial=c.visit.agent.username|first|upper palette=c.agent_palette size=24 %}
-                    <span style="font-weight:700;">{{ c.agent_name }}</span>
-                    <span style="color:var(--fg-muted);">{{ c.phase|title }} call</span>
-                    <span style="flex:1;"></span>
-                    <span style="font-size:11px;color:var(--fg-muted);">{{ c.ago }}</span>
-                </div>
-                {% empty %}
-                <p style="margin:0;color:var(--fg-muted);font-size:13px;">No recent calls.</p>
-                {% endfor %}
+      {# Recent Calls #}
+      <div class="dcard">
+        <h3>Recent calls</h3>
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          {% for c in recent_calls_enriched %}
+            <div style="display:flex;align-items:center;gap:10px;font-size:13px;">
+              {% include "voice/partials/avatar.html" with initial=c.visit.agent.username|first|upper palette=c.agent_palette size=24 %}
+              <span style="font-weight:700;">{{ c.agent_name }}</span>
+              <span style="color:var(--fg-muted);">{{ c.phase|title }} call</span>
+              <span style="flex:1;"></span>
+              <span style="font-size:11px;color:var(--fg-muted);">{{ c.ago }}</span>
             </div>
+          {% empty %}
+            <p style="margin:0;color:var(--fg-muted);font-size:13px;">No recent calls.</p>
+          {% endfor %}
         </div>
+      </div>
     </div>
 
     <div class="detail-side">
 
-        {# AI Summary #}
-        <div class="dcard">
-            <h3>AI Summary</h3>
-            <p class="intel-summary">{{ client_intel_summary|linebreaksbr }}</p>
-        </div>
+      {# AI Summary #}
+      <div class="dcard">
+        <h3>AI Summary</h3>
+        <p class="intel-summary">{{ client_intel_summary|linebreaksbr }}</p>
+      </div>
 
-        {# Contacts #}
-        <div class="dcard">
-            <h3>Contacts</h3>
-            {% if client.contacts %}
-            <div style="display:flex;flex-direction:column;gap:12px;">
-                {% for contact in client.contacts %}
-                <div style="display:flex;flex-direction:column;gap:2px;font-size:13px;">
-                    <span style="font-weight:800;">{{ contact.name|default:contact.email|default:"Contact" }}</span>
-                    {% if contact.role or contact.title %}<span style="color:var(--fg-muted);font-size:12px;">{{ contact.role|default:contact.title }}</span>{% endif %}
-                    {% if contact.email %}<span style="color:var(--fg-muted);font-size:12px;">{{ contact.email }}</span>{% endif %}
-                    {% if contact.phone %}<span style="color:var(--fg-muted);font-size:12px;">{{ contact.phone }}</span>{% endif %}
+      {# Contacts #}
+      <div class="dcard">
+        <h3>Contacts</h3>
+        {% if client.contacts %}
+          <div style="display:flex;flex-direction:column;gap:12px;">
+            {% for contact in client.contacts %}
+              <div style="display:flex;flex-direction:column;gap:2px;font-size:13px;">
+                <span style="font-weight:800;">{{ contact.name|default:contact.email|default:"Contact" }}</span>
+                {% if contact.role or contact.title %}
+                  <span style="color:var(--fg-muted);font-size:12px;">{{ contact.role|default:contact.title }}</span>
+                {% endif %}
+                {% if contact.email %}
+                  <span style="color:var(--fg-muted);font-size:12px;">{{ contact.email }}</span>
+                {% endif %}
+                {% if contact.phone %}
+                  <span style="color:var(--fg-muted);font-size:12px;">{{ contact.phone }}</span>
+                {% endif %}
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <p style="margin:0;color:var(--fg-muted);font-size:13px;">No contacts on file.</p>
+        {% endif %}
+      </div>
+
+      {# Assigned Agents #}
+      <div class="dcard">
+        <h3>Assigned agents</h3>
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          {% for a in agents_enriched %}
+            <div style="display:flex;align-items:center;gap:10px;">
+              {% include "voice/partials/avatar.html" with initial=a.agent.username|first|upper palette=a.avatar_palette size=28 %}
+              <div style="flex:1;min-width:0;">
+                <div style="font-weight:800;font-size:13px;">
+                  {{ a.agent.get_full_name|default:a.agent.username }}
                 </div>
-                {% endfor %}
+                <div style="font-size:11px;color:var(--fg-muted);">{{ a.methodology_name }}</div>
+              </div>
             </div>
-            {% else %}
-            <p style="margin:0;color:var(--fg-muted);font-size:13px;">No contacts on file.</p>
-            {% endif %}
+          {% empty %}
+            <p style="margin:0;color:var(--fg-muted);font-size:13px;">No agents assigned.</p>
+          {% endfor %}
         </div>
+      </div>
 
-        {# Assigned Agents #}
-        <div class="dcard">
-            <h3>Assigned agents</h3>
-            <div style="display:flex;flex-direction:column;gap:10px;">
-                {% for a in agents_enriched %}
-                <div style="display:flex;align-items:center;gap:10px;">
-                    {% include "voice/partials/avatar.html" with initial=a.agent.username|first|upper palette=a.avatar_palette size=28 %}
-                    <div style="flex:1;min-width:0;">
-                        <div style="font-weight:800;font-size:13px;">{{ a.agent.get_full_name|default:a.agent.username }}</div>
-                        <div style="font-size:11px;color:var(--fg-muted);">{{ a.methodology_name }}</div>
-                    </div>
-                </div>
-                {% empty %}
-                <p style="margin:0;color:var(--fg-muted);font-size:13px;">No agents assigned.</p>
-                {% endfor %}
-            </div>
-        </div>
-
-        {# CRM Data #}
-        <div class="dcard">
-            <h3>CRM data</h3>
-            <ul class="status-list">
-                <li class="{% if not client.crm_id %}off{% endif %}"><span class="dot {% if client.crm_id %}on{% else %}off{% endif %}"></span>CRM ID: {{ client.crm_id|default:"—" }}</li>
-                <li><span class="dot on"></span>{{ client.deal_history|length }} deals</li>
-                <li><span class="dot on"></span>{{ client.interaction_history|length }} interactions</li>
-            </ul>
-        </div>
+      {# CRM Data #}
+      <div class="dcard">
+        <h3>CRM data</h3>
+        <ul class="status-list">
+          <li class="{% if not client.crm_id %}off{% endif %}">
+            <span class="dot {% if client.crm_id %}on{% else %}off{% endif %}"></span>CRM ID: {{ client.crm_id|default:"—" }}
+          </li>
+          <li>
+            <span class="dot on"></span>{{ client.deal_history|length }} deals
+          </li>
+          <li>
+            <span class="dot on"></span>{{ client.interaction_history|length }} interactions
+          </li>
+        </ul>
+      </div>
     </div>
-</div>
+  </div>
 
 {% endblock %}

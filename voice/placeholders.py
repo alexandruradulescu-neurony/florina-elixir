@@ -13,7 +13,6 @@ the function by name and replace its body — templates do not need to change.
 
 from voice.constants import VisitStatus
 
-
 # ─────────────────────────────────────────────────────────────────────────────
 # Per-record helpers
 # ─────────────────────────────────────────────────────────────────────────────
@@ -246,8 +245,9 @@ def dashboard_extras(context):
     todays = list(context["todays_visits"])
     fell_back = False
     if not todays:
-        from voice.models import Visit as _V
         from django.utils import timezone as _tz
+
+        from voice.models import Visit as _V
         upcoming = _V.objects.filter(
             start_time__gte=_tz.now()
         ).select_related('agent', 'client', 'methodology').order_by('start_time')[:5]
@@ -1054,6 +1054,7 @@ def _build_mini_cal_month(target_date):
 
     Returns a list of 42 cell dicts: {day_num, iso, in_month, is_today, is_selected}."""
     from datetime import timedelta
+
     from django.utils import timezone
 
     today = timezone.now().date()

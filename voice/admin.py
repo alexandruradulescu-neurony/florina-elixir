@@ -3,10 +3,19 @@ Django admin configuration for the voice app.
 """
 from django.contrib import admin
 from django.utils.html import format_html
+
 from .models import (
-    User, VoicePrompt, Meeting, CallAttempt, ActivityLog,
-    GoogleOauthCredential, GoogleCalendarWatch,
-    Client, Methodology, Visit, GlobalSettings,
+    ActivityLog,
+    CallAttempt,
+    Client,
+    GlobalSettings,
+    GoogleCalendarWatch,
+    GoogleOauthCredential,
+    Meeting,
+    Methodology,
+    User,
+    Visit,
+    VoicePrompt,
 )
 
 
@@ -32,13 +41,13 @@ class VoicePromptAdmin(admin.ModelAdmin):
     list_filter = ['prompt_type', 'is_active']
     search_fields = ['name', 'system_prompt', 'first_message']
     readonly_fields = ['created_at', 'updated_at']
-    
+
     fieldsets = (
         (None, {'fields': ('name', 'prompt_type', 'is_active')}),
         ('Prompt Content', {'fields': ('system_prompt', 'first_message')}),
         ('Timestamps', {'fields': ('created_at', 'updated_at')}),
     )
-    
+
     def save_model(self, request, obj, form, change):
         """Ensure only one active prompt per type."""
         if obj.is_active:
@@ -53,13 +62,13 @@ class VoicePromptAdmin(admin.ModelAdmin):
 @admin.register(Meeting)
 class MeetingAdmin(admin.ModelAdmin):
     """Admin interface for Meeting model."""
-    list_display = ['title', 'agent', 'customer_name', 'start_time', 'end_time', 
+    list_display = ['title', 'agent', 'customer_name', 'start_time', 'end_time',
                     'pre_call_status', 'post_call_status', 'created_at']
     list_filter = ['is_pre_call_completed', 'is_post_call_completed', 'start_time', 'created_at']
     search_fields = ['title', 'customer_name', 'external_id', 'agent__username']
     readonly_fields = ['created_at', 'updated_at']
     date_hierarchy = 'start_time'
-    
+
     fieldsets = (
         ('Meeting Information', {
             'fields': ('agent', 'external_id', 'title', 'customer_name')
@@ -74,14 +83,14 @@ class MeetingAdmin(admin.ModelAdmin):
             'fields': ('created_at', 'updated_at')
         }),
     )
-    
+
     def pre_call_status(self, obj):
         """Display pre-call status with color."""
         if obj.is_pre_call_completed:
             return format_html('<span style="color: green;">✓ Completed</span>')
         return format_html('<span style="color: orange;">Pending</span>')
     pre_call_status.short_description = 'Pre-Call Status'
-    
+
     def post_call_status(self, obj):
         """Display post-call status with color."""
         if obj.is_post_call_completed:
@@ -93,13 +102,13 @@ class MeetingAdmin(admin.ModelAdmin):
 @admin.register(CallAttempt)
 class CallAttemptAdmin(admin.ModelAdmin):
     """Admin interface for CallAttempt model."""
-    list_display = ['meeting', 'phase', 'scheduled_offset_minutes', 'status', 
+    list_display = ['meeting', 'phase', 'scheduled_offset_minutes', 'status',
                     'external_call_id', 'executed_at', 'created_at']
     list_filter = ['phase', 'status', 'created_at', 'executed_at']
     search_fields = ['meeting__title', 'external_call_id', 'meeting__agent__username']
     readonly_fields = ['created_at', 'updated_at']
     date_hierarchy = 'created_at'
-    
+
     fieldsets = (
         ('Call Information', {
             'fields': ('meeting', 'visit', 'phase', 'scheduled_offset_minutes', 'status')
@@ -124,7 +133,7 @@ class ActivityLogAdmin(admin.ModelAdmin):
     search_fields = ['action', 'meeting__title', 'user__username']
     readonly_fields = ['timestamp']
     date_hierarchy = 'timestamp'
-    
+
     fieldsets = (
         ('Log Information', {
             'fields': ('action', 'level', 'meeting', 'user')
@@ -136,11 +145,11 @@ class ActivityLogAdmin(admin.ModelAdmin):
             'fields': ('timestamp',)
         }),
     )
-    
+
     def has_add_permission(self, request):
         """Activity logs are immutable - cannot be manually created."""
         return False
-    
+
     def has_change_permission(self, request, obj=None):
         """Activity logs are immutable - cannot be edited."""
         return False
@@ -153,7 +162,7 @@ class GoogleOauthCredentialAdmin(admin.ModelAdmin):
     list_filter = ['created_at', 'updated_at']
     search_fields = ['user__username', 'user__email', 'client_id']
     readonly_fields = ['created_at', 'updated_at']
-    
+
     fieldsets = (
         ('User', {'fields': ('user',)}),
         ('OAuth Credentials', {
@@ -162,7 +171,7 @@ class GoogleOauthCredentialAdmin(admin.ModelAdmin):
         }),
         ('Metadata', {'fields': ('expires_at', 'created_at', 'updated_at')}),
     )
-    
+
     def has_add_permission(self, request):
         """Credentials should only be created via OAuth flow."""
         return False
@@ -175,7 +184,7 @@ class GoogleCalendarWatchAdmin(admin.ModelAdmin):
     list_filter = ['expiration', 'created_at']
     search_fields = ['user__username', 'channel_id', 'resource_id']
     readonly_fields = ['created_at']
-    
+
     fieldsets = (
         ('Watch Information', {
             'fields': ('user', 'channel_id', 'resource_id', 'expiration')
@@ -184,7 +193,7 @@ class GoogleCalendarWatchAdmin(admin.ModelAdmin):
             'fields': ('created_at',)
         }),
     )
-    
+
     def has_add_permission(self, request):
         """Watch channels should only be created via API."""
         return False

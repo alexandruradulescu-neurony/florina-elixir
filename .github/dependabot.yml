@@ -1,0 +1,46 @@
+version: 2
+updates:
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Europe/Bucharest"
+
+    # Reduce exposure to rushed or malicious releases by waiting before PRs open.
+    # Note: this also delays security update PRs if the fixed version is newer than
+    # the cooldown window, so critical CVEs should still be handled manually when needed.
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
+
+    open-pull-requests-limit: 5
+
+    labels:
+      - "dependencies"
+      - "python"
+
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+
+    # Keep routine maintenance reviewable.
+    groups:
+      uv-patch-and-minor:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+      uv-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+
+    # Major upgrades should be reviewed manually.
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-major"

@@ -4,73 +4,89 @@
 {% block title %}Clients — Sales Assistant{% endblock %}
 
 {% block display_title %}Clients{% endblock %}
-{% block display_subtitle %}<div class="sub">{{ total_count }} clients · {{ with_summary }} with AI summary</div>{% endblock %}
+{% block display_subtitle %}
+  <div class="sub">{{ total_count }} clients · {{ with_summary }} with AI summary</div>
+{% endblock %}
 
 {% block header_actions %}
-<a href="{% url 'voice:client_create' %}" class="btn btn-primary"><span class="ic ic-plus ic-14"></span> New client</a>
+  <a href="{% url 'voice:client_create' %}" class="btn btn-primary"><span class="ic ic-plus ic-14"></span> New client</a>
 {% endblock %}
 
 {% block content %}
 
-{# ─── Stat row ─── #}
-<div class="stats">
+  {# ─── Stat row ─── #}
+  <div class="stats">
     {% include "voice/partials/stat_card.html" with label="Total" value=total_count %}
     {% include "voice/partials/stat_card.html" with label="With AI summary" value=with_summary tone="green" %}
     {% include "voice/partials/stat_card.html" with label="With CRM" value=clients_with_crm_count tone="cyan" %}
     {% include "voice/partials/stat_card.html" with label="Stale" value=clients_stale_count tone="rose" %}
-</div>
+  </div>
 
-{# ─── Search bar ─── #}
-<form method="get" class="clients-search">
+  {# ─── Search bar ─── #}
+  <form method="get" class="clients-search">
     <span class="ic ic-search ic-16"></span>
-    <input type="search" name="q" value="{{ search|default:'' }}" placeholder="Search by name, domain, industry…">
-</form>
+    <input type="search"
+           name="q"
+           value="{{ search|default:'' }}"
+           placeholder="Search by name, domain, industry…">
+  </form>
 
-{# ─── Clients table ─── #}
-<table class="tbl ctable">
+  {# ─── Clients table ─── #}
+  <table class="tbl ctable">
     <thead>
-        <tr>
-            <th>Client</th>
-            <th>Industry</th>
-            <th>Visits</th>
-            <th style="width: 80px;">Agents</th>
-            <th style="width: 110px;">Intel</th>
-            <th style="width: 130px;">Last synced</th>
-            <th style="width: 48px;"></th>
-        </tr>
+      <tr>
+        <th>Client</th>
+        <th>Industry</th>
+        <th>Visits</th>
+        <th style="width: 80px;">Agents</th>
+        <th style="width: 110px;">Intel</th>
+        <th style="width: 130px;">Last synced</th>
+        <th style="width: 48px;"></th>
+      </tr>
     </thead>
     <tbody>
-        {% for cd in clients %}
+      {% for cd in clients %}
         <tr>
-            <td>
-                <div class="client">
-                    <span class="nm">{{ cd.client.name }}</span>
-                    <span class="dom">{{ cd.domain_short|default:"—" }}</span>
-                </div>
-            </td>
-            <td>{{ cd.client.industry|default:"—" }}</td>
-            <td class="visits-cell">
-                <span class="n">{{ cd.total_visits }}</span>
-                <span class="last">last {{ cd.last_visit_str }}</span>
-            </td>
-            <td><span class="num">{{ cd.agent_count }}</span></td>
-            <td>
-                <div class="intel">
-                    <span class="row{% if not cd.intel_ai_on %} miss{% endif %}"><span class="dot"></span>AI summary</span>
-                    <span class="row{% if not cd.intel_crm_on %} miss{% endif %}"><span class="dot"></span>CRM linked</span>
-                </div>
-            </td>
-            <td>
-                <span class="synced {% if cd.synced_fresh %}fresh{% else %}stale{% endif %}">
-                    <span class="dot"></span>{{ cd.synced_ago }}
-                </span>
-            </td>
-            <td><a href="{% url 'voice:client_detail' client_id=cd.client.id %}" class="more" aria-label="View client"><span class="ic ic-menu-dots"></span></a></td>
+          <td>
+            <div class="client">
+              <span class="nm">{{ cd.client.name }}</span>
+              <span class="dom">{{ cd.domain_short|default:"—" }}</span>
+            </div>
+          </td>
+          <td>{{ cd.client.industry|default:"—" }}</td>
+          <td class="visits-cell">
+            <span class="n">{{ cd.total_visits }}</span>
+            <span class="last">last {{ cd.last_visit_str }}</span>
+          </td>
+          <td>
+            <span class="num">{{ cd.agent_count }}</span>
+          </td>
+          <td>
+            <div class="intel">
+              <span class="row{% if not cd.intel_ai_on %} miss{% endif %}"><span class="dot"></span>AI summary</span>
+              <span class="row{% if not cd.intel_crm_on %} miss{% endif %}"><span class="dot"></span>CRM linked</span>
+            </div>
+          </td>
+          <td>
+            <span class="synced {% if cd.synced_fresh %}fresh{% else %}stale{% endif %}">
+              <span class="dot"></span>{{ cd.synced_ago }}
+            </span>
+          </td>
+          <td>
+            <a href="{% url 'voice:client_detail' client_id=cd.client.id %}"
+               class="more"
+               aria-label="View client"><span class="ic ic-menu-dots"></span></a>
+          </td>
         </tr>
-        {% empty %}
-        <tr><td colspan="7" style="text-align:center;padding:32px;color:var(--fg-muted);">No clients found.</td></tr>
-        {% endfor %}
+      {% empty %}
+        <tr>
+          <td colspan="7"
+              style="text-align:center;
+                     padding:32px;
+                     color:var(--fg-muted)">No clients found.</td>
+        </tr>
+      {% endfor %}
     </tbody>
-</table>
+  </table>
 
 {% endblock %}

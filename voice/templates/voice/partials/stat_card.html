@@ -16,6 +16,7 @@ NO sparklines, NO progress bars, NO right-side chips. Those belong in screen-spe
 <div class="stat-card{% if tone and tone != 'default' %} tone-{{ tone }}{% endif %}">
   <div class="meta">{{ label }}</div>
   <div class="num">
-    {{ value }}{% if secondary %}<span class="secondary">{{ secondary }}</span>{% endif %}
+    {{ value }}
+    {% if secondary %}<span class="secondary">{{ secondary }}</span>{% endif %}
   </div>
 </div>

@@ -9,13 +9,14 @@ Usage:
     python manage.py seed_demo --date 2026-05-28
 """
 
-from datetime import date as date_cls, datetime, time, timedelta
+from datetime import date as date_cls
+from datetime import datetime, time, timedelta
 
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
-from voice.models import Client, User, Visit
 from voice.constants import VisitStatus
+from voice.models import Client, User, Visit
 
 
 class Command(BaseCommand):
@@ -80,7 +81,7 @@ class Command(BaseCommand):
 
         # Create 3 visits — one per agent, paired with a client; scheduled on target_date
         tz = timezone.get_current_timezone()
-        for i, (agent, client) in enumerate(zip(agents, clients), start=1):
+        for i, (agent, client) in enumerate(zip(agents, clients, strict=True), start=1):
             start = datetime.combine(target_date, time(10 + i, 0)).replace(tzinfo=tz)
             end = start + timedelta(hours=1)
             visit = Visit.objects.create(

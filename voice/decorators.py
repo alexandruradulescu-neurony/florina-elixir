@@ -7,7 +7,7 @@ from django.core.exceptions import PermissionDenied
 
 class SuperuserRequiredMixin(AccessMixin):
     """Mixin that requires user to be a superuser."""
-    
+
     def dispatch(self, request, *args, **kwargs):
         if not request.user.is_authenticated:
             return self.handle_no_permission()
@@ -18,7 +18,7 @@ class SuperuserRequiredMixin(AccessMixin):
 
 class SalesAgentRequiredMixin(AccessMixin):
     """Mixin that requires user to be a sales agent."""
-    
+
     def dispatch(self, request, *args, **kwargs):
         if not request.user.is_authenticated:
             return self.handle_no_permission()

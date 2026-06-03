@@ -5,13 +5,13 @@ Syncs client/organization data from the CRM into the local Client model.
 Supports full sync (all clients) and single-client refresh.
 """
 import logging
-from typing import Optional
 
 from django.utils import timezone
 
-from voice.models import Client
 from voice.constants import LogLevel
 from voice.crm import get_crm_provider
+from voice.models import Client
+
 from .logging import log_activity
 
 logger = logging.getLogger(__name__)
@@ -76,7 +76,7 @@ def sync_all_clients() -> dict:
     return results
 
 
-def sync_single_client(crm_id: str) -> Optional[Client]:
+def sync_single_client(crm_id: str) -> Client | None:
     """
     Refresh a single client from CRM by its CRM ID.
 

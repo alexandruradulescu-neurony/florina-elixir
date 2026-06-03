@@ -13,4 +13,6 @@ Parameters:
 Palette → color mapping is defined in screens.css (.av-a etc.).
 {% endcomment %}
 <span class="av av-{{ palette|default:'a' }}"
-      style="width:{{ size|default:32 }}px;height:{{ size|default:32 }}px;font-size:{% if size and size >= 36 %}14px{% else %}12px{% endif %};">{{ initial }}</span>
+      style="width:{{ size|default:32 }}px;
+             height:{{ size|default:32 }}px;
+             font-size:{% if size and size >= 36 %}14px{% else %}12px{% endif %}">{{ initial }}</span>

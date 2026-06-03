@@ -1,0 +1,206 @@
+name: Backend Checks
+
+on:
+  workflow_call:
+
+jobs:
+  python-lint:
+    name: Python Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.10.2"
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Run Ruff
+        run: uvx ruff check .
+
+  python-format:
+    name: Python Format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.10.2"
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Check formatting
+        run: uvx ruff format --check .
+
+  type-check:
+    name: Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.10.2"
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Detect mypy configuration
+        id: mypy-config
+        shell: bash
+        run: |
+          enabled=false
+          if [ -f mypy.ini ] || [ -f .mypy.ini ]; then
+            enabled=true
+          elif [ -f setup.cfg ] && grep -q '^\[mypy\]' setup.cfg; then
+            enabled=true
+          elif grep -q '^\[tool\.mypy\]' pyproject.toml; then
+            enabled=true
+          fi
+          echo "enabled=$enabled" >> "$GITHUB_OUTPUT"
+
+      - name: Sync dependencies
+        if: steps.mypy-config.outputs.enabled == 'true'
+        run: uv sync --locked
+
+      - name: Run mypy
+        if: steps.mypy-config.outputs.enabled == 'true'
+        run: uvx mypy .
+
+      - name: Skip mypy
+        if: steps.mypy-config.outputs.enabled != 'true'
+        run: echo "No mypy config found; skipping type check."
+
+  django-check:
+    name: Django Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.10.2"
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Sync dependencies
+        run: uv sync --locked
+
+      - name: Compile Python files
+        run: uv run python -m compileall .
+
+      - name: Run Django system checks
+        env:
+          SECRET_KEY: ci-secret-key-for-dev-checks-only-and-long-enough-to-pass-basic-quality
+          DEBUG: "true"
+          DB_NAME: ci
+          DB_USER: ci
+          DB_PASSWORD: ci
+          DB_HOST: localhost
+          DB_PORT: "5432"
+        run: uv run python manage.py check
+
+  django-deploy-check:
+    name: Django Deploy Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.10.2"
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Sync dependencies
+        run: uv sync --locked
+
+      - name: Run Django deploy checks
+        env:
+          SECRET_KEY: ci-secret-key-for-deploy-checks-only-and-long-enough-to-pass-security-checks
+          DEBUG: "false"
+          ALLOWED_HOSTS: example.com
+          CSRF_TRUSTED_ORIGINS: https://example.com
+          DB_NAME: ci
+          DB_USER: ci
+          DB_PASSWORD: ci
+          DB_HOST: localhost
+          DB_PORT: "5432"
+        run: uv run python manage.py check --deploy
+
+  dependency-audit:
+    name: Dependency Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.10.2"
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Sync dependencies
+        run: uv sync --locked
+
+      - name: Run pip-audit
+        run: uvx --with pip-audit pip-audit
+
+  security-lint:
+    name: Bandit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.10.2"
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Run Bandit
+        run: |
+          uvx bandit -r proj_mes_voice voice \
+            -x voice/migrations \
+            -s B105 \
+            -q
+
+  lockfile-check:
+    name: Lockfile Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.10.2"
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Verify lockfile is up to date
+        run: uv lock --check

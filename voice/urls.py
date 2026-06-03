@@ -2,8 +2,8 @@
 URL configuration for the voice app.
 """
 from django.urls import path
-from . import views
-from . import webhook_views
+
+from . import views, webhook_views
 
 app_name = 'voice'
 

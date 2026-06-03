@@ -4,126 +4,168 @@
 {% block title %}Visits — Sales Assistant{% endblock %}
 
 {% block header_utility %}
-<div class="toggle">
-    <a href="?date={{ target_date|date:'Y-m-d' }}{% if group_filter and group_filter != 'all' %}&filter={{ group_filter }}{% endif %}{% if agent_filter %}&agent={{ agent_filter }}{% endif %}" class="on">List</a>
+  <div class="toggle">
+    <a href="?date={{ target_date|date:'Y-m-d' }}{% if group_filter and group_filter != 'all' %}&filter={{ group_filter }}{% endif %}{% if agent_filter %}&agent={{ agent_filter }}{% endif %}"
+       class="on">List</a>
     <a href="{% url 'voice:visit_calendar' %}?date={{ target_date|date:'Y-m-d' }}">Calendar</a>
-</div>
-<div class="week-chip">
+  </div>
+  <div class="week-chip">
     <a href="?date={{ prev_date|date:'Y-m-d' }}" aria-label="Previous day"><span class="ic ic-angle-left"></span></a>
     <span class="lbl">{{ target_date|date:"D, M j" }}</span>
     <a href="?date={{ next_date|date:'Y-m-d' }}" aria-label="Next day"><span class="ic ic-angle-right"></span></a>
-</div>
+  </div>
 {% endblock %}
 
 {% block display_title %}Visits{% endblock %}
 {% block display_subtitle %}<div class="sub">{{ target_date|date:"l, F j, Y" }}</div>{% endblock %}
 
 {% block header_filters %}
-<div class="filters">
-    <a href="?date={{ target_date|date:'Y-m-d' }}&filter=all{% if agent_filter %}&agent={{ agent_filter }}{% endif %}" class="{% if group_filter == 'all' %}on{% endif %}">All</a>
-    <a href="?date={{ target_date|date:'Y-m-d' }}&filter=upcoming{% if agent_filter %}&agent={{ agent_filter }}{% endif %}" class="{% if group_filter == 'upcoming' %}on{% endif %}">Upcoming</a>
-    <a href="?date={{ target_date|date:'Y-m-d' }}&filter=completed{% if agent_filter %}&agent={{ agent_filter }}{% endif %}" class="{% if group_filter == 'completed' %}on{% endif %}">Completed</a>
-    <a href="?date={{ target_date|date:'Y-m-d' }}&filter=cancelled{% if agent_filter %}&agent={{ agent_filter }}{% endif %}" class="{% if group_filter == 'cancelled' %}on{% endif %}">Cancelled</a>
-</div>
+  <div class="filters">
+    <a href="?date={{ target_date|date:'Y-m-d' }}&filter=all{% if agent_filter %}&agent={{ agent_filter }}{% endif %}"
+       class="{% if group_filter == 'all' %}on{% endif %}">All</a>
+    <a href="?date={{ target_date|date:'Y-m-d' }}&filter=upcoming{% if agent_filter %}&agent={{ agent_filter }}{% endif %}"
+       class="{% if group_filter == 'upcoming' %}on{% endif %}">Upcoming</a>
+    <a href="?date={{ target_date|date:'Y-m-d' }}&filter=completed{% if agent_filter %}&agent={{ agent_filter }}{% endif %}"
+       class="{% if group_filter == 'completed' %}on{% endif %}">Completed</a>
+    <a href="?date={{ target_date|date:'Y-m-d' }}&filter=cancelled{% if agent_filter %}&agent={{ agent_filter }}{% endif %}"
+       class="{% if group_filter == 'cancelled' %}on{% endif %}">Cancelled</a>
+  </div>
 {% endblock %}
 
 {% block header_actions %}
-<a href="{% url 'voice:visit_list' %}" class="btn btn-primary"><span class="ic ic-plus ic-14"></span> New visit</a>
+  <a href="{% url 'voice:visit_list' %}" class="btn btn-primary"><span class="ic ic-plus ic-14"></span> New visit</a>
 {% endblock %}
 
 {% block content %}
 
-{# ─── Stat row ─── #}
-<div class="stats">
+  {# ─── Stat row ─── #}
+  <div class="stats">
     {% include "voice/partials/stat_card.html" with label="Total today" value=summary.total %}
     <div class="stat-card{% if active_count %} tone-cyan{% endif %}">
-        {% if active_count %}<span class="livedot"></span>{% endif %}
-        <div class="meta">Active now</div>
-        <div class="num">{{ active_count }}</div>
-        {% if live_clients %}<div class="stat-sub">{{ live_clients|join:" · " }}</div>{% endif %}
+      {% if active_count %}<span class="livedot"></span>{% endif %}
+      <div class="meta">Active now</div>
+      <div class="num">{{ active_count }}</div>
+      {% if live_clients %}<div class="stat-sub">{{ live_clients|join:" · " }}</div>{% endif %}
     </div>
     <div class="stat-card{% if at_risk_count %} tone-rose{% endif %}">
-        <div class="meta">At risk</div>
-        <div class="num">{{ at_risk_count }}</div>
-        {% if at_risk_label %}<div class="stat-sub">{{ at_risk_label }}</div>{% endif %}
+      <div class="meta">At risk</div>
+      <div class="num">{{ at_risk_count }}</div>
+      {% if at_risk_label %}<div class="stat-sub">{{ at_risk_label }}</div>{% endif %}
     </div>
     <div class="stat-card{% if crm_synced_total %} tone-green{% endif %}">
-        <div class="meta">CRM synced</div>
-        <div class="num">{{ crm_synced_count }}<span class="secondary">/ {{ crm_synced_total }}</span></div>
-        <div class="stat-sub">{{ crm_synced_pct }}%</div>
+      <div class="meta">CRM synced</div>
+      <div class="num">
+        {{ crm_synced_count }}<span class="secondary">/ {{ crm_synced_total }}</span>
+      </div>
+      <div class="stat-sub">{{ crm_synced_pct }}%</div>
     </div>
-</div>
+  </div>
 
-{# ─── Filter bar (GET form) ─── #}
-<form method="get" class="filterbar">
+  {# ─── Filter bar (GET form) ─── #}
+  <form method="get" class="filterbar">
     <input type="hidden" name="date" value="{{ target_date|date:'Y-m-d' }}">
     <input type="hidden" name="filter" value="{{ group_filter }}">
     <span class="fb-pill">
-        <select name="agent" onchange="this.form.submit()">
-            <option value="">All agents</option>
-            {% for a in agents %}<option value="{{ a.id }}" {% if agent_filter == a.id|stringformat:'s' %}selected{% endif %}>{{ a.get_full_name|default:a.username }}</option>{% endfor %}
-        </select>
+      <select name="agent" onchange="this.form.submit()">
+        <option value="">All agents</option>
+        {% for a in agents %}
+          <option value="{{ a.id }}"
+                  {% if agent_filter == a.id|stringformat:'s' %}selected{% endif %}>
+            {{ a.get_full_name|default:a.username }}
+          </option>
+        {% endfor %}
+      </select>
     </span>
     <span class="fb-count">{{ visits|length }} visits</span>
-</form>
+  </form>
 
-{# ─── Visits table ─── #}
-<table class="tbl vtable">
+  {# ─── Visits table ─── #}
+  <table class="tbl vtable">
     <thead>
-        <tr>
-            <th style="width: 110px;">Time</th>
-            <th>Agent</th>
-            <th>Client</th>
-            <th>Methodology</th>
-            <th style="width: 60px;">Calls</th>
-            <th style="width: 110px;">Status</th>
-            <th style="width: 60px;">CRM</th>
-            <th style="width: 48px;"></th>
-        </tr>
+      <tr>
+        <th style="width: 110px;">Time</th>
+        <th>Agent</th>
+        <th>Client</th>
+        <th>Methodology</th>
+        <th style="width: 60px;">Calls</th>
+        <th style="width: 110px;">Status</th>
+        <th style="width: 60px;">CRM</th>
+        <th style="width: 48px;"></th>
+      </tr>
     </thead>
     <tbody>
-        {% for vd in visits %}
+      {% for vd in visits %}
         <tr class="vt-row clickable{% if vd.visit.status == 'CANCELLED' %} cancelled{% endif %}"
             onclick="window.location.href='{% url 'voice:visit_detail' visit_id=vd.visit.id %}'">
-            <td>{{ vd.visit.start_time|date:"H:i" }}–{{ vd.visit.end_time|date:"H:i" }}</td>
-            <td>
-                <div style="display:flex;align-items:center;gap:10px;">
-                    {% include "voice/partials/avatar.html" with initial=vd.visit.agent.username|first|upper palette=vd.avatar_palette size=28 %}
-                    <span>{{ vd.visit.agent.get_full_name|default:vd.visit.agent.username }}</span>
-                </div>
-            </td>
-            <td>
-                {{ vd.visit.client.name|default:"—" }}
-                <span class="meta">{{ vd.visit.client.industry|default:"" }}</span>
-            </td>
-            <td><span class="meth-pill">{{ vd.visit.methodology.name|default:"—" }}</span></td>
-            <td>
-                <span class="calls">
-                    {% if vd.pre_call_done %}{% include "voice/partials/call_phase_icon.html" with phase="pre" state="done" %}{% else %}{% include "voice/partials/call_phase_icon.html" with phase="pre" state="todo" %}{% endif %}
-                    {% if vd.post_call_done %}{% include "voice/partials/call_phase_icon.html" with phase="post" state="done" %}{% else %}{% include "voice/partials/call_phase_icon.html" with phase="post" state="todo" %}{% endif %}
-                </span>
-            </td>
-            <td>
-                {% if vd.visit.status == "PLANNED" %}{% include "voice/partials/status_pill.html" with variant="cream" label="Planned" %}
-                {% elif vd.visit.status == "PRE_CALL_DONE" %}{% include "voice/partials/status_pill.html" with variant="cyan" label="Pre-Call" %}
-                {% elif vd.visit.status == "IN_PROGRESS" %}{% include "voice/partials/status_pill.html" with variant="cyan-filled" label="Active" %}
-                {% elif vd.visit.status == "POST_CALL_DONE" %}{% include "voice/partials/status_pill.html" with variant="cream" label="Debrief" %}
-                {% elif vd.visit.status == "COMPLETE" %}{% include "voice/partials/status_pill.html" with variant="green" label="Complete" %}{% endif %}
-            </td>
-            <td><span class="crm-cell"><span class="crm-dot crm-dot-{{ vd.crm_state }}"></span><span>{{ vd.crm_state|title }}</span></span></td>
-            <td><a href="{% url 'voice:visit_detail' visit_id=vd.visit.id %}" class="icon-btn" style="width:28px;height:28px;border:none;background:transparent;"><span class="ic ic-menu-dots ic-14"></span></a></td>
+          <td>{{ vd.visit.start_time|date:"H:i" }}–{{ vd.visit.end_time|date:"H:i" }}</td>
+          <td>
+            <div style="display:flex;align-items:center;gap:10px;">
+              {% include "voice/partials/avatar.html" with initial=vd.visit.agent.username|first|upper palette=vd.avatar_palette size=28 %}
+              <span>{{ vd.visit.agent.get_full_name|default:vd.visit.agent.username }}</span>
+            </div>
+          </td>
+          <td>
+            {{ vd.visit.client.name|default:"—" }}
+            <span class="meta">{{ vd.visit.client.industry|default:"" }}</span>
+          </td>
+          <td>
+            <span class="meth-pill">{{ vd.visit.methodology.name|default:"—" }}</span>
+          </td>
+          <td>
+            <span class="calls">
+              {% if vd.pre_call_done %}
+                {% include "voice/partials/call_phase_icon.html" with phase="pre" state="done" %}
+              {% else %}
+                {% include "voice/partials/call_phase_icon.html" with phase="pre" state="todo" %}
+              {% endif %}
+              {% if vd.post_call_done %}
+                {% include "voice/partials/call_phase_icon.html" with phase="post" state="done" %}
+              {% else %}
+                {% include "voice/partials/call_phase_icon.html" with phase="post" state="todo" %}
+              {% endif %}
+            </span>
+          </td>
+          <td>
+            {% if vd.visit.status == "PLANNED" %}
+              {% include "voice/partials/status_pill.html" with variant="cream" label="Planned" %}
+            {% elif vd.visit.status == "PRE_CALL_DONE" %}
+              {% include "voice/partials/status_pill.html" with variant="cyan" label="Pre-Call" %}
+            {% elif vd.visit.status == "IN_PROGRESS" %}
+              {% include "voice/partials/status_pill.html" with variant="cyan-filled" label="Active" %}
+            {% elif vd.visit.status == "POST_CALL_DONE" %}
+              {% include "voice/partials/status_pill.html" with variant="cream" label="Debrief" %}
+            {% elif vd.visit.status == "COMPLETE" %}
+              {% include "voice/partials/status_pill.html" with variant="green" label="Complete" %}
+            {% endif %}
+          </td>
+          <td>
+            <span class="crm-cell"><span class="crm-dot crm-dot-{{ vd.crm_state }}"></span><span>{{ vd.crm_state|title }}</span></span>
+          </td>
+          <td>
+            <a href="{% url 'voice:visit_detail' visit_id=vd.visit.id %}"
+               class="icon-btn"
+               style="width:28px;
+                      height:28px;
+                      border:none;
+                      background:transparent"><span class="ic ic-menu-dots ic-14"></span></a>
+          </td>
         </tr>
-        {% empty %}
-        <tr><td colspan="8" style="text-align:center;padding:32px;color:var(--fg-muted);">No visits for this date.</td></tr>
-        {% endfor %}
+      {% empty %}
+        <tr>
+          <td colspan="8"
+              style="text-align:center;
+                     padding:32px;
+                     color:var(--fg-muted)">No visits for this date.</td>
+        </tr>
+      {% endfor %}
     </tbody>
-</table>
-<div class="vt-foot">
+  </table>
+  <div class="vt-foot">
     <div>Showing {{ visits|length }} visits for {{ target_date|date:"M j" }}</div>
     <div class="pager">
-        <a href="?date={{ prev_date|date:'Y-m-d' }}" class="btn btn-secondary">← Previous day</a>
-        <a href="?date={{ next_date|date:'Y-m-d' }}" class="btn btn-secondary">Next day →</a>
+      <a href="?date={{ prev_date|date:'Y-m-d' }}" class="btn btn-secondary">← Previous day</a>
+      <a href="?date={{ next_date|date:'Y-m-d' }}" class="btn btn-secondary">Next day →</a>
     </div>
-</div>
+  </div>
 
 {% endblock %}

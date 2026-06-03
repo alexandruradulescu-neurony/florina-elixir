@@ -4,102 +4,149 @@
 {% block title %}New agent — Sales Assistant{% endblock %}
 
 {% block header_utility %}
-<nav class="breadcrumb">
+  <nav class="breadcrumb">
     <a href="{% url 'voice:agent_management' %}">Agents</a>
     <span class="sep">/</span>
     <span class="cur">New agent</span>
-</nav>
+  </nav>
 {% endblock %}
 
 {% block display_title %}New agent{% endblock %}
 
 {% block content %}
 
-{% if form.non_field_errors %}
-<div class="toast toast-error" style="margin-bottom:16px;">
-    {% for error in form.non_field_errors %}<span>{{ error }}</span>{% endfor %}
-</div>
-{% endif %}
+  {% if form.non_field_errors %}
+    <div class="toast toast-error" style="margin-bottom:16px;">
+      {% for error in form.non_field_errors %}<span>{{ error }}</span>{% endfor %}
+    </div>
+  {% endif %}
 
-<form method="post" class="form-layout">
+  <form method="post" class="form-layout">
     {% csrf_token %}
     <div class="form-card">
 
-        <fieldset class="form-fieldset">
-            <h3>Account</h3>
-            <div class="form-row">
-                <label for="{{ form.username.id_for_label }}">Username</label>
-                <input type="text" name="{{ form.username.name }}" id="{{ form.username.id_for_label }}" value="{{ form.username.value|default:'' }}" required>
-                {% if form.username.help_text %}<span class="helptext">{{ form.username.help_text }}</span>{% endif %}
-                {% if form.username.errors %}<span class="field-error">{{ form.username.errors.0 }}</span>{% endif %}
-            </div>
-            <div class="form-row">
-                <label for="{{ form.first_name.id_for_label }}">First name</label>
-                <input type="text" name="{{ form.first_name.name }}" id="{{ form.first_name.id_for_label }}" value="{{ form.first_name.value|default:'' }}">
-                {% if form.first_name.errors %}<span class="field-error">{{ form.first_name.errors.0 }}</span>{% endif %}
-            </div>
-            <div class="form-row">
-                <label for="{{ form.last_name.id_for_label }}">Last name</label>
-                <input type="text" name="{{ form.last_name.name }}" id="{{ form.last_name.id_for_label }}" value="{{ form.last_name.value|default:'' }}">
-                {% if form.last_name.errors %}<span class="field-error">{{ form.last_name.errors.0 }}</span>{% endif %}
-            </div>
-            <div class="form-row">
-                <label for="{{ form.email.id_for_label }}">Email</label>
-                <input type="email" name="{{ form.email.name }}" id="{{ form.email.id_for_label }}" value="{{ form.email.value|default:'' }}" required>
-                {% if form.email.errors %}<span class="field-error">{{ form.email.errors.0 }}</span>{% endif %}
-            </div>
-        </fieldset>
+      <fieldset class="form-fieldset">
+        <h3>Account</h3>
+        <div class="form-row">
+          <label for="{{ form.username.id_for_label }}">Username</label>
+          <input type="text"
+                 name="{{ form.username.name }}"
+                 id="{{ form.username.id_for_label }}"
+                 value="{{ form.username.value|default:'' }}"
+                 required>
+          {% if form.username.help_text %}
+            <span class="helptext">{{ form.username.help_text }}</span>
+          {% endif %}
+          {% if form.username.errors %}
+            <span class="field-error">{{ form.username.errors.0 }}</span>
+          {% endif %}
+        </div>
+        <div class="form-row">
+          <label for="{{ form.first_name.id_for_label }}">First name</label>
+          <input type="text"
+                 name="{{ form.first_name.name }}"
+                 id="{{ form.first_name.id_for_label }}"
+                 value="{{ form.first_name.value|default:'' }}">
+          {% if form.first_name.errors %}
+            <span class="field-error">{{ form.first_name.errors.0 }}</span>
+          {% endif %}
+        </div>
+        <div class="form-row">
+          <label for="{{ form.last_name.id_for_label }}">Last name</label>
+          <input type="text"
+                 name="{{ form.last_name.name }}"
+                 id="{{ form.last_name.id_for_label }}"
+                 value="{{ form.last_name.value|default:'' }}">
+          {% if form.last_name.errors %}
+            <span class="field-error">{{ form.last_name.errors.0 }}</span>
+          {% endif %}
+        </div>
+        <div class="form-row">
+          <label for="{{ form.email.id_for_label }}">Email</label>
+          <input type="email"
+                 name="{{ form.email.name }}"
+                 id="{{ form.email.id_for_label }}"
+                 value="{{ form.email.value|default:'' }}"
+                 required>
+          {% if form.email.errors %}<span class="field-error">{{ form.email.errors.0 }}</span>{% endif %}
+        </div>
+      </fieldset>
 
-        <fieldset class="form-fieldset">
-            <h3>Password</h3>
-            <div class="form-row">
-                <label for="{{ form.password1.id_for_label }}">Password</label>
-                <input type="password" name="{{ form.password1.name }}" id="{{ form.password1.id_for_label }}" required autocomplete="new-password">
-                {% if form.password1.help_text %}<span class="helptext">{{ form.password1.help_text|striptags }}</span>{% endif %}
-                {% if form.password1.errors %}<span class="field-error">{{ form.password1.errors.0 }}</span>{% endif %}
-            </div>
-            <div class="form-row">
-                <label for="{{ form.password2.id_for_label }}">Confirm password</label>
-                <input type="password" name="{{ form.password2.name }}" id="{{ form.password2.id_for_label }}" required autocomplete="new-password">
-                {% if form.password2.errors %}<span class="field-error">{{ form.password2.errors.0 }}</span>{% endif %}
-            </div>
-        </fieldset>
+      <fieldset class="form-fieldset">
+        <h3>Password</h3>
+        <div class="form-row">
+          <label for="{{ form.password1.id_for_label }}">Password</label>
+          <input type="password"
+                 name="{{ form.password1.name }}"
+                 id="{{ form.password1.id_for_label }}"
+                 required
+                 autocomplete="new-password">
+          {% if form.password1.help_text %}
+            <span class="helptext">{{ form.password1.help_text|striptags }}</span>
+          {% endif %}
+          {% if form.password1.errors %}
+            <span class="field-error">{{ form.password1.errors.0 }}</span>
+          {% endif %}
+        </div>
+        <div class="form-row">
+          <label for="{{ form.password2.id_for_label }}">Confirm password</label>
+          <input type="password"
+                 name="{{ form.password2.name }}"
+                 id="{{ form.password2.id_for_label }}"
+                 required
+                 autocomplete="new-password">
+          {% if form.password2.errors %}
+            <span class="field-error">{{ form.password2.errors.0 }}</span>
+          {% endif %}
+        </div>
+      </fieldset>
 
-        <fieldset class="form-fieldset">
-            <h3>Configuration</h3>
-            <div class="form-row">
-                <label for="{{ form.phone_number.id_for_label }}">Phone number</label>
-                <input type="tel" name="{{ form.phone_number.name }}" id="{{ form.phone_number.id_for_label }}" value="{{ form.phone_number.value|default:'' }}" placeholder="+1234567890">
-                <span class="helptext">Used to place pre/post-call AI conversations. International format with +.</span>
-                {% if form.phone_number.errors %}<span class="field-error">{{ form.phone_number.errors.0 }}</span>{% endif %}
-            </div>
-            <div class="form-row">
-                <label for="{{ form.pipedrive_user_id.id_for_label }}">Pipedrive user ID</label>
-                <input type="number" name="{{ form.pipedrive_user_id.name }}" id="{{ form.pipedrive_user_id.id_for_label }}" value="{{ form.pipedrive_user_id.value|default:'' }}">
-                <span class="helptext">Maps this agent to a Pipedrive user. Leave blank if not using Pipedrive.</span>
-                {% if form.pipedrive_user_id.errors %}<span class="field-error">{{ form.pipedrive_user_id.errors.0 }}</span>{% endif %}
-            </div>
-        </fieldset>
+      <fieldset class="form-fieldset">
+        <h3>Configuration</h3>
+        <div class="form-row">
+          <label for="{{ form.phone_number.id_for_label }}">Phone number</label>
+          <input type="tel"
+                 name="{{ form.phone_number.name }}"
+                 id="{{ form.phone_number.id_for_label }}"
+                 value="{{ form.phone_number.value|default:'' }}"
+                 placeholder="+1234567890">
+          <span class="helptext">Used to place pre/post-call AI conversations. International format with +.</span>
+          {% if form.phone_number.errors %}
+            <span class="field-error">{{ form.phone_number.errors.0 }}</span>
+          {% endif %}
+        </div>
+        <div class="form-row">
+          <label for="{{ form.pipedrive_user_id.id_for_label }}">Pipedrive user ID</label>
+          <input type="number"
+                 name="{{ form.pipedrive_user_id.name }}"
+                 id="{{ form.pipedrive_user_id.id_for_label }}"
+                 value="{{ form.pipedrive_user_id.value|default:'' }}">
+          <span class="helptext">Maps this agent to a Pipedrive user. Leave blank if not using Pipedrive.</span>
+          {% if form.pipedrive_user_id.errors %}
+            <span class="field-error">{{ form.pipedrive_user_id.errors.0 }}</span>
+          {% endif %}
+        </div>
+      </fieldset>
 
     </div>
 
     <aside class="form-sidebar">
-        <div class="card">
-            <div class="form-actions">
-                <button type="submit" class="btn btn-primary">Create agent</button>
-                <a href="{% url 'voice:agent_management' %}" class="btn btn-secondary">Cancel</a>
-            </div>
+      <div class="card">
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary">Create agent</button>
+          <a href="{% url 'voice:agent_management' %}" class="btn btn-secondary">Cancel</a>
         </div>
-        <div class="card">
-            <h3>What happens next</h3>
-            <ol class="checklist">
-                <li>Account is created and marked as a sales agent.</li>
-                <li>Assign a methodology from the agent list.</li>
-                <li>Confirm the phone number is reachable for AI calls.</li>
-                <li>Verify the Pipedrive user ID matches if syncing.</li>
-            </ol>
-        </div>
+      </div>
+      <div class="card">
+        <h3>What happens next</h3>
+        <ol class="checklist">
+          <li>Account is created and marked as a sales agent.</li>
+          <li>Assign a methodology from the agent list.</li>
+          <li>Confirm the phone number is reachable for AI calls.</li>
+          <li>Verify the Pipedrive user ID matches if syncing.</li>
+        </ol>
+      </div>
     </aside>
-</form>
+  </form>
 
 {% endblock %}

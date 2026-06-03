@@ -19,14 +19,14 @@ Usage:
     python manage.py seed_demo_calls --client "Logix Transport"
 """
 
+from datetime import timedelta
+
 from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.utils import timezone
-from datetime import timedelta
 
 from voice.constants import CallPhase, CallStatus, VisitStatus
 from voice.models import CallAttempt, Visit
-
 
 PRE_TRANSCRIPT = """\
 Agent: Bună, Mihai! Sunt Florina, asistentul tău AI de pregătire. Te sun să vedem cum stai pentru întâlnirea de la 17:30 cu Farmaciile Vitalis. Avem 5 minute, e bun momentul?
@@ -162,7 +162,7 @@ class Command(BaseCommand):
         now = timezone.now()
         with transaction.atomic():
             # Wipe existing call attempts on this visit (idempotent).
-            deleted = CallAttempt.objects.filter(visit=visit).delete()
+            CallAttempt.objects.filter(visit=visit).delete()
 
             # Pre-call (COMPLETED)
             pre = CallAttempt.objects.create(
@@ -202,5 +202,5 @@ class Command(BaseCommand):
         ))
         self.stdout.write(f"  pre-call  CA{pre.id}  COMPLETED  ({len(PRE_TRANSCRIPT)} ch transcript)")
         self.stdout.write(f"  post-call CA{post.id}  COMPLETED  + full analysis ({len(ANALYSIS)} keys)")
-        self.stdout.write(f"  visit status -> POST_CALL_DONE")
+        self.stdout.write("  visit status -> POST_CALL_DONE")
         self.stdout.write(f"  Open: /manager/visits/{visit.id}/")

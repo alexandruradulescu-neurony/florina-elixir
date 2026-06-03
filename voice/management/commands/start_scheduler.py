@@ -3,11 +3,12 @@ Management command to start the APScheduler with registered jobs.
 This is a wrapper around django-apscheduler's runapscheduler command
 that also registers our custom jobs.
 """
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.interval import IntervalTrigger
 from django.core.management.base import BaseCommand
 from django_apscheduler.jobstores import DjangoJobStore
-from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.triggers.interval import IntervalTrigger
-from apscheduler.triggers.cron import CronTrigger
+
 from voice import tasks
 
 
@@ -16,10 +17,10 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         self.stdout.write(self.style.SUCCESS('Starting APScheduler...'))
-        
+
         scheduler = BackgroundScheduler()
         scheduler.add_jobstore(DjangoJobStore(), "default")
-        
+
         # Schedule call check task every 5 minutes
         scheduler.add_job(
             tasks.check_and_trigger_calls,
@@ -29,7 +30,7 @@ class Command(BaseCommand):
             replace_existing=True,
             jobstore='default',
         )
-        
+
         # Schedule calendar sync every hour
         scheduler.add_job(
             tasks.sync_all_user_calendars,
@@ -39,7 +40,7 @@ class Command(BaseCommand):
             replace_existing=True,
             jobstore='default',
         )
-        
+
         # Schedule pending calls sync every 15 minutes
         scheduler.add_job(
             tasks.sync_pending_calls,
@@ -49,7 +50,7 @@ class Command(BaseCommand):
             replace_existing=True,
             jobstore='default',
         )
-        
+
         # Schedule daily client sync (2:00 AM)
         scheduler.add_job(
             tasks.sync_all_clients_task,
@@ -101,7 +102,7 @@ class Command(BaseCommand):
         self.stdout.write('  - process_visit_pre_calls (every 5 minutes)')
         self.stdout.write('  - process_visit_post_calls (every 5 minutes)')
         self.stdout.write('\nPress Ctrl+C to stop the scheduler.')
-        
+
         try:
             # Keep the scheduler running
             import time

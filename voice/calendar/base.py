@@ -5,8 +5,7 @@ To add a new calendar provider, subclass CalendarProvider and implement all abst
 Then register it in voice/calendar/__init__.py CALENDAR_PROVIDERS dict.
 """
 from abc import ABC, abstractmethod
-from datetime import date, datetime
-from typing import Optional
+from datetime import date
 
 
 class CalendarProvider(ABC):
@@ -71,7 +70,7 @@ class CalendarProvider(ABC):
         """
 
     @abstractmethod
-    def get_auth_url(self, redirect_uri: str, state: str) -> Optional[str]:
+    def get_auth_url(self, redirect_uri: str, state: str) -> str | None:
         """
         Generate the OAuth authorization URL for the user to grant access.
 

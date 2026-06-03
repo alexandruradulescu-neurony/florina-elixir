@@ -1,10 +1,12 @@
 """Seed synthetic data for today's visits and call attempts."""
 import random
 from datetime import timedelta
+
 from django.core.management.base import BaseCommand
 from django.utils import timezone
-from voice.models import User, Client, Visit, CallAttempt, Methodology
-from voice.constants import CallStatus, CallPhase, VisitStatus
+
+from voice.constants import CallPhase, CallStatus, VisitStatus
+from voice.models import CallAttempt, Client, Methodology, User, Visit
 
 VISIT_TEMPLATES = [
     {
@@ -134,7 +136,7 @@ def make_calls(visit, status):
 
     if status in (VisitStatus.PRE_CALL_DONE, VisitStatus.IN_PROGRESS,
                   VisitStatus.POST_CALL_DONE, VisitStatus.COMPLETE):
-        transcript = random.choice(PRE_TRANSCRIPTS)
+        transcript = random.choice(PRE_TRANSCRIPTS)  # nosec B311
         CallAttempt.objects.create(
             visit=visit,
             phase=CallPhase.PRE_MEETING,
@@ -149,7 +151,7 @@ def make_calls(visit, status):
         )
 
     if status in (VisitStatus.POST_CALL_DONE, VisitStatus.COMPLETE):
-        transcript = random.choice(POST_TRANSCRIPTS)
+        transcript = random.choice(POST_TRANSCRIPTS)  # nosec B311
         CallAttempt.objects.create(
             visit=visit,
             phase=CallPhase.POST_MEETING,

@@ -4,14 +4,15 @@ Removes all logs, calls, meetings, and calendar watches while preserving users a
 """
 from django.core.management.base import BaseCommand
 from django.db import transaction
+
 from voice.models import (
     ActivityLog,
     CallAttempt,
-    Meeting,
     GoogleCalendarWatch,
+    GoogleOauthCredential,
+    Meeting,
     User,
     VoicePrompt,
-    GoogleOauthCredential
 )
 
 
@@ -51,32 +52,32 @@ class Command(BaseCommand):
             meetings_count = Meeting.objects.count()
             calendar_watches_count = GoogleCalendarWatch.objects.count()
             oauth_credentials_count = GoogleOauthCredential.objects.count()
-            
+
             # Delete in order (respecting foreign key constraints)
             self.stdout.write('Deleting ActivityLog entries...')
             ActivityLog.objects.all().delete()
             self.stdout.write(self.style.SUCCESS(f'  Deleted {activity_logs_count} ActivityLog entries'))
-            
+
             self.stdout.write('Deleting CallAttempt entries...')
             CallAttempt.objects.all().delete()
             self.stdout.write(self.style.SUCCESS(f'  Deleted {call_attempts_count} CallAttempt entries'))
-            
+
             self.stdout.write('Deleting Meeting entries...')
             Meeting.objects.all().delete()
             self.stdout.write(self.style.SUCCESS(f'  Deleted {meetings_count} Meeting entries'))
-            
+
             self.stdout.write('Deleting GoogleCalendarWatch entries...')
             GoogleCalendarWatch.objects.all().delete()
             self.stdout.write(self.style.SUCCESS(f'  Deleted {calendar_watches_count} GoogleCalendarWatch entries'))
-            
+
             self.stdout.write('Deleting GoogleOauthCredential entries...')
             GoogleOauthCredential.objects.all().delete()
             self.stdout.write(self.style.SUCCESS(f'  Deleted {oauth_credentials_count} GoogleOauthCredential entries'))
-            
+
             # Show what was preserved
             users_count = User.objects.count()
             prompts_count = VoicePrompt.objects.count()
-            
+
             self.stdout.write(self.style.SUCCESS(
                 f'\nDatabase cleaned successfully!'
                 f'\n\nPreserved:'

@@ -7,6 +7,7 @@ Usage:
     client = crm.search_client_by_domain('acme.com')
 """
 import logging
+
 from decouple import config
 
 from .base import CRMProvider

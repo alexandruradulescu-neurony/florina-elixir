@@ -4,70 +4,88 @@
 {% block title %}Agents — Sales Assistant{% endblock %}
 
 {% block header_utility %}
-<div class="toggle">
+  <div class="toggle">
     <button type="button" class="on">All</button>
     <button type="button">Active</button>
     <button type="button">Archived</button>
-</div>
+  </div>
 {% endblock %}
 
 {% block display_title %}Agents{% endblock %}
-{% block display_subtitle %}<div class="sub">{{ agent_count }} agents · {{ configured_count }} configured</div>{% endblock %}
+{% block display_subtitle %}
+  <div class="sub">{{ agent_count }} agents · {{ configured_count }} configured</div>
+{% endblock %}
 
 {% block header_actions %}
-<a href="{% url 'voice:agent_add' %}" class="btn btn-primary"><span class="ic ic-plus ic-14"></span> New agent</a>
+  <a href="{% url 'voice:agent_add' %}" class="btn btn-primary"><span class="ic ic-plus ic-14"></span> New agent</a>
 {% endblock %}
 
 {% block content %}
 
-{# ─── Stat row ─── #}
-<div class="stats">
+  {# ─── Stat row ─── #}
+  <div class="stats">
     {% include "voice/partials/stat_card.html" with label="Total agents" value=agent_count %}
     {% include "voice/partials/stat_card.html" with label="Configured" value=configured_count tone="green" %}
     {% include "voice/partials/stat_card.html" with label="Live now" value=agents_live_now tone="cyan" %}
     {% include "voice/partials/stat_card.html" with label="Avg success" value=agents_avg_success|stringformat:"d"|add:"%" %}
-</div>
+  </div>
 
-{# ─── Agents table ─── #}
-<table class="tbl atable">
+  {# ─── Agents table ─── #}
+  <table class="tbl atable">
     <thead>
-        <tr>
-            <th>Agent</th>
-            <th>Methodology</th>
-            <th>Today's load</th>
-            <th style="width: 90px;">Done</th>
-            <th style="width: 90px;">Success</th>
-            <th style="width: 48px;"></th>
-        </tr>
+      <tr>
+        <th>Agent</th>
+        <th>Methodology</th>
+        <th>Today's load</th>
+        <th style="width: 90px;">Done</th>
+        <th style="width: 90px;">Success</th>
+        <th style="width: 48px;"></th>
+      </tr>
     </thead>
     <tbody>
-        {% for ad in agents %}
-        <tr class="clickable" onclick="window.location.href='{% url 'voice:agent_detail' agent_id=ad.agent.id %}'">
-            <td>
-                <div class="who">
-                    {% include "voice/partials/avatar.html" with initial=ad.agent.username|first|upper palette=ad.avatar_palette size=36 %}
-                    <div class="stack">
-                        <span class="nm">{{ ad.agent.get_full_name|default:ad.agent.username }}</span>
-                        <span class="em">{{ ad.agent.email|default:"—" }}</span>
-                    </div>
-                </div>
-            </td>
-            <td>
-                {% if ad.agent.default_methodology %}
-                <span class="meth-pill">{{ ad.agent.default_methodology.name }}</span>
-                {% else %}<span style="color:var(--fg-muted);">—</span>{% endif %}
-            </td>
-            <td>
-                <span class="loadbar"><span class="fill" style="width: {{ ad.load_pct }}%;"></span></span>
-            </td>
-            <td><span class="num">{{ ad.visits_complete_today|default:0 }}<span class="dim">/{{ ad.visits_today|default:0 }}</span></span></td>
-            <td><span class="num">{{ ad.success_pct }}%</span></td>
-            <td><a href="{% url 'voice:agent_detail' agent_id=ad.agent.id %}" class="more" aria-label="View agent"><span class="ic ic-menu-dots"></span></a></td>
+      {% for ad in agents %}
+        <tr class="clickable"
+            onclick="window.location.href='{% url 'voice:agent_detail' agent_id=ad.agent.id %}'">
+          <td>
+            <div class="who">
+              {% include "voice/partials/avatar.html" with initial=ad.agent.username|first|upper palette=ad.avatar_palette size=36 %}
+              <div class="stack">
+                <span class="nm">{{ ad.agent.get_full_name|default:ad.agent.username }}</span>
+                <span class="em">{{ ad.agent.email|default:"—" }}</span>
+              </div>
+            </div>
+          </td>
+          <td>
+            {% if ad.agent.default_methodology %}
+              <span class="meth-pill">{{ ad.agent.default_methodology.name }}</span>
+            {% else %}
+              <span style="color:var(--fg-muted);">—</span>
+            {% endif %}
+          </td>
+          <td>
+            <span class="loadbar"><span class="fill" style="width: {{ ad.load_pct }}%;"></span></span>
+          </td>
+          <td>
+            <span class="num">{{ ad.visits_complete_today|default:0 }}<span class="dim">/{{ ad.visits_today|default:0 }}</span></span>
+          </td>
+          <td>
+            <span class="num">{{ ad.success_pct }}%</span>
+          </td>
+          <td>
+            <a href="{% url 'voice:agent_detail' agent_id=ad.agent.id %}"
+               class="more"
+               aria-label="View agent"><span class="ic ic-menu-dots"></span></a>
+          </td>
         </tr>
-        {% empty %}
-        <tr><td colspan="6" style="text-align:center;padding:32px;color:var(--fg-muted);">No agents on file.</td></tr>
-        {% endfor %}
+      {% empty %}
+        <tr>
+          <td colspan="6"
+              style="text-align:center;
+                     padding:32px;
+                     color:var(--fg-muted)">No agents on file.</td>
+        </tr>
+      {% endfor %}
     </tbody>
-</table>
+  </table>
 
 {% endblock %}

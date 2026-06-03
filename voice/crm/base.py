@@ -5,14 +5,13 @@ To add a new CRM, subclass CRMProvider and implement all abstract methods.
 Then register it in voice/crm/__init__.py CRM_PROVIDERS dict.
 """
 from abc import ABC, abstractmethod
-from typing import Optional
 
 
 class CRMProvider(ABC):
     """Interface that all CRM providers must implement."""
 
     @abstractmethod
-    def get_client(self, client_id: str) -> Optional[dict]:
+    def get_client(self, client_id: str) -> dict | None:
         """
         Fetch a single client/organization by CRM ID.
 
@@ -21,7 +20,7 @@ class CRMProvider(ABC):
         """
 
     @abstractmethod
-    def search_client_by_domain(self, domain: str) -> Optional[dict]:
+    def search_client_by_domain(self, domain: str) -> dict | None:
         """
         Search for a client/organization by email domain.
 
@@ -39,7 +38,7 @@ class CRMProvider(ABC):
         """
 
     @abstractmethod
-    def get_deal(self, deal_id: str) -> Optional[dict]:
+    def get_deal(self, deal_id: str) -> dict | None:
         """
         Fetch a single deal by ID.
 
@@ -84,7 +83,7 @@ class CRMProvider(ABC):
         """
 
     @abstractmethod
-    def search_deal_by_term(self, term: str) -> Optional[dict]:
+    def search_deal_by_term(self, term: str) -> dict | None:
         """
         Search for a deal by a search term (name, title, etc.).
 

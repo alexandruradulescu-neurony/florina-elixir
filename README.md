@@ -1,5 +1,8 @@
 # MES Voice - Sales Training & Debrief Application
 
+[![CI](https://github.com/neurony/florina/actions/workflows/ci.yml/badge.svg)](https://github.com/neurony/florina/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/neurony/florina/actions/workflows/codeql.yml/badge.svg)](https://github.com/neurony/florina/actions/workflows/codeql.yml)
+
 A Django-based sales enablement tool that automates voice coaching for sales agents. The system syncs meetings from Google Calendar, triggers AI-powered voice calls before and after meetings, and syncs call summaries to Pipedrive CRM.
 
 ## Project Overview
@@ -187,8 +190,26 @@ The system uses a **hybrid approach** combining pre-programming with real-time c
 - Environment-based configuration (python-decouple)
 - Production-ready secret key handling
 - OAuth 2.0 for Google Calendar
-- Webhook signature verification for ElevenLabs
 - Database-stored OAuth credentials (encrypted in production)
+- Production-oriented Django security settings for SSL, HSTS, secure cookies, and frame/content protections
+- CI-enforced security checks: Ruff, djLint, Bandit, pip-audit, Django deploy checks, and CodeQL
+
+### Webhook Security Notes
+
+Current CSRF-exempt endpoints:
+- `/webhooks/elevenlabs/`
+- `/webhooks/twilio/`
+- `/webhooks/google-calendar/`
+
+Audit summary:
+- `GoogleCalendarWebhookView` is intentionally CSRF-exempt and correlates requests using Google watch metadata (`X-Goog-Channel-ID` / channel token).
+- `ElevenLabsWebhookView` is intentionally CSRF-exempt because it is machine-to-machine, but it does **not** currently verify a provider signature header in code.
+- `TwilioWebhookView` is intentionally CSRF-exempt and does **not** currently verify `X-Twilio-Signature`.
+
+Recommended next hardening steps:
+- add explicit signature verification for ElevenLabs if the provider supports signed webhook delivery for this endpoint shape
+- add Twilio signature validation or disable/remove the endpoint if it is not required
+- optionally rate-limit webhook endpoints at the reverse proxy
 
 ## Data Models
 
@@ -386,33 +407,26 @@ NGROK_API_URL=http://localhost:4040/api/tunnels
 
 ### 1. Prerequisites
 
-- Python 3.8+
+- `uv` installed: https://docs.astral.sh/uv/
+- Python 3.12 (uv will install/manage it for you)
 - Google Cloud Console project (for Calendar API)
 - ElevenLabs account and API key
 - Twilio account and credentials
 - Pipedrive account and API token
 
-### 2. Create and Activate Virtual Environment
-
-**Windows (PowerShell):**
-```powershell
-python -m venv venv
-.\venv\Scripts\Activate.ps1
-```
-
-**Linux/Mac:**
-```bash
-python3 -m venv venv
-source venv/bin/activate
-```
-
-### 3. Install Dependencies
+### 2. Install Python and Dependencies with uv
 
 ```bash
-pip install -r requirements.txt
+uv python install 3.12
+uv sync --locked
 ```
 
-### 4. Environment Variables
+This project now uses:
+- `pyproject.toml` for dependency definitions
+- `uv.lock` for reproducible installs
+- `.python-version` to pin local development to Python 3.12
+
+### 3. Environment Variables
 
 Copy `env.example` to `.env` and update with your values:
 
@@ -424,19 +438,19 @@ copy env.example .env
 cp env.example .env
 ```
 
-### 5. Run Migrations
+### 4. Run Migrations
 
 ```bash
-python manage.py migrate
+uv run python manage.py migrate
 ```
 
-### 6. Create Superuser
+### 5. Create Superuser
 
 ```bash
-python manage.py createsuperuser
+uv run python manage.py createsuperuser
 ```
 
-### 7. Set Up Google Calendar OAuth
+### 6. Set Up Google Calendar OAuth
 
 1. Go to [Google Cloud Console](https://console.cloud.google.com/)
 2. Create a new project or select existing
@@ -447,7 +461,7 @@ python manage.py createsuperuser
    - `https://your-ngrok-url.ngrok-free.dev/calendar/callback/` (ngrok testing)
 6. Copy Client ID and Client Secret to `.env`
 
-### 8. Set Up ElevenLabs
+### 7. Set Up ElevenLabs
 
 1. Go to [ElevenLabs](https://elevenlabs.io/)
 2. Create an account and get API key
@@ -461,7 +475,7 @@ python manage.py createsuperuser
    - Use ngrok URL for local development
    - Copy webhook secret to `.env`
 
-### 9. Set Up Pipedrive
+### 8. Set Up Pipedrive
 
 1. Go to your Pipedrive account
 2. Navigate to Settings → API
@@ -484,7 +498,7 @@ ngrok http 8000
 #### 2. Start Django Development Server
 
 ```bash
-python manage.py runserver
+uv run python manage.py runserver
 ```
 
 #### 3. Start APScheduler (Task Scheduler)
@@ -492,7 +506,7 @@ python manage.py runserver
 In a separate terminal:
 
 ```bash
-python manage.py start_scheduler
+uv run python manage.py start_scheduler
 ```
 
 ### Access Points
@@ -548,7 +562,7 @@ python manage.py start_scheduler
 Starts the APScheduler for periodic tasks.
 
 ```bash
-python manage.py start_scheduler
+uv run python manage.py start_scheduler
 ```
 
 **Important:** Must be running for automatic call scheduling.
@@ -557,14 +571,14 @@ python manage.py start_scheduler
 Auto-detects ngrok URL and shows webhook configuration instructions.
 
 ```bash
-python manage.py detect_ngrok
+uv run python manage.py detect_ngrok
 ```
 
 ### `clean_database`
 Clears database for a clean start (preserves users and prompts).
 
 ```bash
-python manage.py clean_database --force
+uv run python manage.py clean_database --force
 ```
 
 Deletes: ActivityLog, CallAttempt, Meeting, GoogleCalendarWatch, GoogleOauthCredential
@@ -573,7 +587,7 @@ Deletes: ActivityLog, CallAttempt, Meeting, GoogleCalendarWatch, GoogleOauthCred
 Diagnoses scheduler's meeting detection.
 
 ```bash
-python manage.py check_scheduler
+uv run python manage.py check_scheduler
 ```
 
 Shows: meetings in time windows, existing call attempts, scheduler function results.
@@ -582,21 +596,21 @@ Shows: meetings in time windows, existing call attempts, scheduler function resu
 Debug a specific call attempt.
 
 ```bash
-python manage.py debug_call <call_attempt_id>
+uv run python manage.py debug_call <call_attempt_id>
 ```
 
 ### `debug_transcripts`
 Inspect recent calls and transcripts.
 
 ```bash
-python manage.py debug_transcripts --limit 10
+uv run python manage.py debug_transcripts --limit 10
 ```
 
 ### `fetch_transcript`
 Manually retrieve transcript from ElevenLabs API.
 
 ```bash
-python manage.py fetch_transcript <external_call_id>
+uv run python manage.py fetch_transcript <external_call_id>
 ```
 
 ## Constants
@@ -678,7 +692,7 @@ Defined in `voice/constants.py`:
 ### Common Issues
 
 1. **Scheduler not finding meetings:**
-   - Run `python manage.py check_scheduler` to diagnose
+   - Run `uv run python manage.py check_scheduler` to diagnose
    - Ensure meetings are for today (sync only fetches today's meetings)
    - Check that agent has `is_sales_agent=True` and `phone_number` set
 
@@ -688,19 +702,19 @@ Defined in `voice/constants.py`:
    - Verify redirect URI matches in Google Cloud Console
 
 3. **Calls not triggering:**
-   - Ensure scheduler is running: `python manage.py start_scheduler`
+   - Ensure scheduler is running: `uv run python manage.py start_scheduler`
    - Check for active VoicePrompt for the phase
    - Verify CallAttempt.scheduled_time is correct
 
 4. **Webhook not receiving data:**
    - Ensure ngrok is running: `ngrok http 8000`
-   - Run `python manage.py detect_ngrok` for configuration
+   - Run `uv run python manage.py detect_ngrok` for configuration
    - Check webhook URL in ElevenLabs dashboard
    - Verify webhook secret matches `.env`
 
 5. **Calendar sync fetching wrong dates:**
    - Manual sync and background sync both use today-only range
-   - Delete old meetings with `python manage.py clean_database --force`
+   - Delete old meetings with `uv run python manage.py clean_database --force`
 
 ## Production Deployment
 
@@ -719,11 +733,32 @@ Defined in `voice/constants.py`:
 
 ### Recommended Production Stack
 
+- **Process/runtime:** `uv` + `uv.lock`
 - **Web Server:** Gunicorn + Nginx
 - **Database:** PostgreSQL
 - **Task Scheduler:** django-apscheduler (runs as separate process)
 - **Static Files:** CDN or S3
 - **Monitoring:** Sentry for error tracking
+
+### Production Commands
+
+Install exactly what is locked:
+
+```bash
+uv sync --locked --no-dev
+```
+
+Run the web app:
+
+```bash
+uv run gunicorn proj_mes_voice.wsgi:application --bind 0.0.0.0:8000
+```
+
+Run the scheduler in a separate process:
+
+```bash
+uv run python manage.py start_scheduler
+```
 
 ## Development Guidelines
 

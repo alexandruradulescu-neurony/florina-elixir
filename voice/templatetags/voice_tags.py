@@ -10,7 +10,7 @@ register = template.Library()
 def daisyui_alert_class(message_tag):
     """
     Map Django message tags to DaisyUI alert classes.
-    
+
     Django tags: error, warning, info, success, debug
     DaisyUI classes: alert-error, alert-warning, alert-info, alert-success
     """

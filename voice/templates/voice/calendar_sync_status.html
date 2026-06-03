@@ -3,130 +3,141 @@
 {% block title %}Calendar Sync Status - MES Voice{% endblock %}
 
 {% block page_header %}
-<div class="flex items-center justify-between">
+  <div class="flex items-center justify-between">
     <div>
-        <h1 class="text-xl font-bold text-slate-900">Calendar Sync Status</h1>
-        <p class="text-sm text-slate-500">Manage your Google Calendar integration</p>
+      <h1 class="text-xl font-bold text-slate-900">Calendar Sync Status</h1>
+      <p class="text-sm text-slate-500">Manage your Google Calendar integration</p>
     </div>
-</div>
+  </div>
 {% endblock %}
 
 {% block content %}
-        {% if not is_sales_agent %}
-        <div class="alert alert-warning mb-6">
-            <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+  {% if not is_sales_agent %}
+    <div class="alert alert-warning mb-6">
+      <svg xmlns="http://www.w3.org/2000/svg"
+           class="stroke-current shrink-0 h-6 w-6"
+           fill="none"
+           viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+      </svg>
+      <span>You are not marked as a sales agent. Calendar sync is only available for sales agents.</span>
+    </div>
+  {% endif %}
+
+  <!-- Connection Status Card -->
+  <div class="card bg-base-100 shadow-xl mb-6">
+    <div class="card-body">
+      <h2 class="card-title">Google Calendar Connection</h2>
+      <div class="flex items-center gap-4">
+        {% if has_credentials %}
+          <div class="badge badge-success gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg"
+                 fill="none"
+                 viewBox="0 0 24 24"
+                 class="inline-block w-4 h-4 stroke-current">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
             </svg>
-            <span>You are not marked as a sales agent. Calendar sync is only available for sales agents.</span>
-        </div>
+            Connected
+          </div>
+        {% else %}
+          <div class="badge badge-error gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg"
+                 fill="none"
+                 viewBox="0 0 24 24"
+                 class="inline-block w-4 h-4 stroke-current">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12">
+              </path>
+            </svg>
+            Not Connected
+          </div>
         {% endif %}
+      </div>
+      <div class="card-actions mt-4">
+        {% if not has_credentials %}
+          <a href="{% url 'voice:google_calendar_oauth' %}"
+             class="btn btn-primary">Connect Google Calendar</a>
+        {% else %}
+          <form method="post"
+                action="{% url 'voice:calendar_sync_trigger' %}"
+                class="inline">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-primary">Sync Now</button>
+          </form>
+          <a href="{% url 'voice:google_calendar_oauth' %}"
+             class="btn btn-outline">Reconnect</a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
 
-        <!-- Connection Status Card -->
-        <div class="card bg-base-100 shadow-xl mb-6">
-            <div class="card-body">
-                <h2 class="card-title">Google Calendar Connection</h2>
-                <div class="flex items-center gap-4">
-                    {% if has_credentials %}
-                    <div class="badge badge-success gap-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="inline-block w-4 h-4 stroke-current">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-                        </svg>
-                        Connected
-                    </div>
+  <!-- Recent Meetings -->
+  <div class="card bg-base-100 shadow-xl mb-6">
+    <div class="card-body">
+      <h2 class="card-title">Recent Meetings</h2>
+      {% if meetings %}
+        <div class="overflow-x-auto">
+          <table class="table table-zebra">
+            <thead>
+              <tr>
+                <th>Title</th>
+                <th>Customer</th>
+                <th>Start Time</th>
+                <th>End Time</th>
+                <th>Pre-Call</th>
+                <th>Post-Call</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for meeting in meetings %}
+                <tr>
+                  <td>{{ meeting.title }}</td>
+                  <td>{{ meeting.customer_name|default:"-" }}</td>
+                  <td>{{ meeting.start_time|date:"M d, Y H:i" }}</td>
+                  <td>{{ meeting.end_time|date:"M d, Y H:i" }}</td>
+                  <td>
+                    {% if meeting.is_pre_call_completed %}
+                      <span class="badge badge-success">✓</span>
                     {% else %}
-                    <div class="badge badge-error gap-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="inline-block w-4 h-4 stroke-current">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                        </svg>
-                        Not Connected
-                    </div>
+                      <span class="badge badge-warning">Pending</span>
                     {% endif %}
-                </div>
-                <div class="card-actions mt-4">
-                    {% if not has_credentials %}
-                    <a href="{% url 'voice:google_calendar_oauth' %}" class="btn btn-primary">
-                        Connect Google Calendar
-                    </a>
+                  </td>
+                  <td>
+                    {% if meeting.is_post_call_completed %}
+                      <span class="badge badge-success">✓</span>
                     {% else %}
-                    <form method="post" action="{% url 'voice:calendar_sync_trigger' %}" class="inline">
-                        {% csrf_token %}
-                        <button type="submit" class="btn btn-primary">Sync Now</button>
-                    </form>
-                    <a href="{% url 'voice:google_calendar_oauth' %}" class="btn btn-outline">Reconnect</a>
+                      <span class="badge badge-warning">Pending</span>
                     {% endif %}
-                </div>
-            </div>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
         </div>
+      {% else %}
+        <p class="text-base-content/70">No meetings found. Sync your calendar to get started.</p>
+      {% endif %}
+    </div>
+  </div>
 
-        <!-- Recent Meetings -->
-        <div class="card bg-base-100 shadow-xl mb-6">
-            <div class="card-body">
-                <h2 class="card-title">Recent Meetings</h2>
-                {% if meetings %}
-                <div class="overflow-x-auto">
-                    <table class="table table-zebra">
-                        <thead>
-                            <tr>
-                                <th>Title</th>
-                                <th>Customer</th>
-                                <th>Start Time</th>
-                                <th>End Time</th>
-                                <th>Pre-Call</th>
-                                <th>Post-Call</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for meeting in meetings %}
-                            <tr>
-                                <td>{{ meeting.title }}</td>
-                                <td>{{ meeting.customer_name|default:"-" }}</td>
-                                <td>{{ meeting.start_time|date:"M d, Y H:i" }}</td>
-                                <td>{{ meeting.end_time|date:"M d, Y H:i" }}</td>
-                                <td>
-                                    {% if meeting.is_pre_call_completed %}
-                                    <span class="badge badge-success">✓</span>
-                                    {% else %}
-                                    <span class="badge badge-warning">Pending</span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    {% if meeting.is_post_call_completed %}
-                                    <span class="badge badge-success">✓</span>
-                                    {% else %}
-                                    <span class="badge badge-warning">Pending</span>
-                                    {% endif %}
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                {% else %}
-                <p class="text-base-content/70">No meetings found. Sync your calendar to get started.</p>
-                {% endif %}
+  <!-- Recent Activity Logs -->
+  <div class="card bg-base-100 shadow-xl">
+    <div class="card-body">
+      <h2 class="card-title">Recent Activity</h2>
+      {% if recent_logs %}
+        <div class="space-y-2">
+          {% for log in recent_logs %}
+            <div class="flex items-start gap-2 p-2 rounded {% if log.level == 'ERROR' %}bg-error/10{% elif log.level == 'WARNING' %}bg-warning/10{% else %}bg-base-200{% endif %}">
+              <span class="badge badge-{{ log.level|lower }} badge-sm">{{ log.level }}</span>
+              <div class="flex-1">
+                <p class="text-sm font-medium">{{ log.action }}</p>
+                <p class="text-xs text-base-content/70">{{ log.timestamp|date:"M d, Y H:i:s" }}</p>
+              </div>
             </div>
+          {% endfor %}
         </div>
-
-        <!-- Recent Activity Logs -->
-        <div class="card bg-base-100 shadow-xl">
-            <div class="card-body">
-                <h2 class="card-title">Recent Activity</h2>
-                {% if recent_logs %}
-                <div class="space-y-2">
-                    {% for log in recent_logs %}
-                    <div class="flex items-start gap-2 p-2 rounded {% if log.level == 'ERROR' %}bg-error/10{% elif log.level == 'WARNING' %}bg-warning/10{% else %}bg-base-200{% endif %}">
-                        <span class="badge badge-{{ log.level|lower }} badge-sm">{{ log.level }}</span>
-                        <div class="flex-1">
-                            <p class="text-sm font-medium">{{ log.action }}</p>
-                            <p class="text-xs text-base-content/70">{{ log.timestamp|date:"M d, Y H:i:s" }}</p>
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
-                {% else %}
-                <p class="text-base-content/70">No recent activity.</p>
-                {% endif %}
-            </div>
-        </div>
+      {% else %}
+        <p class="text-base-content/70">No recent activity.</p>
+      {% endif %}
+    </div>
+  </div>
 {% endblock %}
-

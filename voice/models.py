@@ -1,19 +1,20 @@
 """
 Data models for the voice app.
 """
-from django.db import models
 from django.contrib.auth.models import AbstractUser
+from django.db import models
 from django.utils.translation import gettext_lazy as _
-from .constants import CallStatus, CallPhase, ClientStatus, LogLevel, VisitStatus
+
+from .constants import CallPhase, CallStatus, ClientStatus, LogLevel, VisitStatus
 
 
 class User(AbstractUser):
     """Custom user model extending Django's AbstractUser."""
     pipedrive_user_id = models.IntegerField(null=True, blank=True, help_text="Pipedrive user ID for CRM sync")
     phone_number = models.CharField(
-        max_length=20, 
-        blank=True, 
-        null=True, 
+        max_length=20,
+        blank=True,
+        null=True,
         help_text="Phone number in E.164 format (e.g., +1234567890)"
     )
     is_sales_agent = models.BooleanField(
@@ -32,7 +33,7 @@ class User(AbstractUser):
     class Meta:
         verbose_name = _('User')
         verbose_name_plural = _('Users')
-    
+
     def __str__(self):
         return self.username
 
@@ -47,8 +48,8 @@ class VoicePrompt(models.Model):
         help_text="First message/greeting for the AI agent (optional). Supports same variables as system prompt."
     )
     prompt_type = models.CharField(
-        max_length=20, 
-        choices=CallPhase.choices, 
+        max_length=20,
+        choices=CallPhase.choices,
         default=CallPhase.PRE_MEETING
     )
     is_active = models.BooleanField(
@@ -77,19 +78,19 @@ class VoicePrompt(models.Model):
 class Meeting(models.Model):
     """The Trigger Event - represents a meeting from Google Calendar or Pipedrive."""
     agent = models.ForeignKey(
-        User, 
-        on_delete=models.CASCADE, 
+        User,
+        on_delete=models.CASCADE,
         related_name='meetings',
         help_text="Sales agent associated with this meeting"
     )
     external_id = models.CharField(
-        max_length=100, 
-        unique=True, 
+        max_length=100,
+        unique=True,
         help_text="External ID from Google Calendar or Pipedrive"
     )
     title = models.CharField(max_length=255, help_text="Meeting title")
     customer_name = models.CharField(
-        max_length=255, 
+        max_length=255,
         blank=True,
         help_text="Name of the customer/client"
     )
@@ -100,7 +101,7 @@ class Meeting(models.Model):
     )
     start_time = models.DateTimeField(help_text="Meeting start time")
     end_time = models.DateTimeField(help_text="Meeting end time")
-    
+
     # State tracking to prevent duplicate successful calls
     is_pre_call_completed = models.BooleanField(
         default=False,
@@ -110,7 +111,7 @@ class Meeting(models.Model):
         default=False,
         help_text="True if post-meeting call was successfully completed"
     )
-    
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -147,33 +148,33 @@ class CallAttempt(models.Model):
         help_text="Visit this call is associated with"
     )
     phase = models.CharField(
-        max_length=20, 
+        max_length=20,
         choices=CallPhase.choices,
         help_text="Pre-meeting or post-meeting call"
     )
     scheduled_offset_minutes = models.IntegerField(
         help_text="Offset in minutes from meeting time (e.g., -60, -30, 15, 30)"
     )
-    
+
     external_call_id = models.CharField(
-        max_length=100, 
-        blank=True, 
+        max_length=100,
+        blank=True,
         null=True,
         help_text="External call ID from ElevenLabs (may include Twilio SID)"
     )
     status = models.CharField(
-        max_length=20, 
-        choices=CallStatus.choices, 
+        max_length=20,
+        choices=CallStatus.choices,
         default=CallStatus.SCHEDULED
     )
-    
+
     recording_url = models.URLField(
-        blank=True, 
+        blank=True,
         null=True,
         help_text="URL to the call recording"
     )
     transcript = models.TextField(
-        blank=True, 
+        blank=True,
         null=True,
         help_text="Transcript of the call conversation"
     )
@@ -200,7 +201,7 @@ class CallAttempt(models.Model):
         help_text="Calculated time when this call should be executed (meeting.start_time + offset for PRE, meeting.end_time + offset for POST)"
     )
     executed_at = models.DateTimeField(
-        null=True, 
+        null=True,
         blank=True,
         help_text="When the call was actually executed"
     )
@@ -266,17 +267,17 @@ class GoogleCalendarWatch(models.Model):
 class ActivityLog(models.Model):
     """Immutable Audit Log - tracks all system actions."""
     meeting = models.ForeignKey(
-        Meeting, 
-        on_delete=models.SET_NULL, 
-        null=True, 
+        Meeting,
+        on_delete=models.SET_NULL,
+        null=True,
         blank=True,
         related_name='activity_logs',
         help_text="Associated meeting (if applicable)"
     )
     user = models.ForeignKey(
-        User, 
-        on_delete=models.SET_NULL, 
-        null=True, 
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
         blank=True,
         related_name='activity_logs',
         help_text="User who triggered the action (if applicable)"
@@ -286,12 +287,12 @@ class ActivityLog(models.Model):
         help_text="Description of the action performed"
     )
     details = models.JSONField(
-        default=dict, 
+        default=dict,
         blank=True,
         help_text="Additional details about the action"
     )
     level = models.CharField(
-        max_length=10, 
+        max_length=10,
         choices=LogLevel.choices,
         default=LogLevel.INFO
     )

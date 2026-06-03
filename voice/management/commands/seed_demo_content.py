@@ -19,8 +19,7 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 
 from voice.constants import ClientStatus
-from voice.models import Client, Methodology, Visit
-
+from voice.models import Methodology, Visit
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Methodologies

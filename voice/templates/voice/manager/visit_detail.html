@@ -4,25 +4,25 @@
 {% block title %}{{ visit.client.name|default:"Visit" }} — Sales Assistant{% endblock %}
 
 {% block header_utility %}
-<nav class="breadcrumb">
+  <nav class="breadcrumb">
     <a href="{% url 'voice:visit_list' %}">Visits</a>
     <span class="sep">/</span>
     <span>{{ visit.start_time|date:"M j" }}</span>
     <span class="sep">/</span>
     <span class="cur">{{ visit.client.name|default:"Visit" }}</span>
-</nav>
+  </nav>
 {% endblock %}
 
 {% block display_title %}{{ visit.client.name|default:"Untitled visit" }}{% endblock %}
 
 {% block display_subtitle %}
-<div class="metastrip">
+  <div class="metastrip">
     <span class="who-tag">
-        {% include "voice/partials/avatar.html" with initial=metastrip.agent_initial palette=metastrip.agent_palette size=22 %}
-        {{ metastrip.agent_name }}
+      {% include "voice/partials/avatar.html" with initial=metastrip.agent_initial palette=metastrip.agent_palette size=22 %}
+      {{ metastrip.agent_name }}
     </span>
     {% if client_status_label %}
-    <span class="client-status-badge {{ client_status_class }}">{{ client_status_label }}</span>
+      <span class="client-status-badge {{ client_status_class }}">{{ client_status_label }}</span>
     {% endif %}
     <span>·</span>
     <span>{{ metastrip.date_str }}, {{ metastrip.time_range }}</span>
@@ -30,444 +30,582 @@
     <span class="meth">{{ metastrip.methodology_name }}</span>
     <span>·</span>
     <span class="vid">{{ metastrip.visit_id_code }}</span>
-</div>
+  </div>
 {% endblock %}
 
 {% block header_actions %}
-{% if visit.client.crm_id %}<a href="#" class="btn btn-secondary">Open in CRM</a>{% endif %}
-<button type="button" class="btn btn-secondary">Share</button>
-<button type="button" class="icon-btn" aria-label="More"><span class="ic ic-menu-dots ic-16"></span></button>
+  {% if visit.client.crm_id %}<a href="#" class="btn btn-secondary">Open in CRM</a>{% endif %}
+  <button type="button" class="btn btn-secondary">Share</button>
+  <button type="button" class="icon-btn" aria-label="More">
+    <span class="ic ic-menu-dots ic-16"></span>
+  </button>
 {% endblock %}
 
 {% block content %}
 
-{# ─── Stepper ─── #}
-<div class="stepper">
+  {# ─── Stepper ─── #}
+  <div class="stepper">
     {% for step in steps %}
-    <div class="step {% if step.done %}done{% elif step.active %}current{% else %}pending{% endif %}">
-        <span class="bubble">{% if step.done %}<span class="ic ic-check"></span>{% endif %}</span>
+      <div class="step {% if step.done %}done{% elif step.active %}current{% else %}pending{% endif %}">
+        <span class="bubble">
+          {% if step.done %}<span class="ic ic-check"></span>{% endif %}
+        </span>
         <span class="label">{{ step.label }}</span>
-    </div>
+      </div>
     {% endfor %}
-</div>
+  </div>
 
-{# ─── Manual status advance buttons (visible only on relevant transitions) ─── #}
-{% if visit.status == 'PRE_CALL_DONE' or visit.status == 'POST_CALL_DONE' %}
-<div class="status-advance">
-    {% if visit.status == 'PRE_CALL_DONE' %}
-    <form method="post" action="{% url 'voice:visit_status_update' visit_id=visit.id status='IN_PROGRESS' %}">
-        {% csrf_token %}
-        <button type="submit" class="btn btn-primary">Marchează întâlnirea ca având loc</button>
-    </form>
-    {% elif visit.status == 'POST_CALL_DONE' %}
-    <form method="post" action="{% url 'voice:visit_status_update' visit_id=visit.id status='COMPLETE' %}">
-        {% csrf_token %}
-        <button type="submit" class="btn btn-primary">Marchează vizita ca finalizată</button>
-    </form>
-    {% endif %}
-</div>
-{% endif %}
+  {# ─── Manual status advance buttons (visible only on relevant transitions) ─── #}
+  {% if visit.status == 'PRE_CALL_DONE' or visit.status == 'POST_CALL_DONE' %}
+    <div class="status-advance">
+      {% if visit.status == 'PRE_CALL_DONE' %}
+        <form method="post"
+              action="{% url 'voice:visit_status_update' visit_id=visit.id status='IN_PROGRESS' %}">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-primary">Marchează întâlnirea ca având loc</button>
+        </form>
+      {% elif visit.status == 'POST_CALL_DONE' %}
+        <form method="post"
+              action="{% url 'voice:visit_status_update' visit_id=visit.id status='COMPLETE' %}">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-primary">Marchează vizita ca finalizată</button>
+        </form>
+      {% endif %}
+    </div>
+  {% endif %}
 
-{# ─── 70/30 detail grid ─── #}
-<div class="detail-grid">
+  {# ─── 70/30 detail grid ─── #}
+  <div class="detail-grid">
     <div class="detail-col">
 
-        {# Meta card #}
-        <div class="dcard">
-            <div class="kv-strip">
-                {% for kv in kv_strip %}
-                <div class="kv">
-                    <div class="label">{{ kv.label }}</div>
-                    <div class="value">{{ kv.value }}</div>
-                    {% if kv.sub %}<div class="sub">{{ kv.sub }}</div>{% endif %}
-                </div>
-                {% endfor %}
+      {# Meta card #}
+      <div class="dcard">
+        <div class="kv-strip">
+          {% for kv in kv_strip %}
+            <div class="kv">
+              <div class="label">{{ kv.label }}</div>
+              <div class="value">{{ kv.value }}</div>
+              {% if kv.sub %}<div class="sub">{{ kv.sub }}</div>{% endif %}
             </div>
+          {% endfor %}
         </div>
+      </div>
 
-        {# Attendees #}
-        <div class="dcard">
-            <h3>Attendees</h3>
-            <div class="attendees">
-                {% for a in attendees_list %}
-                <div class="att">
-                    {% include "voice/partials/avatar.html" with initial=a.initial palette="cyan" size=28 %}
-                    <span>{{ a.name }}</span>
-                    <span class="role">{{ a.role }}</span>
-                </div>
-                {% endfor %}
+      {# Attendees #}
+      <div class="dcard">
+        <h3>Attendees</h3>
+        <div class="attendees">
+          {% for a in attendees_list %}
+            <div class="att">
+              {% include "voice/partials/avatar.html" with initial=a.initial palette="cyan" size=28 %}
+              <span>{{ a.name }}</span>
+              <span class="role">{{ a.role }}</span>
             </div>
+          {% endfor %}
         </div>
+      </div>
 
-        {# Pre-call #}
-        <div class="dcard">
-            <h3>Pre-call</h3>
-            <div class="callpanel">
-                <div class="thumb"><span class="ic ic-comment-alt-dots"></span></div>
-                <div class="body">
-                    <div class="title">{{ pre_call_panel.title }}</div>
-                    <div class="desc">{{ pre_call_panel.description }}</div>
-                    <div class="tags">
-                        {% for tag in pre_call_panel.meta_tags %}<span class="tag">{{ tag }}</span>{% endfor %}
-                    </div>
-                </div>
-                {% if pre_call_panel.has_recording %}<button type="button" class="replay">Replay</button>{% endif %}
+      {# Pre-call #}
+      <div class="dcard">
+        <h3>Pre-call</h3>
+        <div class="callpanel">
+          <div class="thumb">
+            <span class="ic ic-comment-alt-dots"></span>
+          </div>
+          <div class="body">
+            <div class="title">{{ pre_call_panel.title }}</div>
+            <div class="desc">{{ pre_call_panel.description }}</div>
+            <div class="tags">
+              {% for tag in pre_call_panel.meta_tags %}<span class="tag">{{ tag }}</span>{% endfor %}
             </div>
-            {% if pre_call_panel.snippet %}
-            <details class="snippet">
-                <summary>
-                    <span class="ts">{{ pre_call_panel.snippet.ts }}</span>
-                    <span class="preview">{{ pre_call_panel.snippet.preview }}</span>
-                    {% if pre_call_panel.snippet.has_more %}<span class="toggle">Vezi tot transcriptul</span>{% endif %}
-                </summary>
-                <pre class="full-transcript">{{ pre_call_panel.snippet.full }}</pre>
-            </details>
+          </div>
+          {% if pre_call_panel.has_recording %}
+            <button type="button" class="replay">Replay</button>
+          {% endif %}
+        </div>
+        {% if pre_call_panel.snippet %}
+          <details class="snippet">
+            <summary>
+              <span class="ts">{{ pre_call_panel.snippet.ts }}</span>
+              <span class="preview">{{ pre_call_panel.snippet.preview }}</span>
+              {% if pre_call_panel.snippet.has_more %}
+                <span class="toggle">Vezi tot transcriptul</span>
+              {% endif %}
+            </summary>
+            <pre class="full-transcript">{{ pre_call_panel.snippet.full }}</pre>
+          </details>
+        {% endif %}
+        <div class="prompt-actions">
+          <button type="button"
+                  class="prompt-btn"
+                  onclick="document.getElementById('dlgPrePrompt').showModal()">
+            <span class="ic ic-comment-alt-dots ic-14"></span>
+            <span class="lbl">Prompt pre-call</span>
+            {% if form.pre_call_prompt.value %}
+              <span class="dot set" title="Setat"></span>
+            {% else %}
+              <span class="dot empty" title="Gol"></span>
             {% endif %}
-            <div class="prompt-actions">
-                <button type="button" class="prompt-btn" onclick="document.getElementById('dlgPrePrompt').showModal()">
-                    <span class="ic ic-comment-alt-dots ic-14"></span>
-                    <span class="lbl">Prompt pre-call</span>
-                    {% if form.pre_call_prompt.value %}<span class="dot set" title="Setat"></span>{% else %}<span class="dot empty" title="Gol"></span>{% endif %}
-                </button>
-                <button type="button" class="prompt-btn" onclick="document.getElementById('dlgPreFirst').showModal()">
-                    <span class="ic ic-comment-alt-dots ic-14"></span>
-                    <span class="lbl">Primul mesaj pre-call</span>
-                    {% if form.pre_call_first_message.value %}<span class="dot set" title="Setat"></span>{% else %}<span class="dot empty" title="Gol"></span>{% endif %}
-                </button>
-            </div>
-        </div>
-
-        {# Post-call #}
-        <div class="dcard">
-            <h3>Post-call</h3>
-            <div class="callpanel">
-                <div class="thumb"><span class="ic ic-comment-alt-dots"></span></div>
-                <div class="body">
-                    <div class="title">{{ post_call_panel.title }}</div>
-                    <div class="desc">{{ post_call_panel.description }}</div>
-                    <div class="tags">
-                        {% for tag in post_call_panel.meta_tags %}<span class="tag">{{ tag }}</span>{% endfor %}
-                    </div>
-                </div>
-                {% if post_call_panel.has_recording %}<button type="button" class="replay">Replay</button>{% endif %}
-            </div>
-            {% if post_call_panel.snippet %}
-            <details class="snippet">
-                <summary>
-                    <span class="ts">{{ post_call_panel.snippet.ts }}</span>
-                    <span class="preview">{{ post_call_panel.snippet.preview }}</span>
-                    {% if post_call_panel.snippet.has_more %}<span class="toggle">Vezi tot transcriptul</span>{% endif %}
-                </summary>
-                <pre class="full-transcript">{{ post_call_panel.snippet.full }}</pre>
-            </details>
+          </button>
+          <button type="button"
+                  class="prompt-btn"
+                  onclick="document.getElementById('dlgPreFirst').showModal()">
+            <span class="ic ic-comment-alt-dots ic-14"></span>
+            <span class="lbl">Primul mesaj pre-call</span>
+            {% if form.pre_call_first_message.value %}
+              <span class="dot set" title="Setat"></span>
+            {% else %}
+              <span class="dot empty" title="Gol"></span>
             {% endif %}
-            <div class="prompt-actions">
-                <button type="button" class="prompt-btn" onclick="document.getElementById('dlgPostPrompt').showModal()">
-                    <span class="ic ic-comment-alt-dots ic-14"></span>
-                    <span class="lbl">Prompt post-call</span>
-                    {% if form.post_call_prompt.value %}<span class="dot set" title="Setat"></span>{% else %}<span class="dot empty" title="Gol"></span>{% endif %}
-                </button>
-                <button type="button" class="prompt-btn" onclick="document.getElementById('dlgPostFirst').showModal()">
-                    <span class="ic ic-comment-alt-dots ic-14"></span>
-                    <span class="lbl">Primul mesaj post-call</span>
-                    {% if form.post_call_first_message.value %}<span class="dot set" title="Setat"></span>{% else %}<span class="dot empty" title="Gol"></span>{% endif %}
-                </button>
-            </div>
+          </button>
         </div>
+      </div>
 
-        {% if post_call_analysis %}
+      {# Post-call #}
+      <div class="dcard">
+        <h3>Post-call</h3>
+        <div class="callpanel">
+          <div class="thumb">
+            <span class="ic ic-comment-alt-dots"></span>
+          </div>
+          <div class="body">
+            <div class="title">{{ post_call_panel.title }}</div>
+            <div class="desc">{{ post_call_panel.description }}</div>
+            <div class="tags">
+              {% for tag in post_call_panel.meta_tags %}<span class="tag">{{ tag }}</span>{% endfor %}
+            </div>
+          </div>
+          {% if post_call_panel.has_recording %}
+            <button type="button" class="replay">Replay</button>
+          {% endif %}
+        </div>
+        {% if post_call_panel.snippet %}
+          <details class="snippet">
+            <summary>
+              <span class="ts">{{ post_call_panel.snippet.ts }}</span>
+              <span class="preview">{{ post_call_panel.snippet.preview }}</span>
+              {% if post_call_panel.snippet.has_more %}
+                <span class="toggle">Vezi tot transcriptul</span>
+              {% endif %}
+            </summary>
+            <pre class="full-transcript">{{ post_call_panel.snippet.full }}</pre>
+          </details>
+        {% endif %}
+        <div class="prompt-actions">
+          <button type="button"
+                  class="prompt-btn"
+                  onclick="document.getElementById('dlgPostPrompt').showModal()">
+            <span class="ic ic-comment-alt-dots ic-14"></span>
+            <span class="lbl">Prompt post-call</span>
+            {% if form.post_call_prompt.value %}
+              <span class="dot set" title="Setat"></span>
+            {% else %}
+              <span class="dot empty" title="Gol"></span>
+            {% endif %}
+          </button>
+          <button type="button"
+                  class="prompt-btn"
+                  onclick="document.getElementById('dlgPostFirst').showModal()">
+            <span class="ic ic-comment-alt-dots ic-14"></span>
+            <span class="lbl">Primul mesaj post-call</span>
+            {% if form.post_call_first_message.value %}
+              <span class="dot set" title="Setat"></span>
+            {% else %}
+              <span class="dot empty" title="Gol"></span>
+            {% endif %}
+          </button>
+        </div>
+      </div>
+
+      {% if post_call_analysis %}
 
         {# ─── Semnal NO-GO (apare doar dacă AI a marcat deal-ul ca pe drum mort) ─── #}
         {% if post_call_analysis.no_go.is_no_go %}
-        <div class="no-go-banner">
+          <div class="no-go-banner">
             <h3>⚠ Semnal NO-GO</h3>
             {% if post_call_analysis.no_go.reason %}
-            <div class="body">{{ post_call_analysis.no_go.reason }}</div>
+              <div class="body">{{ post_call_analysis.no_go.reason }}</div>
             {% endif %}
             {% if post_call_analysis.no_go.salvage_path %}
-            <div class="salvage">Cale de salvare: {{ post_call_analysis.no_go.salvage_path }}</div>
+              <div class="salvage">Cale de salvare: {{ post_call_analysis.no_go.salvage_path }}</div>
             {% endif %}
-        </div>
+          </div>
         {% endif %}
 
         {# ─── Atingere obiectiv ─── #}
         <div class="dcard objective-card">
-            <h3>Atingere obiectiv</h3>
-            <div class="pill-row">
-                {% if post_call_analysis.objective_attained == 'attained' %}
-                    {% include "voice/partials/status_pill.html" with variant="green" label="Atins" %}
-                {% elif post_call_analysis.objective_attained == 'partial' %}
-                    {% include "voice/partials/status_pill.html" with variant="cream" label="Parțial" %}
-                {% elif post_call_analysis.objective_attained == 'missed' %}
-                    {% include "voice/partials/status_pill.html" with variant="rose" label="Ratat" %}
-                {% else %}
-                    {% include "voice/partials/status_pill.html" with variant="cream" label="Necunoscut" %}
-                {% endif %}
-            </div>
-            {% if post_call_analysis.objective_assessment %}
-            <p class="assessment">{{ post_call_analysis.objective_assessment }}</p>
+          <h3>Atingere obiectiv</h3>
+          <div class="pill-row">
+            {% if post_call_analysis.objective_attained == 'attained' %}
+              {% include "voice/partials/status_pill.html" with variant="green" label="Atins" %}
+            {% elif post_call_analysis.objective_attained == 'partial' %}
+              {% include "voice/partials/status_pill.html" with variant="cream" label="Parțial" %}
+            {% elif post_call_analysis.objective_attained == 'missed' %}
+              {% include "voice/partials/status_pill.html" with variant="rose" label="Ratat" %}
+            {% else %}
+              {% include "voice/partials/status_pill.html" with variant="cream" label="Necunoscut" %}
             {% endif %}
+          </div>
+          {% if post_call_analysis.objective_assessment %}
+            <p class="assessment">{{ post_call_analysis.objective_assessment }}</p>
+          {% endif %}
         </div>
 
         {# ─── Acțiuni de făcut (CRM) ─── #}
         {% if post_call_analysis.actionables %}
-        <div class="dcard">
+          <div class="dcard">
             <h3>Acțiuni de făcut</h3>
             <div class="actionables-list">
-                {% for a in post_call_analysis.actionables %}
+              {% for a in post_call_analysis.actionables %}
                 <div class="actionable">
-                    <span class="owner-pill {{ a.owner|default:'other' }}">{{ a.owner|default:'other' }}</span>
-                    <span class="action-text">{{ a.action }}</span>
-                    <span class="due">{% if a.due %}{{ a.due }}{% else %}—{% endif %}</span>
+                  <span class="owner-pill {{ a.owner|default:'other' }}">{{ a.owner|default:'other' }}</span>
+                  <span class="action-text">{{ a.action }}</span>
+                  <span class="due">
+                    {% if a.due %}
+                      {{ a.due }}
+                    {% else %}
+                      —
+                    {% endif %}
+                  </span>
                 </div>
-                {% endfor %}
+              {% endfor %}
             </div>
-        </div>
+          </div>
         {% endif %}
 
         {# ─── Recomandări pentru agent ─── #}
         {% if post_call_analysis.recommendations %}
-        <div class="dcard">
+          <div class="dcard">
             <h3>Recomandări pentru agent</h3>
             <div class="reco-list">
-                {% for r in post_call_analysis.recommendations %}
-                <div class="reco-item">{{ r }}</div>
-                {% endfor %}
+              {% for r in post_call_analysis.recommendations %}<div class="reco-item">{{ r }}</div>{% endfor %}
             </div>
-        </div>
+          </div>
         {% endif %}
 
         {# ─── Următorii pași (Next Best Actions) ─── #}
         {% if post_call_analysis.next_best_actions %}
-        <div class="dcard">
+          <div class="dcard">
             <h3>Următorii pași pentru deal</h3>
             <div class="nba-list">
-                {% for n in post_call_analysis.next_best_actions %}
+              {% for n in post_call_analysis.next_best_actions %}
                 <div class="nba-card">
-                    <div>
-                        <div class="action">{{ n.action }}</div>
-                        {% if n.rationale %}<div class="rationale">{{ n.rationale }}</div>{% endif %}
-                    </div>
-                    {% if n.timing %}<span class="timing">{{ n.timing }}</span>{% endif %}
+                  <div>
+                    <div class="action">{{ n.action }}</div>
+                    {% if n.rationale %}<div class="rationale">{{ n.rationale }}</div>{% endif %}
+                  </div>
+                  {% if n.timing %}<span class="timing">{{ n.timing }}</span>{% endif %}
                 </div>
-                {% endfor %}
+              {% endfor %}
             </div>
-        </div>
+          </div>
         {% endif %}
 
         {# ─── Verificare consistență pre↔post (când există sumar de pre-call) ─── #}
         {% if post_call_analysis.consistency_check.has_pre_call_summary %}
-        <div class="dcard consistency-card{% if not post_call_analysis.consistency_check.consistent %} has-discrepancies{% endif %}">
+          <div class="dcard consistency-card{% if not post_call_analysis.consistency_check.consistent %} has-discrepancies{% endif %}">
             <h3>
-                Verificare consistență pre↔post
-                {% if post_call_analysis.consistency_check.consistent %}
+              Verificare consistență pre↔post
+              {% if post_call_analysis.consistency_check.consistent %}
                 <span class="badge-ok">Consistent</span>
-                {% else %}
+              {% else %}
                 <span class="badge-warn">{{ post_call_analysis.consistency_check.discrepancies|length }} discrepanțe</span>
-                {% endif %}
+              {% endif %}
             </h3>
             {% if post_call_analysis.consistency_check.discrepancies %}
-            <div class="discrepancy-list">
+              <div class="discrepancy-list">
                 {% for d in post_call_analysis.consistency_check.discrepancies %}
-                <div class="discrepancy">
-                    <div class="row"><span class="lbl">Pre-call:</span> {{ d.pre_call_claim }}</div>
-                    <div class="row"><span class="lbl">Post-call:</span> {{ d.post_call_reality }}</div>
-                    {% if d.implication %}<div class="row implication"><span class="lbl">Implicație:</span> {{ d.implication }}</div>{% endif %}
-                </div>
+                  <div class="discrepancy">
+                    <div class="row">
+                      <span class="lbl">Pre-call:</span> {{ d.pre_call_claim }}
+                    </div>
+                    <div class="row">
+                      <span class="lbl">Post-call:</span> {{ d.post_call_reality }}
+                    </div>
+                    {% if d.implication %}
+                      <div class="row implication">
+                        <span class="lbl">Implicație:</span> {{ d.implication }}
+                      </div>
+                    {% endif %}
+                  </div>
                 {% endfor %}
-            </div>
+              </div>
             {% else %}
-            <p class="t-body" style="margin:0;color:var(--fg-muted);">Agentul a fost consistent — ce a confirmat că are pregătit la pre-call a fost confirmat și în debrief.</p>
+              <p class="t-body" style="margin:0;color:var(--fg-muted);">
+                Agentul a fost consistent — ce a confirmat că are pregătit la pre-call a fost confirmat și în debrief.
+              </p>
             {% endif %}
-        </div>
+          </div>
         {% endif %}
 
         {# ─── Obiecții și riscuri (tag groups) ─── #}
         {% if post_call_analysis.objections_raised or post_call_analysis.objections_handled or post_call_analysis.risks %}
-        <div class="dcard">
+          <div class="dcard">
             <h3>Obiecții și riscuri</h3>
             {% if post_call_analysis.objections_raised %}
-            <div style="margin-bottom:12px;">
-                <div class="t-meta" style="text-transform:uppercase;color:var(--fg-muted);font-weight:800;font-size:10px;letter-spacing:0.1em;margin-bottom:6px;">Obiecții ridicate</div>
+              <div style="margin-bottom:12px;">
+                <div class="t-meta"
+                     style="text-transform:uppercase;
+                            color:var(--fg-muted);
+                            font-weight:800;
+                            font-size:10px;
+                            letter-spacing:0.1em;
+                            margin-bottom:6px">Obiecții ridicate</div>
                 <div class="tag-group">
-                    {% for o in post_call_analysis.objections_raised %}
-                    <span class="tag">{{ o }}</span>
-                    {% endfor %}
+                  {% for o in post_call_analysis.objections_raised %}<span class="tag">{{ o }}</span>{% endfor %}
                 </div>
-            </div>
+              </div>
             {% endif %}
             {% if post_call_analysis.objections_handled %}
-            <div style="margin-bottom:12px;">
-                <div class="t-meta" style="text-transform:uppercase;color:var(--fg-muted);font-weight:800;font-size:10px;letter-spacing:0.1em;margin-bottom:6px;">Gestionate</div>
+              <div style="margin-bottom:12px;">
+                <div class="t-meta"
+                     style="text-transform:uppercase;
+                            color:var(--fg-muted);
+                            font-weight:800;
+                            font-size:10px;
+                            letter-spacing:0.1em;
+                            margin-bottom:6px">Gestionate</div>
                 <div class="tag-group">
-                    {% for o in post_call_analysis.objections_handled %}
+                  {% for o in post_call_analysis.objections_handled %}
                     <span class="tag handled">{{ o }}</span>
-                    {% endfor %}
+                  {% endfor %}
                 </div>
-            </div>
+              </div>
             {% endif %}
             {% if post_call_analysis.risks %}
-            <div>
-                <div class="t-meta" style="text-transform:uppercase;color:var(--fg-muted);font-weight:800;font-size:10px;letter-spacing:0.1em;margin-bottom:6px;">Riscuri</div>
+              <div>
+                <div class="t-meta"
+                     style="text-transform:uppercase;
+                            color:var(--fg-muted);
+                            font-weight:800;
+                            font-size:10px;
+                            letter-spacing:0.1em;
+                            margin-bottom:6px">Riscuri</div>
                 <div class="tag-group">
-                    {% for r in post_call_analysis.risks %}
-                    <span class="tag risk">{{ r }}</span>
-                    {% endfor %}
+                  {% for r in post_call_analysis.risks %}<span class="tag risk">{{ r }}</span>{% endfor %}
                 </div>
-            </div>
+              </div>
             {% endif %}
-        </div>
+          </div>
         {% endif %}
 
         {# ─── Metrici (sentiment, talk ratio, champion) — la final, ca info secundar ─── #}
         {% if post_call_ministats %}
-        <div class="ministats">
-            <div class="ministat"><div class="l">Sentiment</div><div class="v">{{ post_call_ministats.sentiment }}%<span class="delta">{{ post_call_ministats.sentiment_delta }}</span></div></div>
-            <div class="ministat"><div class="l">Vorbire agent</div><div class="v">{{ post_call_ministats.talk_ratio }}%</div></div>
-            <div class="ministat"><div class="l">Obiecții</div><div class="v">{{ post_call_ministats.objections }}</div></div>
-            <div class="ministat"><div class="l">Sprijin client</div><div class="v" style="font-size:14px;">{{ post_call_ministats.champion }}</div></div>
-        </div>
+          <div class="ministats">
+            <div class="ministat">
+              <div class="l">Sentiment</div>
+              <div class="v">
+                {{ post_call_ministats.sentiment }}%<span class="delta">{{ post_call_ministats.sentiment_delta }}</span>
+              </div>
+            </div>
+            <div class="ministat">
+              <div class="l">Vorbire agent</div>
+              <div class="v">{{ post_call_ministats.talk_ratio }}%</div>
+            </div>
+            <div class="ministat">
+              <div class="l">Obiecții</div>
+              <div class="v">{{ post_call_ministats.objections }}</div>
+            </div>
+            <div class="ministat">
+              <div class="l">Sprijin client</div>
+              <div class="v" style="font-size:14px;">{{ post_call_ministats.champion }}</div>
+            </div>
+          </div>
         {% endif %}
 
-        {% endif %}
+      {% endif %}
 
-        {# Debrief #}
-        {% if visit.post_call_summary %}
+      {# Debrief #}
+      {% if visit.post_call_summary %}
         <div class="dcard">
-            <h3>Debrief Summary</h3>
-            <p class="t-body" style="margin:0;line-height:1.5;color:var(--fg);">{{ visit.post_call_summary|linebreaksbr }}</p>
+          <h3>Debrief Summary</h3>
+          <p class="t-body" style="margin:0;line-height:1.5;color:var(--fg);">
+            {{ visit.post_call_summary|linebreaksbr }}
+          </p>
         </div>
-        {% endif %}
+      {% endif %}
     </div>
 
     <div class="detail-side">
 
-        {# Manager Notes #}
-        <div class="dcard notes">
-            <h3>Manager Notes</h3>
-            <form method="post" id="visitForm">
-                {% csrf_token %}
+      {# Manager Notes #}
+      <div class="dcard notes">
+        <h3>Manager Notes</h3>
+        <form method="post" id="visitForm">
+          {% csrf_token %}
 
-                <div class="schedule-block">
-                    <label class="t-meta schedule-label">Data și ora vizitei</label>
-                    <div class="schedule-row">
-                        <div class="schedule-cell schedule-date">
-                            {{ form.visit_date }}
-                        </div>
-                        <div class="schedule-cell schedule-time">
-                            {{ form.visit_start_time }}
-                        </div>
-                    </div>
-                    <div class="schedule-row">
-                        <div class="schedule-cell schedule-duration">
-                            <span class="suffix-label">Durata</span>
-                            {{ form.visit_duration_minutes }}
-                            <span class="suffix-label">minute</span>
-                        </div>
-                    </div>
-                </div>
-
-                <textarea name="manager_notes" placeholder="Notes about this visit…">{{ form.manager_notes.value|default:"" }}</textarea>
-                {% if form.methodology %}
-                <div class="fieldrow">
-                    <label class="t-meta" style="display:block;margin-bottom:6px;">Methodology override</label>
-                    {{ form.methodology }}
-                </div>
-                {% endif %}
-
-                <div class="savehint" style="margin-top:4px;">Prompturile pre/post-call se editează din secțiunile din stânga.</div>
-
-                <div class="fieldrow" style="margin-top:12px;">
-                    <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;">Save</button>
-                </div>
-            </form>
-        </div>
-
-        {# ─── Run AI call ─── #}
-        <div class="dcard">
-            <h3>Run AI call</h3>
-            <form method="post" action="{% url 'voice:visit_call_now' visit_id=visit.id phase='pre' %}" style="margin-bottom:8px;">
-                {% csrf_token %}
-                <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;">Run pre-call</button>
-            </form>
-            <form method="post" action="{% url 'voice:visit_call_now' visit_id=visit.id phase='post' %}">
-                {% csrf_token %}
-                <button type="submit" class="btn btn-secondary" style="width:100%;justify-content:center;">Run post-call</button>
-            </form>
-        </div>
-
-        {# Profil client — only real data, no fake CRM placeholders #}
-        <div class="dcard">
-            <h3>Profil client</h3>
-            <p class="intel-summary">{{ client_intel_summary }}</p>
-            {% if intel_chips %}
-            <div class="intel-chips">
-                {% for chip in intel_chips %}{% include "voice/partials/outcome_chip.html" with label=chip.label tone=chip.tone %}{% endfor %}
+          <div class="schedule-block">
+            <label class="t-meta schedule-label">Data și ora vizitei</label>
+            <div class="schedule-row">
+              <div class="schedule-cell schedule-date">{{ form.visit_date }}</div>
+              <div class="schedule-cell schedule-time">{{ form.visit_start_time }}</div>
             </div>
-            {% endif %}
-            {% if intel_kpis %}
-            <div class="kpi-list">
-                {% for k in intel_kpis %}
-                <div class="row"><span class="l">{{ k.label }}</span><span class="v">{{ k.value }}</span></div>
-                {% endfor %}
+            <div class="schedule-row">
+              <div class="schedule-cell schedule-duration">
+                <span class="suffix-label">Durata</span>
+                {{ form.visit_duration_minutes }}
+                <span class="suffix-label">minute</span>
+              </div>
             </div>
-            {% endif %}
-        </div>
+          </div>
+
+          <textarea name="manager_notes" placeholder="Notes about this visit…">{{ form.manager_notes.value|default:"" }}</textarea>
+          {% if form.methodology %}
+            <div class="fieldrow">
+              <label class="t-meta" style="display:block;margin-bottom:6px;">Methodology override</label>
+              {{ form.methodology }}
+            </div>
+          {% endif %}
+
+          <div class="savehint" style="margin-top:4px;">
+            Prompturile pre/post-call se editează din secțiunile din stânga.
+          </div>
+
+          <div class="fieldrow" style="margin-top:12px;">
+            <button type="submit"
+                    class="btn btn-primary"
+                    style="width:100%;
+                           justify-content:center">Save</button>
+          </div>
+        </form>
+      </div>
+
+      {# ─── Run AI call ─── #}
+      <div class="dcard">
+        <h3>Run AI call</h3>
+        <form method="post"
+              action="{% url 'voice:visit_call_now' visit_id=visit.id phase='pre' %}"
+              style="margin-bottom:8px">
+          {% csrf_token %}
+          <button type="submit"
+                  class="btn btn-primary"
+                  style="width:100%;
+                         justify-content:center">Run pre-call</button>
+        </form>
+        <form method="post"
+              action="{% url 'voice:visit_call_now' visit_id=visit.id phase='post' %}">
+          {% csrf_token %}
+          <button type="submit"
+                  class="btn btn-secondary"
+                  style="width:100%;
+                         justify-content:center">Run post-call</button>
+        </form>
+      </div>
+
+      {# Profil client — only real data, no fake CRM placeholders #}
+      <div class="dcard">
+        <h3>Profil client</h3>
+        <p class="intel-summary">{{ client_intel_summary }}</p>
+        {% if intel_chips %}
+          <div class="intel-chips">
+            {% for chip in intel_chips %}
+              {% include "voice/partials/outcome_chip.html" with label=chip.label tone=chip.tone %}
+            {% endfor %}
+          </div>
+        {% endif %}
+        {% if intel_kpis %}
+          <div class="kpi-list">
+            {% for k in intel_kpis %}
+              <div class="row">
+                <span class="l">{{ k.label }}</span><span class="v">{{ k.value }}</span>
+              </div>
+            {% endfor %}
+          </div>
+        {% endif %}
+      </div>
 
     </div>
-</div>
+  </div>
 
-{# ─── Prompt edit modals (textareas belong to #visitForm via the form= attribute) ─── #}
-<dialog id="dlgPrePrompt" class="prompt-modal">
+  {# ─── Prompt edit modals (textareas belong to #visitForm via the form= attribute) ─── #}
+  <dialog id="dlgPrePrompt" class="prompt-modal">
     <div class="pm-head">
-        <h3>Prompt pre-call</h3>
-        <button type="button" class="pm-x" onclick="this.closest('dialog').close()" aria-label="Închide">✕</button>
+      <h3>Prompt pre-call</h3>
+      <button type="button"
+              class="pm-x"
+              onclick="this.closest('dialog').close()"
+              aria-label="Închide">✕</button>
     </div>
-    <p class="pm-hint">Promptul de sistem trimis către ElevenLabs pentru apelul de pregătire. Acceptă placeholdere ca {agent_first_name}, {client_name}, {visit_time}.</p>
-    <textarea name="pre_call_prompt" form="visitForm" class="pm-textarea" placeholder="Promptul pre-call…">{{ form.pre_call_prompt.value|default:'' }}</textarea>
+    <p class="pm-hint">
+      Promptul de sistem trimis către ElevenLabs pentru apelul de pregătire. Acceptă placeholdere ca {agent_first_name}, {client_name}, {visit_time}.
+    </p>
+    <textarea name="pre_call_prompt"
+              form="visitForm"
+              class="pm-textarea"
+              placeholder="Promptul pre-call…">{{ form.pre_call_prompt.value|default:'' }}</textarea>
     <div class="pm-foot">
-        <button type="button" class="btn btn-secondary" onclick="this.closest('dialog').close()">Închide</button>
-        <button type="submit" form="visitForm" class="btn btn-primary">Salvează</button>
+      <button type="button"
+              class="btn btn-secondary"
+              onclick="this.closest('dialog').close()">Închide</button>
+      <button type="submit" form="visitForm" class="btn btn-primary">Salvează</button>
     </div>
-</dialog>
+  </dialog>
 
-<dialog id="dlgPreFirst" class="prompt-modal">
+  <dialog id="dlgPreFirst" class="prompt-modal">
     <div class="pm-head">
-        <h3>Primul mesaj pre-call</h3>
-        <button type="button" class="pm-x" onclick="this.closest('dialog').close()" aria-label="Închide">✕</button>
+      <h3>Primul mesaj pre-call</h3>
+      <button type="button"
+              class="pm-x"
+              onclick="this.closest('dialog').close()"
+              aria-label="Închide">✕</button>
     </div>
-    <p class="pm-hint">Prima replică pe care o spune Florina când sună agentul înainte de întâlnire.</p>
-    <textarea name="pre_call_first_message" form="visitForm" class="pm-textarea short" placeholder="Primul mesaj pre-call…">{{ form.pre_call_first_message.value|default:'' }}</textarea>
+    <p class="pm-hint">
+      Prima replică pe care o spune Florina când sună agentul înainte de întâlnire.
+    </p>
+    <textarea name="pre_call_first_message"
+              form="visitForm"
+              class="pm-textarea short"
+              placeholder="Primul mesaj pre-call…">{{ form.pre_call_first_message.value|default:'' }}</textarea>
     <div class="pm-foot">
-        <button type="button" class="btn btn-secondary" onclick="this.closest('dialog').close()">Închide</button>
-        <button type="submit" form="visitForm" class="btn btn-primary">Salvează</button>
+      <button type="button"
+              class="btn btn-secondary"
+              onclick="this.closest('dialog').close()">Închide</button>
+      <button type="submit" form="visitForm" class="btn btn-primary">Salvează</button>
     </div>
-</dialog>
+  </dialog>
 
-<dialog id="dlgPostPrompt" class="prompt-modal">
+  <dialog id="dlgPostPrompt" class="prompt-modal">
     <div class="pm-head">
-        <h3>Prompt post-call</h3>
-        <button type="button" class="pm-x" onclick="this.closest('dialog').close()" aria-label="Închide">✕</button>
+      <h3>Prompt post-call</h3>
+      <button type="button"
+              class="pm-x"
+              onclick="this.closest('dialog').close()"
+              aria-label="Închide">✕</button>
     </div>
-    <p class="pm-hint">Promptul de sistem pentru debrief-ul după întâlnire. Placeholderul {pre_call_summary} injectează automat sumarul pre-call-ului.</p>
-    <textarea name="post_call_prompt" form="visitForm" class="pm-textarea" placeholder="Promptul post-call…">{{ form.post_call_prompt.value|default:'' }}</textarea>
+    <p class="pm-hint">
+      Promptul de sistem pentru debrief-ul după întâlnire. Placeholderul {pre_call_summary} injectează automat sumarul pre-call-ului.
+    </p>
+    <textarea name="post_call_prompt"
+              form="visitForm"
+              class="pm-textarea"
+              placeholder="Promptul post-call…">{{ form.post_call_prompt.value|default:'' }}</textarea>
     <div class="pm-foot">
-        <button type="button" class="btn btn-secondary" onclick="this.closest('dialog').close()">Închide</button>
-        <button type="submit" form="visitForm" class="btn btn-primary">Salvează</button>
+      <button type="button"
+              class="btn btn-secondary"
+              onclick="this.closest('dialog').close()">Închide</button>
+      <button type="submit" form="visitForm" class="btn btn-primary">Salvează</button>
     </div>
-</dialog>
+  </dialog>
 
-<dialog id="dlgPostFirst" class="prompt-modal">
+  <dialog id="dlgPostFirst" class="prompt-modal">
     <div class="pm-head">
-        <h3>Primul mesaj post-call</h3>
-        <button type="button" class="pm-x" onclick="this.closest('dialog').close()" aria-label="Închide">✕</button>
+      <h3>Primul mesaj post-call</h3>
+      <button type="button"
+              class="pm-x"
+              onclick="this.closest('dialog').close()"
+              aria-label="Închide">✕</button>
     </div>
     <p class="pm-hint">Prima replică pe care o spune Florina la debrief-ul de după întâlnire.</p>
-    <textarea name="post_call_first_message" form="visitForm" class="pm-textarea short" placeholder="Primul mesaj post-call…">{{ form.post_call_first_message.value|default:'' }}</textarea>
+    <textarea name="post_call_first_message"
+              form="visitForm"
+              class="pm-textarea short"
+              placeholder="Primul mesaj post-call…">{{ form.post_call_first_message.value|default:'' }}</textarea>
     <div class="pm-foot">
-        <button type="button" class="btn btn-secondary" onclick="this.closest('dialog').close()">Închide</button>
-        <button type="submit" form="visitForm" class="btn btn-primary">Salvează</button>
+      <button type="button"
+              class="btn btn-secondary"
+              onclick="this.closest('dialog').close()">Închide</button>
+      <button type="submit" form="visitForm" class="btn btn-primary">Salvează</button>
     </div>
-</dialog>
+  </dialog>
 
 {% endblock %}

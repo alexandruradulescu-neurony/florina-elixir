@@ -6,13 +6,14 @@ The heavy lifting (OAuth, API calls) is delegated to voice/services/google_calen
 which remains the source of truth for Google-specific logic.
 """
 import logging
-from datetime import date, datetime, time as dt_time, timedelta
-from typing import Optional
+from datetime import date, datetime, timedelta
+from datetime import time as dt_time
 
 from decouple import config
 from django.utils import timezone
 
 from voice.utils import convert_to_utc
+
 from .base import CalendarProvider
 
 logger = logging.getLogger(__name__)
@@ -70,8 +71,9 @@ class GoogleCalendarProvider(CalendarProvider):
         from voice.services.google_calendar import stop_google_calendar_watch
         return stop_google_calendar_watch(user, channel_id=channel_id, session=session)
 
-    def get_auth_url(self, redirect_uri: str, state: str) -> Optional[str]:
+    def get_auth_url(self, redirect_uri: str, state: str) -> str | None:
         from google_auth_oauthlib.flow import Flow
+
         from voice.services.google_calendar import SCOPES
 
         if not self.is_configured():
@@ -99,8 +101,9 @@ class GoogleCalendarProvider(CalendarProvider):
 
     def handle_auth_callback(self, user, auth_code: str, redirect_uri: str, session=None) -> dict:
         from google_auth_oauthlib.flow import Flow
-        from voice.services.google_calendar import SCOPES
+
         from voice.models import GoogleOauthCredential
+        from voice.services.google_calendar import SCOPES
 
         if not self.is_configured():
             return {'success': False, 'error': 'Google Calendar not configured'}
@@ -162,7 +165,7 @@ class GoogleCalendarProvider(CalendarProvider):
     # ------------------------------------------------------------------ #
 
     @staticmethod
-    def _normalize_event(item: dict) -> Optional[dict]:
+    def _normalize_event(item: dict) -> dict | None:
         """Convert a raw Google Calendar event to the standard format."""
         event_id = item.get('id')
         if not event_id:

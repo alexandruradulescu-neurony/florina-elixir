@@ -1,14 +1,17 @@
 {% load static %}
 <!DOCTYPE html>
 <html lang="en">
-<head>
+  <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Sales Assistant{% endblock %}</title>
+    <title>
+      {% block title %}Sales Assistant{% endblock %}
+    </title>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;700;800&family=Nunito+Sans:wght@600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;700;800&family=Nunito+Sans:wght@600;700&display=swap"
+          rel="stylesheet">
 
     <link rel="stylesheet" href="{% static 'css/tokens.css' %}">
     <link rel="stylesheet" href="{% static 'css/icons.css' %}">
@@ -16,140 +19,174 @@
     <link rel="stylesheet" href="{% static 'css/screens.css' %}">
 
     {% block extra_css %}{% endblock %}
-</head>
-<body>
+  </head>
+  <body>
 
-{% if user.is_authenticated %}
-    <div class="app-shell">
+    {% if user.is_authenticated %}
+      <div class="app-shell">
         <aside class="sb">
-            <a href="{% url 'voice:home' %}" class="brand">
-                <span class="mark">S</span>
-                <div>
-                    <div class="nm">Sales Assistant</div>
-                    <div class="role">{% if user.is_superuser %}Manager{% elif user.is_sales_agent %}Sales Agent{% endif %}</div>
-                </div>
+          <a href="{% url 'voice:home' %}" class="brand">
+            <span class="mark">S</span>
+            <div>
+              <div class="nm">Sales Assistant</div>
+              <div class="role">
+                {% if user.is_superuser %}
+                  Manager
+                {% elif user.is_sales_agent %}
+                  Sales Agent
+                {% endif %}
+              </div>
+            </div>
+          </a>
+
+          {% if user.is_superuser %}
+            <h4>Overview</h4>
+            <div class="group">
+              <a href="{% url 'voice:superuser_dashboard' %}"
+                 class="row {% if request.resolver_match.url_name == 'superuser_dashboard' %}active{% endif %}">
+                <span class="iconslot"><span class="ic ic-grid ic-18"></span></span>
+                <span class="label">Dashboard</span>
+              </a>
+              <a href="{% url 'voice:visit_list' %}"
+                 class="row {% if request.resolver_match.url_name == 'visit_list' or request.resolver_match.url_name == 'visit_detail' %}active{% endif %}">
+                <span class="iconslot"><span class="ic ic-invite-alt ic-18"></span></span>
+                <span class="label">Visits</span>
+                {% if unread_visits_count %}
+                  <span class="count count-badge">{{ unread_visits_count }}</span>
+                {% endif %}
+              </a>
+              <a href="{% url 'voice:visit_calendar' %}"
+                 class="row {% if request.resolver_match.url_name == 'visit_calendar' %}active{% endif %}">
+                <span class="iconslot"><span class="ic ic-objects-column ic-18"></span></span>
+                <span class="label">Calendar</span>
+              </a>
+              <a href="{% url 'voice:live_agent' %}"
+                 class="row {% if request.resolver_match.url_name == 'live_agent' %}active{% endif %}">
+                <span class="iconslot"><span class="ic ic-comment-alt-dots ic-18"></span></span>
+                <span class="label">Live Agent</span>
+              </a>
+            </div>
+
+            <h4>Manage</h4>
+            <div class="group">
+              <a href="{% url 'voice:agent_management' %}"
+                 class="row {% if request.resolver_match.url_name == 'agent_management' or request.resolver_match.url_name == 'agent_add' or request.resolver_match.url_name == 'agent_methodology' or request.resolver_match.url_name == 'agent_detail' %}active{% endif %}">
+                <span class="iconslot"><span class="ic ic-id-badge ic-18"></span></span>
+                <span class="label">Agents</span>
+              </a>
+              <a href="{% url 'voice:client_list' %}"
+                 class="row {% if request.resolver_match.url_name == 'client_list' or request.resolver_match.url_name == 'client_detail' or request.resolver_match.url_name == 'client_create' or request.resolver_match.url_name == 'client_edit' or request.resolver_match.url_name == 'client_delete' %}active{% endif %}">
+                <span class="iconslot"><span class="ic ic-building ic-18"></span></span>
+                <span class="label">Clients</span>
+              </a>
+              <a href="{% url 'voice:methodology_list' %}"
+                 class="row {% if request.resolver_match.url_name == 'methodology_list' or request.resolver_match.url_name == 'methodology_create' or request.resolver_match.url_name == 'methodology_edit' %}active{% endif %}">
+                <span class="iconslot"><span class="ic ic-book ic-18"></span></span>
+                <span class="label">Methodologies</span>
+              </a>
+              <a href="{% url 'voice:programmed_calls' %}"
+                 class="row {% if request.resolver_match.url_name == 'programmed_calls' or request.resolver_match.url_name == 'manual_call_trigger' %}active{% endif %}">
+                <span class="iconslot"><span class="ic ic-comment-alt-dots ic-18"></span></span>
+                <span class="label">Calls</span>
+              </a>
+            </div>
+
+            <div class="spacer"></div>
+
+            <a href="{% url 'voice:global_settings' %}"
+               class="row {% if request.resolver_match.url_name == 'global_settings' %}active{% endif %}">
+              <span class="iconslot"><span class="ic ic-menu-dots ic-18"></span></span>
+              <span class="label">Settings</span>
             </a>
 
-            {% if user.is_superuser %}
-                <h4>Overview</h4>
-                <div class="group">
-                    <a href="{% url 'voice:superuser_dashboard' %}" class="row {% if request.resolver_match.url_name == 'superuser_dashboard' %}active{% endif %}">
-                        <span class="iconslot"><span class="ic ic-grid ic-18"></span></span>
-                        <span class="label">Dashboard</span>
-                    </a>
-                    <a href="{% url 'voice:visit_list' %}" class="row {% if request.resolver_match.url_name == 'visit_list' or request.resolver_match.url_name == 'visit_detail' %}active{% endif %}">
-                        <span class="iconslot"><span class="ic ic-invite-alt ic-18"></span></span>
-                        <span class="label">Visits</span>
-                        {% if unread_visits_count %}<span class="count count-badge">{{ unread_visits_count }}</span>{% endif %}
-                    </a>
-                    <a href="{% url 'voice:visit_calendar' %}" class="row {% if request.resolver_match.url_name == 'visit_calendar' %}active{% endif %}">
-                        <span class="iconslot"><span class="ic ic-objects-column ic-18"></span></span>
-                        <span class="label">Calendar</span>
-                    </a>
-                    <a href="{% url 'voice:live_agent' %}" class="row {% if request.resolver_match.url_name == 'live_agent' %}active{% endif %}">
-                        <span class="iconslot"><span class="ic ic-comment-alt-dots ic-18"></span></span>
-                        <span class="label">Live Agent</span>
-                    </a>
-                </div>
-
-                <h4>Manage</h4>
-                <div class="group">
-                    <a href="{% url 'voice:agent_management' %}" class="row {% if request.resolver_match.url_name == 'agent_management' or request.resolver_match.url_name == 'agent_add' or request.resolver_match.url_name == 'agent_methodology' or request.resolver_match.url_name == 'agent_detail' %}active{% endif %}">
-                        <span class="iconslot"><span class="ic ic-id-badge ic-18"></span></span>
-                        <span class="label">Agents</span>
-                    </a>
-                    <a href="{% url 'voice:client_list' %}" class="row {% if request.resolver_match.url_name == 'client_list' or request.resolver_match.url_name == 'client_detail' or request.resolver_match.url_name == 'client_create' or request.resolver_match.url_name == 'client_edit' or request.resolver_match.url_name == 'client_delete' %}active{% endif %}">
-                        <span class="iconslot"><span class="ic ic-building ic-18"></span></span>
-                        <span class="label">Clients</span>
-                    </a>
-                    <a href="{% url 'voice:methodology_list' %}" class="row {% if request.resolver_match.url_name == 'methodology_list' or request.resolver_match.url_name == 'methodology_create' or request.resolver_match.url_name == 'methodology_edit' %}active{% endif %}">
-                        <span class="iconslot"><span class="ic ic-book ic-18"></span></span>
-                        <span class="label">Methodologies</span>
-                    </a>
-                    <a href="{% url 'voice:programmed_calls' %}" class="row {% if request.resolver_match.url_name == 'programmed_calls' or request.resolver_match.url_name == 'manual_call_trigger' %}active{% endif %}">
-                        <span class="iconslot"><span class="ic ic-comment-alt-dots ic-18"></span></span>
-                        <span class="label">Calls</span>
-                    </a>
-                </div>
-
-                <div class="spacer"></div>
-
-                <a href="{% url 'voice:global_settings' %}" class="row {% if request.resolver_match.url_name == 'global_settings' %}active{% endif %}">
-                    <span class="iconslot"><span class="ic ic-menu-dots ic-18"></span></span>
-                    <span class="label">Settings</span>
-                </a>
-
-            {% elif user.is_sales_agent %}
-                <h4>Overview</h4>
-                <div class="group">
-                    <a href="{% url 'voice:sales_agent_dashboard' %}" class="row {% if request.resolver_match.url_name == 'sales_agent_dashboard' %}active{% endif %}">
-                        <span class="iconslot"><span class="ic ic-grid ic-18"></span></span>
-                        <span class="label">My Schedule</span>
-                    </a>
-                    <a href="{% url 'voice:calendar_sync_status' %}" class="row {% if request.resolver_match.url_name == 'calendar_sync_status' %}active{% endif %}">
-                        <span class="iconslot"><span class="ic ic-objects-column ic-18"></span></span>
-                        <span class="label">Calendar Sync</span>
-                    </a>
-                </div>
-
-                <h4>Account</h4>
-                <div class="group">
-                    <a href="{% url 'voice:sales_agent_profile' %}" class="row {% if request.resolver_match.url_name == 'sales_agent_profile' %}active{% endif %}">
-                        <span class="iconslot"><span class="ic ic-id-badge ic-18"></span></span>
-                        <span class="label">Profile</span>
-                    </a>
-                </div>
-
-                <div class="spacer"></div>
-            {% endif %}
-
-            <div class="me">
-                <span class="av">{{ user.username|first|upper }}</span>
-                <div>
-                    <div class="nm">{{ user.get_full_name|default:user.username }}</div>
-                    <div class="role"><a href="{% url 'voice:logout' %}">Logout</a></div>
-                </div>
+          {% elif user.is_sales_agent %}
+            <h4>Overview</h4>
+            <div class="group">
+              <a href="{% url 'voice:sales_agent_dashboard' %}"
+                 class="row {% if request.resolver_match.url_name == 'sales_agent_dashboard' %}active{% endif %}">
+                <span class="iconslot"><span class="ic ic-grid ic-18"></span></span>
+                <span class="label">My Schedule</span>
+              </a>
+              <a href="{% url 'voice:calendar_sync_status' %}"
+                 class="row {% if request.resolver_match.url_name == 'calendar_sync_status' %}active{% endif %}">
+                <span class="iconslot"><span class="ic ic-objects-column ic-18"></span></span>
+                <span class="label">Calendar Sync</span>
+              </a>
             </div>
+
+            <h4>Account</h4>
+            <div class="group">
+              <a href="{% url 'voice:sales_agent_profile' %}"
+                 class="row {% if request.resolver_match.url_name == 'sales_agent_profile' %}active{% endif %}">
+                <span class="iconslot"><span class="ic ic-id-badge ic-18"></span></span>
+                <span class="label">Profile</span>
+              </a>
+            </div>
+
+            <div class="spacer"></div>
+          {% endif %}
+
+          <div class="me">
+            <span class="av">{{ user.username|first|upper }}</span>
+            <div>
+              <div class="nm">{{ user.get_full_name|default:user.username }}</div>
+              <div class="role">
+                <a href="{% url 'voice:logout' %}">Logout</a>
+              </div>
+            </div>
+          </div>
         </aside>
 
         <div class="app-main">
-            <div class="hdr-utility">
-                <div class="left">{% block header_utility %}{% endblock %}</div>
-                <div class="right">
-                    <button class="icon-btn" type="button" aria-label="Search"><span class="ic ic-search ic-16"></span></button>
-                    <button class="icon-btn" type="button" aria-label="Notifications"><span class="ic ic-comment-alt-dots ic-16"></span></button>
-                </div>
+          <div class="hdr-utility">
+            <div class="left">
+              {% block header_utility %}{% endblock %}
             </div>
-
-            <div class="hdr-page">
-                <div class="title">
-                    <h1>{% block display_title %}{% endblock %}</h1>
-                    {% block display_subtitle %}{% endblock %}
-                </div>
-                <div class="filters-slot">{% block header_filters %}{% endblock %}</div>
-                <div class="actions">{% block header_actions %}{% endblock %}</div>
+            <div class="right">
+              <button class="icon-btn" type="button" aria-label="Search">
+                <span class="ic ic-search ic-16"></span>
+              </button>
+              <button class="icon-btn" type="button" aria-label="Notifications">
+                <span class="ic ic-comment-alt-dots ic-16"></span>
+              </button>
             </div>
+          </div>
 
-            {% if messages %}
+          <div class="hdr-page">
+            <div class="title">
+              <h1>
+                {% block display_title %}{% endblock %}
+              </h1>
+              {% block display_subtitle %}{% endblock %}
+            </div>
+            <div class="filters-slot">
+              {% block header_filters %}{% endblock %}
+            </div>
+            <div class="actions">
+              {% block header_actions %}{% endblock %}
+            </div>
+          </div>
+
+          {% if messages %}
             <div class="toasts">
-                {% for message in messages %}
+              {% for message in messages %}
                 <div class="toast toast-{{ message.tags|default:'info' }}">{{ message }}</div>
-                {% endfor %}
+              {% endfor %}
             </div>
-            {% endif %}
+          {% endif %}
 
-            <main class="canvas">
-                {% block content %}{% endblock %}
-            </main>
+          <main class="canvas">
+            {% block content %}{% endblock %}
+          </main>
         </div>
-    </div>
+      </div>
 
-{% else %}
-    <main class="auth-page">
+    {% else %}
+      <main class="auth-page">
         {% block unauth_content %}{% endblock %}
-    </main>
-{% endif %}
+      </main>
+    {% endif %}
 
-{% block extra_js %}{% endblock %}
-</body>
+    {% block extra_js %}{% endblock %}
+  </body>
 </html>

@@ -2,8 +2,9 @@
 Assembles a database snapshot as text context for the Live Agent chat.
 Provides the LLM with current data so it can answer questions accurately.
 """
-from django.utils import timezone
 from datetime import timedelta
+
+from django.utils import timezone
 
 
 def assemble_data_context():
@@ -11,8 +12,8 @@ def assemble_data_context():
     Build a text summary of current database state for the LLM.
     Returns a string with structured data the LLM can reference.
     """
-    from voice.models import User, Client, Visit, CallAttempt, Methodology, GlobalSettings
-    from voice.constants import VisitStatus, CallStatus
+    from voice.constants import CallStatus, VisitStatus
+    from voice.models import CallAttempt, Client, GlobalSettings, Methodology, User, Visit
 
     now = timezone.now()
     today = now.date()

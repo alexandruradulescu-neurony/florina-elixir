@@ -10,12 +10,13 @@ Two-step architecture:
   3. Voice prompt is injected into ElevenLabs call
 """
 import logging
-from typing import Optional
 
-from voice.models import Visit, GlobalSettings
-from .llm import generate_voice_prompt, is_configured as llm_configured
-from .logging import log_activity
 from voice.constants import LogLevel
+from voice.models import GlobalSettings, Visit
+
+from .llm import generate_voice_prompt
+from .llm import is_configured as llm_configured
+from .logging import log_activity
 
 logger = logging.getLogger(__name__)
 
@@ -120,7 +121,7 @@ def _assemble_post_call_context(visit: Visit) -> str:
     return '\n'.join(parts)
 
 
-def generate_pre_call_prompt(visit: Visit) -> Optional[str]:
+def generate_pre_call_prompt(visit: Visit) -> str | None:
     """
     Generate the voice prompt for a pre-meeting call.
 
@@ -161,7 +162,7 @@ def generate_pre_call_prompt(visit: Visit) -> Optional[str]:
     return prompt
 
 
-def generate_post_call_prompt(visit: Visit) -> Optional[str]:
+def generate_post_call_prompt(visit: Visit) -> str | None:
     """
     Generate the voice prompt for a post-meeting call.
 

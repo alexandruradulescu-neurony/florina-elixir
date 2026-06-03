@@ -1,0 +1,23 @@
+name: Frontend Checks
+
+on:
+  workflow_call:
+
+jobs:
+  templates:
+    name: Django Templates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.10.2"
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Lint Django templates
+        run: uvx djlint voice/templates --check
