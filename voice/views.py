@@ -1032,12 +1032,70 @@ class VisitRegenerateView(SuperuserRequiredMixin, View):
     triggered_by value. The assembler itself respects per-field locks, so
     if both fields in the domain are locked, the run will be a no-op
     success skip — that's expected.
+
+    Rate-limited (PR 5, Code Review F2 / earlier security finding) at two
+    levels because each POST triggers a paid Claude API call:
+
+    - **Per-(user, visit, domain) cooldown**: a 30-second floor between
+      successive regenerations of the same field. Kills the impatient
+      double-click case before it bills two Claude calls. Implemented via
+      `cache.add` so it's atomic.
+    - **Per-user hourly cap**: 60 regenerations per user per hour, sliding
+      hour bucket. Bounds an authenticated abuse / runaway-script scenario
+      (still gated to superusers, but credentials get compromised).
+
+    Both limits return a 429-equivalent flash message + redirect; nothing
+    here proxies through to Claude until both pass.
     """
+
+    REGEN_COOLDOWN_SECONDS = 30
+    REGEN_HOURLY_LIMIT = 60
+
+    def _check_rate_limit(self, request, visit_id, domain) -> str | None:
+        """Return a flash-message string if rate-limited; None otherwise."""
+        from django.core.cache import cache
+
+        user_id = request.user.id
+        cooldown_key = f"regen_rate:{user_id}:{visit_id}:{domain}"
+        # cache.add atomically returns False if the key already exists.
+        if not cache.add(cooldown_key, "1", timeout=self.REGEN_COOLDOWN_SECONDS):
+            return (
+                f"You regenerated this {domain}-call prompt very recently — "
+                f"please wait up to {self.REGEN_COOLDOWN_SECONDS}s and try again."
+            )
+
+        hourly_key = f"regen_hourly:{user_id}"
+        count = cache.get(hourly_key, 0)
+        if count >= self.REGEN_HOURLY_LIMIT:
+            # Don't burn the cooldown slot we just claimed — release it so the
+            # user isn't double-penalised after the hourly window rolls over.
+            cache.delete(cooldown_key)
+            return (
+                f"You've hit the regeneration limit of {self.REGEN_HOURLY_LIMIT}/hour "
+                f"(Claude API cost guardrail). Wait for the hour to roll over."
+            )
+        # Best-effort increment. `cache.incr` would be atomic if the backend
+        # supports it (Memcached/Redis do; LocMemCache does too via lock).
+        try:
+            cache.incr(hourly_key)
+        except ValueError:
+            cache.set(hourly_key, count + 1, timeout=3600)
+        return None
 
     def post(self, request, visit_id, domain):
         from voice.constants import CallPhase, CallStatus
         from voice.models import CallAttempt, GenerationRun, Visit
         from voice.services.assembler import assemble_post_call, assemble_pre_call
+
+        if domain not in ("pre", "post"):
+            messages.error(request, f"Unknown domain: {domain!r}")
+            return redirect("voice:visit_detail", visit_id=visit_id)
+
+        # Rate-limit BEFORE looking up the visit (no DB hit on rejected calls).
+        rate_msg = self._check_rate_limit(request, visit_id, domain)
+        if rate_msg:
+            messages.warning(request, rate_msg)
+            return redirect("voice:visit_detail", visit_id=visit_id)
 
         try:
             visit = Visit.objects.get(pk=visit_id)
@@ -1051,7 +1109,7 @@ class VisitRegenerateView(SuperuserRequiredMixin, View):
                 triggered_by=GenerationRun.TriggeredBy.MANUAL,
                 user=request.user,
             )
-        elif domain == "post":
+        else:  # domain == "post"
             # PR #7 review: pass the actual transcript so the regenerated
             # post-call prompt is transcript-aware (the webhook path already
             # does this; the manual regen was dropping it). Use the most
@@ -1073,9 +1131,6 @@ class VisitRegenerateView(SuperuserRequiredMixin, View):
                 triggered_by=GenerationRun.TriggeredBy.MANUAL,
                 user=request.user,
             )
-        else:
-            messages.error(request, f"Unknown domain: {domain!r}")
-            return redirect("voice:visit_detail", visit_id=visit_id)
 
         if run.success:
             messages.success(
