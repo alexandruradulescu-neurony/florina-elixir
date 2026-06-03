@@ -46,16 +46,42 @@ _FENCED_KEYS = frozenset(
 )
 
 
+# Per-fenced-field hard cap on character count. The mega-prompt budget is
+# already constrained by Claude's context window; an attacker (or just an
+# accidentally-huge transcript) could otherwise drive token cost arbitrarily.
+# Generous enough to fit a long meeting transcript but bounded.
+_MAX_FENCED_FIELD_CHARS = 20_000
+
+
+def _neutralize_close_tags(value: str) -> str:
+    """Defang sequences that could close a sentinel fence prematurely.
+
+    PR #6 security finding #1: a transcript / manager note containing literal
+    `</VISIT_TRANSCRIPT>` (or any `</TAG>`) could escape the data block and
+    inject text outside the fenced region. We replace every `</` with `< /` —
+    visually similar, semantically inert to a fence-pattern parser, but still
+    readable to Claude. Operates on the value BEFORE the wrapping fence is
+    added, so the OUTER tags are untouched.
+    """
+    return value.replace("</", "< /")
+
+
 def _fence(key: str, value: str) -> str:
     """Wrap `value` with sentinel fences keyed by `key`.
 
-    Returns empty string if value is empty so downstream rendering doesn't
-    leave bare fence blocks in the meta-prompt.
+    - Returns empty string if value is empty (so downstream rendering doesn't
+      leave bare fence blocks in the meta-prompt).
+    - Truncates value to `_MAX_FENCED_FIELD_CHARS` to bound LLM input cost.
+    - Defangs any `</...>` close-tag patterns in the value so the fence
+      cannot be escaped from the inside.
     """
     if not value:
         return ""
+    if len(value) > _MAX_FENCED_FIELD_CHARS:
+        value = value[:_MAX_FENCED_FIELD_CHARS] + "…[truncated]"
+    safe = _neutralize_close_tags(value)
     tag = key.upper()
-    return f"<{tag}>\n{value}\n</{tag}>"
+    return f"<{tag}>\n{safe}\n</{tag}>"
 
 
 def _format_interaction_history(interactions: list[dict] | None) -> str:
