@@ -28,8 +28,12 @@ class Command(BaseCommand):
         for domain, filename in DOMAIN_TO_FILENAME.items():
             active = MegaPrompt.objects.filter(domain=domain, is_active=True).first()
             if not active:
-                self.stderr.write(self.style.WARNING(f"[{domain}] no active version; leaving {filename} as-is"))
+                self.stderr.write(
+                    self.style.WARNING(f"[{domain}] no active version; leaving {filename} as-is")
+                )
                 continue
             path = SEED_DIR / filename
             path.write_text(active.meta_prompt, encoding="utf-8")
-            self.stdout.write(self.style.SUCCESS(f"[{domain}] wrote v{active.version} → {filename}"))
+            self.stdout.write(
+                self.style.SUCCESS(f"[{domain}] wrote v{active.version} → {filename}")
+            )

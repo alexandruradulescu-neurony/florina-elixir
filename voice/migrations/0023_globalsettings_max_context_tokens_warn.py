@@ -4,15 +4,17 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('voice', '0022_generationrun'),
+        ("voice", "0022_generationrun"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='globalsettings',
-            name='max_context_tokens_warn',
-            field=models.PositiveIntegerField(default=50000, help_text="When an assembly's input tokens exceed this, log a warning and badge the run"),
+            model_name="globalsettings",
+            name="max_context_tokens_warn",
+            field=models.PositiveIntegerField(
+                default=50000,
+                help_text="When an assembly's input tokens exceed this, log a warning and badge the run",
+            ),
         ),
     ]

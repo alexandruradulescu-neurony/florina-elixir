@@ -4,14 +4,17 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('voice', '0025_seed_megaprompts_from_files'),
+        ("voice", "0025_seed_megaprompts_from_files"),
     ]
 
     operations = [
         migrations.AddConstraint(
-            model_name='megaprompt',
-            constraint=models.UniqueConstraint(condition=models.Q(('is_active', True)), fields=('domain',), name='megaprompt_one_active_per_domain'),
+            model_name="megaprompt",
+            constraint=models.UniqueConstraint(
+                condition=models.Q(("is_active", True)),
+                fields=("domain",),
+                name="megaprompt_one_active_per_domain",
+            ),
         ),
     ]

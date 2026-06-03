@@ -17,7 +17,6 @@ from django.db.models import Max
 
 from voice.models import MegaPrompt
 
-
 SEED_DIR = Path(__file__).parent / "seed_data" / "mega_prompts"
 
 SEED_FILES = {
@@ -60,7 +59,10 @@ class Command(BaseCommand):
                     continue
 
                 max_v = (
-                    MegaPrompt.objects.filter(domain=domain).aggregate(Max("version"))["version__max"] or 0
+                    MegaPrompt.objects.filter(domain=domain).aggregate(Max("version"))[
+                        "version__max"
+                    ]
+                    or 0
                 )
                 new_version = max_v + 1
 

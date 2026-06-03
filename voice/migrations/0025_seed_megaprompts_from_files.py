@@ -5,11 +5,16 @@ from pathlib import Path
 from django.db import migrations
 from django.db.models import Max
 
-
 # Resolve seed-file dir relative to this migration's location.
 # This file lives at voice/migrations/0025_*.py.
 # Seed files live at voice/management/commands/seed_data/mega_prompts/.
-SEED_DIR = Path(__file__).resolve().parent.parent / "management" / "commands" / "seed_data" / "mega_prompts"
+SEED_DIR = (
+    Path(__file__).resolve().parent.parent
+    / "management"
+    / "commands"
+    / "seed_data"
+    / "mega_prompts"
+)
 
 DOMAIN_TO_FILENAME = {
     "PRE_CALL": "pre_call.txt",
@@ -64,9 +69,8 @@ def noop_reverse(apps, schema_editor):
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('voice', '0024_migrate_globalsettings_to_megaprompt'),
+        ("voice", "0024_migrate_globalsettings_to_megaprompt"),
     ]
 
     operations = [

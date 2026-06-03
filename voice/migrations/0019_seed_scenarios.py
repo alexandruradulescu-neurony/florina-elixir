@@ -21,13 +21,14 @@ def seed_scenarios(apps, schema_editor):
 
 def unseed_scenarios(apps, schema_editor):
     Scenario = apps.get_model("voice", "Scenario")
-    Scenario.objects.filter(slug__in=["discovery", "follow-up", "closing", "debrief", "other"]).delete()
+    Scenario.objects.filter(
+        slug__in=["discovery", "follow-up", "closing", "debrief", "other"]
+    ).delete()
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('voice', '0018_scenario'),
+        ("voice", "0018_scenario"),
     ]
 
     operations = [

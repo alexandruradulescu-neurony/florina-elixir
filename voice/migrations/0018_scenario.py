@@ -4,27 +4,31 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('voice', '0017_megaprompt_and_more'),
+        ("voice", "0017_megaprompt_and_more"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='Scenario',
+            name="Scenario",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('name', models.CharField(max_length=120, unique=True)),
-                ('slug', models.SlugField(max_length=120, unique=True)),
-                ('description', models.TextField(blank=True, default='')),
-                ('is_active', models.BooleanField(db_index=True, default=True)),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('updated_at', models.DateTimeField(auto_now=True)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True, primary_key=True, serialize=False, verbose_name="ID"
+                    ),
+                ),
+                ("name", models.CharField(max_length=120, unique=True)),
+                ("slug", models.SlugField(max_length=120, unique=True)),
+                ("description", models.TextField(blank=True, default="")),
+                ("is_active", models.BooleanField(db_index=True, default=True)),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("updated_at", models.DateTimeField(auto_now=True)),
             ],
             options={
-                'verbose_name': 'Scenario',
-                'verbose_name_plural': 'Scenarios',
-                'ordering': ['name'],
+                "verbose_name": "Scenario",
+                "verbose_name_plural": "Scenarios",
+                "ordering": ["name"],
             },
         ),
     ]

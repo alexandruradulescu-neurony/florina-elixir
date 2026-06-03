@@ -37,9 +37,8 @@ def noop_reverse(apps, schema_editor):
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('voice', '0023_globalsettings_max_context_tokens_warn'),
+        ("voice", "0023_globalsettings_max_context_tokens_warn"),
     ]
 
     operations = [

@@ -13,8 +13,8 @@ from .models import (
     GlobalSettings,
     GoogleCalendarWatch,
     GoogleOauthCredential,
-    MegaPrompt,
     Meeting,
+    MegaPrompt,
     Methodology,
     Scenario,
     User,
@@ -394,9 +394,9 @@ class MegaPromptAdmin(admin.ModelAdmin):
                     f"[{target.get_domain_display()}] v{target.version} is already active.",
                 )
                 return
-            MegaPrompt.objects.filter(
-                domain=target.domain, is_active=True
-            ).exclude(pk=target.pk).update(is_active=False)
+            MegaPrompt.objects.filter(domain=target.domain, is_active=True).exclude(
+                pk=target.pk
+            ).update(is_active=False)
             target.is_active = True
             target.save(update_fields=["is_active", "updated_at"])
         self.message_user(
@@ -415,7 +415,15 @@ class ScenarioAdmin(admin.ModelAdmin):
 
 @admin.register(GenerationRun)
 class GenerationRunAdmin(admin.ModelAdmin):
-    list_display = ("created_at", "domain", "visit", "client", "success", "input_tokens", "output_tokens")
+    list_display = (
+        "created_at",
+        "domain",
+        "visit",
+        "client",
+        "success",
+        "input_tokens",
+        "output_tokens",
+    )
     list_filter = ("domain", "success", "triggered_by")
     # `error`, `claude_response`, `claude_request`, `context_bundle`,
     # `parsed_outputs` are encrypted at rest — searching their ciphertext is

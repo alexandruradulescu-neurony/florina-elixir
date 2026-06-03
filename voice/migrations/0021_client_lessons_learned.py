@@ -4,15 +4,18 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('voice', '0020_visit_post_call_first_message_locked_and_more'),
+        ("voice", "0020_visit_post_call_first_message_locked_and_more"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='client',
-            name='lessons_learned',
-            field=models.TextField(blank=True, default='', help_text='Distilled lessons from prior calls; updated by LESSONS_DISTILL after each post-call. Editable.'),
+            model_name="client",
+            name="lessons_learned",
+            field=models.TextField(
+                blank=True,
+                default="",
+                help_text="Distilled lessons from prior calls; updated by LESSONS_DISTILL after each post-call. Editable.",
+            ),
         ),
     ]
