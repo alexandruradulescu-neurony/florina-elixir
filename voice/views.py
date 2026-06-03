@@ -633,6 +633,37 @@ class PromptEditView(SuperuserRequiredMixin, View):
         return redirect("voice:prompt_list")
 
 
+class MegaPromptListView(SuperuserRequiredMixin, View):
+    """List MegaPrompt rows grouped by domain (PRE_CALL / POST_CALL / LESSONS_DISTILL)."""
+
+    def get(self, request):
+        from voice.models import MegaPrompt  # local import to avoid top-of-file churn
+
+        all_prompts = MegaPrompt.objects.all().order_by("domain", "-version")
+        rows_by_domain = {code: [] for code, _label in MegaPrompt.Domain.choices}
+        active_by_domain = {}
+        for mp in all_prompts:
+            rows_by_domain[mp.domain].append(mp)
+            if mp.is_active:
+                active_by_domain[mp.domain] = mp
+
+        domains = [
+            {
+                "code": code,
+                "label": label,
+                "rows": rows_by_domain[code],
+                "active": active_by_domain.get(code),
+            }
+            for code, label in MegaPrompt.Domain.choices
+        ]
+
+        context = {
+            "domains": domains,
+            "total_count": all_prompts.count(),
+        }
+        return render(request, "voice/manager/mega_prompt_list.html", context)
+
+
 class AgentManagementView(SuperuserRequiredMixin, View):
     """Manage sales agents."""
 

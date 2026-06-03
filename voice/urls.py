@@ -29,6 +29,28 @@ urlpatterns = [
     path(
         "manager/prompts/<int:prompt_id>/edit/", views.PromptEditView.as_view(), name="prompt_edit"
     ),
+    # Mega Prompts (Auto Prompt Assembler)
+    path(
+        "manager/mega-prompts/",
+        views.MegaPromptListView.as_view(),
+        name="mega_prompt_list",
+    ),
+    # Placeholder routes — actual views wired by Tasks 18 (create/edit) and 19 (activate)
+    path(
+        "manager/mega-prompts/new/",
+        views.MegaPromptListView.as_view(),
+        name="mega_prompt_create",
+    ),
+    path(
+        "manager/mega-prompts/<int:pk>/edit/",
+        views.MegaPromptListView.as_view(),
+        name="mega_prompt_edit",
+    ),
+    path(
+        "manager/mega-prompts/<int:pk>/activate/",
+        views.MegaPromptListView.as_view(),
+        name="mega_prompt_activate",
+    ),
     path("manager/agents/", views.AgentManagementView.as_view(), name="agent_management"),
     path("manager/agents/<int:agent_id>/", views.AgentDetailView.as_view(), name="agent_detail"),
     path("manager/agents/add/", views.AgentCreateView.as_view(), name="agent_add"),
