@@ -614,3 +614,26 @@ class MegaPrompt(models.Model):
     def __str__(self) -> str:
         marker = " ✓" if self.is_active else ""
         return f"[{self.get_domain_display()}] {self.name} v{self.version}{marker}"
+
+
+class Scenario(models.Model):
+    """Visit scenario type (discovery / follow-up / closing / debrief / other).
+
+    Own entity so it can grow attributes later (default question set, expected
+    duration, etc.) without a refactor.
+    """
+
+    name = models.CharField(max_length=120, unique=True)
+    slug = models.SlugField(max_length=120, unique=True)
+    description = models.TextField(blank=True, default="")
+    is_active = models.BooleanField(default=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = _("Scenario")
+        verbose_name_plural = _("Scenarios")
+        ordering = ["name"]
+
+    def __str__(self) -> str:
+        return self.name
