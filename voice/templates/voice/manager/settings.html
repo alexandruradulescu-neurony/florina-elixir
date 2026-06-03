@@ -86,41 +86,13 @@
         </div>
       </fieldset>
 
-      <fieldset class="form-fieldset">
-        <h3>Pre-call meta-prompt</h3>
-        <div class="form-row">
-          <label for="{{ form.pre_call_meta_prompt.id_for_label }}">Instructions for the LLM</label>
-          <textarea name="{{ form.pre_call_meta_prompt.name }}"
-                    id="{{ form.pre_call_meta_prompt.id_for_label }}"
-                    style="min-height:200px;
-                           font-family:ui-monospace,Menlo,monospace;
-                           font-size:12px;
-                           line-height:1.5"
-                    placeholder="Instructions for the LLM on how to generate pre-call voice prompts…">{{ form.pre_call_meta_prompt.value|default:'' }}</textarea>
-          <span class="helptext">Tells the AI how to build pre-call coaching prompts. Leave empty for default.</span>
-          {% if form.pre_call_meta_prompt.errors %}
-            <span class="field-error">{{ form.pre_call_meta_prompt.errors.0 }}</span>
-          {% endif %}
-        </div>
-      </fieldset>
-
-      <fieldset class="form-fieldset">
-        <h3>Post-call meta-prompt</h3>
-        <div class="form-row">
-          <label for="{{ form.post_call_meta_prompt.id_for_label }}">Instructions for the LLM</label>
-          <textarea name="{{ form.post_call_meta_prompt.name }}"
-                    id="{{ form.post_call_meta_prompt.id_for_label }}"
-                    style="min-height:200px;
-                           font-family:ui-monospace,Menlo,monospace;
-                           font-size:12px;
-                           line-height:1.5"
-                    placeholder="Instructions for the LLM on how to generate post-call debrief prompts…">{{ form.post_call_meta_prompt.value|default:'' }}</textarea>
-          <span class="helptext">Tells the AI how to build post-call debrief prompts. Leave empty for default.</span>
-          {% if form.post_call_meta_prompt.errors %}
-            <span class="field-error">{{ form.post_call_meta_prompt.errors.0 }}</span>
-          {% endif %}
-        </div>
-      </fieldset>
+      <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 mt-4">
+        <p class="text-sm text-slate-700">
+          <strong>Meta-prompts have moved.</strong> Pre-call and post-call meta-prompts are now versioned and edited at
+          <a href="{% url 'voice:mega_prompt_list' %}"
+             class="text-blue-700 font-semibold hover:underline">Mega Prompts</a>.
+        </p>
+      </div>
 
     </div>
 

@@ -517,16 +517,6 @@ class GlobalSettings(models.Model):
         default=50_000,
         help_text="When an assembly's input tokens exceed this, log a warning and badge the run",
     )
-    pre_call_meta_prompt = models.TextField(
-        blank=True,
-        null=True,
-        help_text="Meta-prompt template for generating pre-call voice prompts via LLM",
-    )
-    post_call_meta_prompt = models.TextField(
-        blank=True,
-        null=True,
-        help_text="Meta-prompt template for generating post-call voice prompts via LLM",
-    )
     default_methodology = models.ForeignKey(
         Methodology,
         on_delete=models.SET_NULL,

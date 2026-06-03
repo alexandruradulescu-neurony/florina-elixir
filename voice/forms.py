@@ -152,8 +152,6 @@ class GlobalSettingsForm(forms.ModelForm):
             "pre_call_offset_minutes",
             "post_call_offset_minutes",
             "retry_interval_minutes",
-            "pre_call_meta_prompt",
-            "post_call_meta_prompt",
             "default_methodology",
         ]
         widgets = {
@@ -170,18 +168,6 @@ class GlobalSettingsForm(forms.ModelForm):
             "retry_interval_minutes": forms.NumberInput(
                 attrs={
                     "class": "input input-bordered w-full",
-                }
-            ),
-            "pre_call_meta_prompt": forms.Textarea(
-                attrs={
-                    "class": "textarea textarea-bordered w-full h-48",
-                    "placeholder": "Meta-prompt for generating pre-call voice prompts...",
-                }
-            ),
-            "post_call_meta_prompt": forms.Textarea(
-                attrs={
-                    "class": "textarea textarea-bordered w-full h-48",
-                    "placeholder": "Meta-prompt for generating post-call voice prompts...",
                 }
             ),
             "default_methodology": forms.Select(
