@@ -42,13 +42,25 @@ def seed_megaprompts_from_files(apps, schema_editor):
 
         seed_path = SEED_DIR / filename
         if not seed_path.exists():
-            # Should not happen in a normal deploy (seed files are committed),
-            # but skip rather than raise so a partial deploy can still proceed.
-            continue
+            # Fail loud. Seed files are committed alongside this migration and
+            # must exist at `migrate` time. Silently skipping would leave the
+            # domain with zero active rows, and the PR 2 assembler's
+            # `.filter(is_active=True).first()` would later return None
+            # without an obvious cause.
+            raise FileNotFoundError(
+                f"MegaPrompt seed file missing for domain {domain}: {seed_path}. "
+                f"This file must exist for migration 0025 to bootstrap the system. "
+                f"If you intentionally removed seed files, also remove or update "
+                f"this migration."
+            )
 
         content = seed_path.read_text(encoding="utf-8")
         if not content.strip():
-            continue
+            raise ValueError(
+                f"MegaPrompt seed file for domain {domain} is empty: {seed_path}. "
+                f"An empty meta-prompt would render the assembler non-functional "
+                f"for this domain."
+            )
 
         max_v = (
             MegaPrompt.objects.filter(domain=domain).aggregate(Max("version"))["version__max"] or 0

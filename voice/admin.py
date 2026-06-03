@@ -415,6 +415,21 @@ class ScenarioAdmin(admin.ModelAdmin):
 
 @admin.register(GenerationRun)
 class GenerationRunAdmin(admin.ModelAdmin):
+    # Fields whose stored value is encrypted-at-rest PII (transcripts, manager
+    # notes, CRM history, generated voice-prompt text). Encryption-at-rest is
+    # only meaningful if the decrypted view is also gated — otherwise any
+    # is_staff user (e.g. a sales agent who happens to have admin access) can
+    # read everything by clicking through to a single GenerationRun. We restrict
+    # the detail view of these columns to is_superuser; non-superuser staff see
+    # only the structural fields (domain / triggered_by / counts / success).
+    ENCRYPTED_FIELDS = (
+        "context_bundle",
+        "claude_request",
+        "claude_response",
+        "parsed_outputs",
+        "error",
+    )
+
     list_display = (
         "created_at",
         "domain",
@@ -425,9 +440,32 @@ class GenerationRunAdmin(admin.ModelAdmin):
         "output_tokens",
     )
     list_filter = ("domain", "success", "triggered_by")
-    # `error`, `claude_response`, `claude_request`, `context_bundle`,
-    # `parsed_outputs` are encrypted at rest — searching their ciphertext is
-    # useless. Filter by structured fields (domain, success, triggered_by)
-    # instead; drill into a single row to inspect the decrypted body.
-    readonly_fields = [f.name for f in GenerationRun._meta.get_fields()]
+    # Ciphertext is unsearchable, so `search_fields` is intentionally empty —
+    # filter by the structured columns above.
     ordering = ("-created_at",)
+
+    def get_fields(self, request, obj=None):
+        # Concrete columns only (no reverse relations); hide encrypted blobs
+        # from non-superuser staff.
+        all_fields = [f.name for f in self.model._meta.fields]
+        if request.user.is_superuser:
+            return all_fields
+        return [f for f in all_fields if f not in self.ENCRYPTED_FIELDS]
+
+    def get_readonly_fields(self, request, obj=None):
+        # GenerationRun is an immutable audit table — nothing is editable
+        # through the admin form, regardless of role.
+        return self.get_fields(request, obj)
+
+    def has_add_permission(self, request):
+        # Runs are created by the assembler, never by an admin click.
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        # View only — the form is for inspection. Returning True lets staff
+        # open the detail page; the readonly_fields above prevent edits.
+        return True
+
+    def has_delete_permission(self, request, obj=None):
+        # Audit rows are append-only; only superusers can prune (rare).
+        return request.user.is_superuser
