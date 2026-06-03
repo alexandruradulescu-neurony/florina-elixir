@@ -664,6 +664,154 @@ class MegaPromptListView(SuperuserRequiredMixin, View):
         return render(request, "voice/manager/mega_prompt_list.html", context)
 
 
+class MegaPromptCreateView(SuperuserRequiredMixin, View):
+    """Create a new MegaPrompt version (always lands inactive)."""
+
+    def get(self, request):
+        from voice.models import MegaPrompt
+
+        initial_domain = request.GET.get("domain", MegaPrompt.Domain.PRE_CALL)
+        if initial_domain not in {code for code, _ in MegaPrompt.Domain.choices}:
+            initial_domain = MegaPrompt.Domain.PRE_CALL
+        context = {
+            "form_title": "New mega-prompt version",
+            "domain_choices": MegaPrompt.Domain.choices,
+            "initial": {
+                "domain": initial_domain,
+                "name": "",
+                "meta_prompt": "",
+            },
+            "submit_label": "Save as new version (inactive)",
+            "is_edit": False,
+        }
+        return render(request, "voice/manager/mega_prompt_form.html", context)
+
+    def post(self, request):
+        from django.db import transaction as db_transaction
+        from django.db.models import Max
+
+        from voice.models import MegaPrompt
+
+        domain = request.POST.get("domain", "")
+        name = (request.POST.get("name") or "").strip()
+        meta_prompt = request.POST.get("meta_prompt", "")
+
+        valid_domains = {code for code, _ in MegaPrompt.Domain.choices}
+        if domain not in valid_domains:
+            messages.error(request, f"Invalid domain: {domain!r}")
+            return redirect("voice:mega_prompt_create")
+        if not name:
+            messages.error(request, "Name is required.")
+            return redirect("voice:mega_prompt_create")
+        if not meta_prompt.strip():
+            messages.error(request, "Meta-prompt content is required.")
+            return redirect("voice:mega_prompt_create")
+
+        with db_transaction.atomic():
+            max_v = (
+                (
+                    MegaPrompt.objects.select_for_update()
+                    .filter(domain=domain)
+                    .aggregate(Max("version"))["version__max"]
+                )
+                or 0
+            )
+            new = MegaPrompt.objects.create(
+                domain=domain,
+                name=name,
+                meta_prompt=meta_prompt,
+                is_active=False,
+                version=max_v + 1,
+                created_by=request.user,
+            )
+        messages.success(
+            request,
+            f"Created [{new.get_domain_display()}] v{new.version} (inactive). "
+            f"Use Activate to make it live.",
+        )
+        return redirect("voice:mega_prompt_list")
+
+
+class MegaPromptEditView(SuperuserRequiredMixin, View):
+    """Edit a MegaPrompt — ALWAYS creates a new version (never in-place mutates).
+
+    Spec §7: an active version's text is referenced by PROTECT'd GenerationRun
+    rows; mutating it would silently change what the historical audit log
+    points at. We keep the original row untouched and persist a new version.
+    """
+
+    def get(self, request, pk):
+        from voice.models import MegaPrompt
+
+        try:
+            original = MegaPrompt.objects.get(pk=pk)
+        except MegaPrompt.DoesNotExist:
+            messages.error(request, "Mega-prompt not found.")
+            return redirect("voice:mega_prompt_list")
+
+        context = {
+            "form_title": f"Edit [{original.get_domain_display()}] v{original.version} (creates new version)",
+            "domain_choices": MegaPrompt.Domain.choices,
+            "initial": {
+                "domain": original.domain,
+                "name": original.name,
+                "meta_prompt": original.meta_prompt,
+            },
+            "submit_label": "Save as new version (inactive)",
+            "is_edit": True,
+            "original": original,
+        }
+        return render(request, "voice/manager/mega_prompt_form.html", context)
+
+    def post(self, request, pk):
+        from django.db import transaction as db_transaction
+        from django.db.models import Max
+
+        from voice.models import MegaPrompt
+
+        try:
+            original = MegaPrompt.objects.get(pk=pk)
+        except MegaPrompt.DoesNotExist:
+            messages.error(request, "Mega-prompt not found.")
+            return redirect("voice:mega_prompt_list")
+
+        # Domain is preserved from the original — the form may surface it as
+        # read-only but we ignore any POST tampering here.
+        domain = original.domain
+        name = (request.POST.get("name") or "").strip()
+        meta_prompt = request.POST.get("meta_prompt", "")
+
+        if not name:
+            messages.error(request, "Name is required.")
+            return redirect("voice:mega_prompt_edit", pk=pk)
+        if not meta_prompt.strip():
+            messages.error(request, "Meta-prompt content is required.")
+            return redirect("voice:mega_prompt_edit", pk=pk)
+
+        with db_transaction.atomic():
+            max_v = (
+                (
+                    MegaPrompt.objects.select_for_update()
+                    .filter(domain=domain)
+                    .aggregate(Max("version"))["version__max"]
+                )
+                or 0
+            )
+            new = MegaPrompt.objects.create(
+                domain=domain,
+                name=name,
+                meta_prompt=meta_prompt,
+                is_active=False,
+                version=max_v + 1,
+                created_by=request.user,
+            )
+        messages.success(
+            request,
+            f"Created [{new.get_domain_display()}] v{new.version} based on v{original.version} (inactive).",
+        )
+        return redirect("voice:mega_prompt_list")
+
+
 class AgentManagementView(SuperuserRequiredMixin, View):
     """Manage sales agents."""
 

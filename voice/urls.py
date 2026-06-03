@@ -35,17 +35,17 @@ urlpatterns = [
         views.MegaPromptListView.as_view(),
         name="mega_prompt_list",
     ),
-    # Placeholder routes — actual views wired by Tasks 18 (create/edit) and 19 (activate)
     path(
         "manager/mega-prompts/new/",
-        views.MegaPromptListView.as_view(),
+        views.MegaPromptCreateView.as_view(),
         name="mega_prompt_create",
     ),
     path(
         "manager/mega-prompts/<int:pk>/edit/",
-        views.MegaPromptListView.as_view(),
+        views.MegaPromptEditView.as_view(),
         name="mega_prompt_edit",
     ),
+    # Placeholder route — actual view wired by Task 19 (activate)
     path(
         "manager/mega-prompts/<int:pk>/activate/",
         views.MegaPromptListView.as_view(),
