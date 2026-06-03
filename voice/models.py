@@ -7,6 +7,7 @@ from django.db import models
 from django.utils.translation import gettext_lazy as _
 
 from .constants import CallPhase, CallStatus, ClientStatus, LogLevel, VisitStatus
+from .encryption import EncryptedTextField
 
 
 class User(AbstractUser):
@@ -532,11 +533,11 @@ class GoogleOauthCredential(models.Model):
         related_name="google_credentials",
         help_text="User who owns these credentials",
     )
-    token = models.TextField(help_text="OAuth access token (encrypted in production)")
-    refresh_token = models.TextField(help_text="OAuth refresh token (encrypted in production)")
+    token = EncryptedTextField(help_text="OAuth access token (encrypted at rest)")
+    refresh_token = EncryptedTextField(help_text="OAuth refresh token (encrypted at rest)")
     token_uri = models.URLField(default="https://oauth2.googleapis.com/token")
     client_id = models.CharField(max_length=255)
-    client_secret = models.CharField(max_length=255)
+    client_secret = EncryptedTextField(help_text="OAuth client secret (encrypted at rest)")
     scopes = models.JSONField(default=list, help_text="List of OAuth scopes granted")
     expires_at = models.DateTimeField(null=True, blank=True, help_text="Token expiration time")
     created_at = models.DateTimeField(auto_now_add=True)

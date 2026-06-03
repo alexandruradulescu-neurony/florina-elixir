@@ -511,6 +511,7 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "anthropic" },
+    { name = "cryptography" },
     { name = "django" },
     { name = "django-apscheduler" },
     { name = "elevenlabs" },
@@ -529,6 +530,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "anthropic", specifier = ">=0.80.0" },
+    { name = "cryptography", specifier = ">=42.0.0" },
     { name = "django", specifier = ">=4.2.0,<5.0.0" },
     { name = "django-apscheduler", specifier = ">=0.6.2" },
     { name = "elevenlabs", specifier = ">=0.2.27" },

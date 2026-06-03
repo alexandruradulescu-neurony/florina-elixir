@@ -179,26 +179,27 @@ class GoogleOauthCredentialAdmin(admin.ModelAdmin):
     list_display = ["user", "client_id", "expires_at", "created_at", "updated_at"]
     list_filter = ["created_at", "updated_at"]
     search_fields = ["user__username", "user__email", "client_id"]
-    readonly_fields = ["created_at", "updated_at"]
+    readonly_fields = ["created_at", "updated_at", "secrets_status"]
 
+    # Sensitive secrets (token, refresh_token, client_secret) are deliberately
+    # NOT exposed in the admin form — they are encrypted at rest and must not be
+    # readable/editable through the admin UI.
     fieldsets = (
         ("User", {"fields": ("user",)}),
         (
             "OAuth Credentials",
             {
-                "fields": (
-                    "token",
-                    "refresh_token",
-                    "token_uri",
-                    "client_id",
-                    "client_secret",
-                    "scopes",
-                ),
+                "fields": ("secrets_status", "token_uri", "client_id", "scopes"),
                 "classes": ("collapse",),
             },
         ),
         ("Metadata", {"fields": ("expires_at", "created_at", "updated_at")}),
     )
+
+    @admin.display(description="Secrets (token / refresh / client_secret)")
+    def secrets_status(self, obj):
+        # Never reads or decrypts the stored values — pure redaction.
+        return "•••••••• encrypted at rest — not shown"
 
     def has_add_permission(self, request):
         """Credentials should only be created via OAuth flow."""
