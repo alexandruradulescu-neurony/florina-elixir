@@ -422,6 +422,14 @@ class Visit(models.Model):
         related_name="visits",
         help_text="Override methodology; falls back to agent default then system default",
     )
+    scenario = models.ForeignKey(
+        "Scenario",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="visits",
+        help_text="Visit scenario type — drives mega-prompt question shaping",
+    )
     status = models.CharField(
         max_length=20,
         choices=VisitStatus.choices,
@@ -443,6 +451,13 @@ class Visit(models.Model):
         default="",
         help_text="First message the AI says on the post-call (override). Sent verbatim to ElevenLabs.",
     )
+    pre_call_prompt_locked = models.BooleanField(
+        default=False,
+        help_text="True after a manual edit; assembler will skip this field on regen",
+    )
+    pre_call_first_message_locked = models.BooleanField(default=False)
+    post_call_prompt_locked = models.BooleanField(default=False)
+    post_call_first_message_locked = models.BooleanField(default=False)
     post_call_summary = models.TextField(
         blank=True, null=True, help_text="Structured debrief summary from post-call"
     )
