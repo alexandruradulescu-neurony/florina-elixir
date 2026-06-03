@@ -792,10 +792,10 @@ def process_visit_pre_calls():
       4. Update visit status
     """
     from .constants import VisitStatus
-    from .models import CallAttempt, GlobalSettings
+    from .models import CallAttempt, GenerationRun, GlobalSettings
     from .selectors import get_visits_needing_pre_call
+    from .services.assembler import assemble_pre_call
     from .services.client_sync import enrich_client_from_crm
-    from .services.prompt_builder import generate_pre_call_prompt
 
     try:
         visits = get_visits_needing_pre_call()
@@ -827,11 +827,31 @@ def process_visit_pre_calls():
                 # Enrich client data
                 enrich_client_from_crm(visit.client)
 
-                # Generate prompt
+                # Auto-assemble pre-call prompt via the assembler service.
+                # The assembler logs an audit row to GenerationRun and respects
+                # per-field locks on the Visit. We trigger with SCHEDULED so
+                # the audit row records this run came from the scheduled job.
                 settings = GlobalSettings.load()
-                prompt = generate_pre_call_prompt(visit)
+                run = assemble_pre_call(
+                    visit,
+                    triggered_by=GenerationRun.TriggeredBy.SCHEDULED,
+                )
+                if not run.success:
+                    logger.error(
+                        "Failed to generate pre-call prompt for visit %s: %s",
+                        visit.id,
+                        run.error,
+                    )
+                    continue
+                # Re-read from DB in case lock state changed mid-run.
+                visit.refresh_from_db()
+                prompt = visit.pre_call_prompt
                 if not prompt:
-                    logger.error(f"Failed to generate pre-call prompt for visit {visit.id}")
+                    logger.error(
+                        "Pre-call prompt empty after assembly for visit %s "
+                        "(likely both fields locked)",
+                        visit.id,
+                    )
                     continue
 
                 # Create CallAttempt
