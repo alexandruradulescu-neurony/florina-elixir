@@ -513,6 +513,10 @@ class GlobalSettings(models.Model):
     retry_interval_minutes = models.IntegerField(
         default=5, help_text="Minutes between retry attempts for failed calls"
     )
+    max_context_tokens_warn = models.PositiveIntegerField(
+        default=50_000,
+        help_text="When an assembly's input tokens exceed this, log a warning and badge the run",
+    )
     pre_call_meta_prompt = models.TextField(
         blank=True,
         null=True,
