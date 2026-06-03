@@ -820,13 +820,52 @@ class MegaPromptActivateView(SuperuserRequiredMixin, View):
     Only POST is supported — GET should not flip state.
     """
 
-    def post(self, request, pk):
+    @staticmethod
+    def _export_seed_file_async(mega_prompt_pk: int, domain: str) -> None:
+        """Run `export_mega_prompts` off the request thread.
+
+        Spawned via `transaction.on_commit` so it fires only after the
+        activation transaction has actually committed. The actual file write
+        happens in a daemon thread so the HTTP response returns immediately —
+        the seed file is a backup, the DB is the source of truth. A daemon
+        thread is appropriate because:
+          - Failure is not user-visible (logged + ActivityLog warning).
+          - There's nothing to await — the next mutation will overwrite anyway.
+          - If the process is restarted mid-write, the next activation re-runs
+            the export.
+        """
         from io import StringIO
+        from threading import Thread
 
         from django.core.management import call_command
-        from django.db import transaction as db_transaction
 
         from voice.constants import LogLevel
+        from voice.services.logging import log_activity
+
+        def _do_export() -> None:
+            try:
+                call_command("export_mega_prompts", stdout=StringIO())
+            except Exception:
+                logger.exception(
+                    "Async auto-export to seed file failed for MegaPrompt pk=%s",
+                    mega_prompt_pk,
+                )
+                # Best-effort audit row; swallow if logging itself fails.
+                try:
+                    log_activity(
+                        user=None,
+                        action="Seed-file auto-export failed (async)",
+                        details={"mega_prompt_id": mega_prompt_pk, "domain": domain},
+                        level=LogLevel.WARNING,
+                    )
+                except Exception:
+                    logger.exception("Failed to write ActivityLog for failed async export")
+
+        Thread(target=_do_export, name="megaprompt-seed-export", daemon=True).start()
+
+    def post(self, request, pk):
+        from django.db import transaction as db_transaction
+
         from voice.models import MegaPrompt
         from voice.services.logging import log_activity
 
@@ -852,6 +891,15 @@ class MegaPromptActivateView(SuperuserRequiredMixin, View):
             target.is_active = True
             target.save(update_fields=["is_active", "updated_at"])
 
+            # Schedule the seed-file rewrite to run AFTER this transaction
+            # commits, in a daemon thread off the request path. PR 5 / async
+            # export-on-activate. Failure of the file write does NOT roll back
+            # the DB activation — the DB is the source of truth, the seed
+            # file is a backup.
+            db_transaction.on_commit(
+                lambda pk=target.pk, dom=target.domain: self._export_seed_file_async(pk, dom)
+            )
+
         log_activity(
             user=request.user,
             action=f"Activated MegaPrompt [{target.get_domain_display()}] v{target.version}",
@@ -862,34 +910,11 @@ class MegaPromptActivateView(SuperuserRequiredMixin, View):
             },
         )
 
-        # Auto-export: rewrite the on-disk seed file for this domain so the
-        # repo always reflects the current active version. Failure here does
-        # NOT roll back the activation — the activation is the source of
-        # truth; the seed file is a backup.
-        try:
-            call_command("export_mega_prompts", stdout=StringIO())
-        except Exception:
-            logger.exception(
-                "Auto-export to seed file failed after activating MegaPrompt pk=%s",
-                target.pk,
-            )
-            log_activity(
-                user=request.user,
-                action="Seed-file auto-export failed after activation",
-                details={"mega_prompt_id": target.pk, "domain": target.domain},
-                level=LogLevel.WARNING,
-            )
-            messages.warning(
-                request,
-                f"Activated v{target.version}, but the seed file auto-export "
-                f"failed (see logs). Run `manage.py export_mega_prompts` "
-                f"manually to sync.",
-            )
-        else:
-            messages.success(
-                request,
-                f"Activated [{target.get_domain_display()}] v{target.version}. Seed file updated.",
-            )
+        messages.success(
+            request,
+            f"Activated [{target.get_domain_display()}] v{target.version}. "
+            f"Seed file is being updated in the background.",
+        )
         return redirect("voice:mega_prompt_list")
 
     def get(self, request, pk):
