@@ -7,8 +7,8 @@ on:
     inputs:
       rollback:
         description: "Perform rollback to previous release"
-        required: false
-        default: "false"
+        required: true
+        default: "true"
         type: boolean
 
 concurrency:
@@ -18,7 +18,7 @@ concurrency:
 jobs:
   deploy:
     name: Deploy
-    if: ${{ github.event.inputs.rollback != 'true' }}
+    if: ${{ github.event_name == 'push' }}
     runs-on: ubuntu-latest
     environment: development
     steps:
@@ -99,7 +99,7 @@ jobs:
 
   rollback:
     name: Rollback
-    if: ${{ github.event.inputs.rollback == 'true' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.rollback == 'true' }}
     runs-on: ubuntu-latest
     environment: development
     steps:
