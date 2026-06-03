@@ -51,7 +51,7 @@ def _validate_lessons(parsed: dict[str, Any]) -> str:
 def distill_lessons(
     client: Client,
     new_post_call_summary: str,
-    evaluation_outcome: str,
+    evaluation_outcome: str = "",
     triggered_by: str = GenerationRun.TriggeredBy.END_OF_MEETING,
     user=None,
 ) -> GenerationRun:
@@ -60,6 +60,15 @@ def distill_lessons(
     Always returns a `GenerationRun` (persisted via `_record_run`). On any
     failure the `Client.lessons_learned` field is left untouched — the next
     successful distill picks up where this one stopped.
+
+    `evaluation_outcome` is optional — pass a structured signal (e.g. an
+    "objective_attained" / "outcome" / "status_label" field from the
+    post-call analysis JSON) if available; otherwise the distill prompt
+    is told nothing about the outcome and relies only on the summary.
+    PR 5 / Code Review F3: prior callers were passing
+    `getattr(call, "outcome", "")` against a field that doesn't exist,
+    so the signal was always blank. Default-to-empty makes the API
+    honest about the optionality.
     """
     domain = MegaPrompt.Domain.LESSONS_DISTILL
     mega = MegaPrompt.objects.filter(domain=domain, is_active=True).first()
