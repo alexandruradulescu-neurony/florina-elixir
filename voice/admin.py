@@ -9,11 +9,14 @@ from .models import (
     ActivityLog,
     CallAttempt,
     Client,
+    GenerationRun,
     GlobalSettings,
     GoogleCalendarWatch,
     GoogleOauthCredential,
     Meeting,
+    MegaPrompt,
     Methodology,
+    Scenario,
     User,
     Visit,
     VoicePrompt,
@@ -323,3 +326,146 @@ class GlobalSettingsAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+
+@admin.register(MegaPrompt)
+class MegaPromptAdmin(admin.ModelAdmin):
+    list_display = ("domain", "name", "version", "is_active", "updated_at")
+    list_filter = ("domain", "is_active")
+    search_fields = ("name", "meta_prompt")
+    ordering = ("domain", "-version")
+
+    # Spec §7: "Edit always creates a new version (never in-place)."
+    # `is_active` is never directly editable via the form — use the
+    # "Activate this version" admin action below, which atomically deactivates
+    # any sibling active version in the same domain. New rows always land
+    # inactive (forced in `save_model`); to switch the live version, the admin
+    # selects exactly one row and runs the action.
+    actions = ["make_active_atomically"]
+
+    def get_readonly_fields(self, request, obj=None):
+        base = ["version", "created_at", "updated_at", "created_by", "is_active"]
+        # An active version is immutable via this form — mutating its text
+        # would silently change what historical GenerationRun rows reference.
+        if obj is not None and obj.is_active:
+            base += ["domain", "name", "meta_prompt"]
+        return base
+
+    def save_model(self, request, obj, form, change):
+        if not change:
+            # A new MegaPrompt always lands inactive. Use the action to
+            # promote it to active (with atomic sibling deactivation).
+            obj.is_active = False
+            if not obj.created_by_id:
+                obj.created_by = request.user
+        super().save_model(request, obj, form, change)
+
+    def has_delete_permission(self, request, obj=None):
+        # App-layer guard (spec §7): never delete the currently active version
+        # of any domain. The DB partial-unique constraint on (domain) WHERE
+        # is_active also makes silent deletion safer downstream.
+        if obj is not None and obj.is_active:
+            return False
+        return super().has_delete_permission(request, obj)
+
+    def get_actions(self, request):
+        # Remove the bulk "delete selected" action so a careless admin can't wipe
+        # multiple versions (including active ones) in one click.
+        actions = super().get_actions(request)
+        actions.pop("delete_selected", None)
+        return actions
+
+    @admin.action(description="Activate this version (deactivates sibling in same domain)")
+    def make_active_atomically(self, request, queryset):
+        from django.db import transaction
+
+        if queryset.count() != 1:
+            self.message_user(
+                request,
+                "Select exactly ONE MegaPrompt to activate.",
+                level="error",
+            )
+            return
+        with transaction.atomic():
+            target = queryset.select_for_update().get()
+            if target.is_active:
+                self.message_user(
+                    request,
+                    f"[{target.get_domain_display()}] v{target.version} is already active.",
+                )
+                return
+            MegaPrompt.objects.filter(domain=target.domain, is_active=True).exclude(
+                pk=target.pk
+            ).update(is_active=False)
+            target.is_active = True
+            target.save(update_fields=["is_active", "updated_at"])
+        self.message_user(
+            request,
+            f"Activated [{target.get_domain_display()}] v{target.version}; previous active version deactivated.",
+        )
+
+
+@admin.register(Scenario)
+class ScenarioAdmin(admin.ModelAdmin):
+    list_display = ("name", "slug", "is_active", "updated_at")
+    list_filter = ("is_active",)
+    search_fields = ("name", "slug", "description")
+    prepopulated_fields = {"slug": ("name",)}
+
+
+@admin.register(GenerationRun)
+class GenerationRunAdmin(admin.ModelAdmin):
+    # Fields whose stored value is encrypted-at-rest PII (transcripts, manager
+    # notes, CRM history, generated voice-prompt text). Encryption-at-rest is
+    # only meaningful if the decrypted view is also gated — otherwise any
+    # is_staff user (e.g. a sales agent who happens to have admin access) can
+    # read everything by clicking through to a single GenerationRun. We restrict
+    # the detail view of these columns to is_superuser; non-superuser staff see
+    # only the structural fields (domain / triggered_by / counts / success).
+    ENCRYPTED_FIELDS = (
+        "context_bundle",
+        "claude_request",
+        "claude_response",
+        "parsed_outputs",
+        "error",
+    )
+
+    list_display = (
+        "created_at",
+        "domain",
+        "visit",
+        "client",
+        "success",
+        "input_tokens",
+        "output_tokens",
+    )
+    list_filter = ("domain", "success", "triggered_by")
+    # Ciphertext is unsearchable, so `search_fields` is intentionally empty —
+    # filter by the structured columns above.
+    ordering = ("-created_at",)
+
+    def get_fields(self, request, obj=None):
+        # Concrete columns only (no reverse relations); hide encrypted blobs
+        # from non-superuser staff.
+        all_fields = [f.name for f in self.model._meta.fields]
+        if request.user.is_superuser:
+            return all_fields
+        return [f for f in all_fields if f not in self.ENCRYPTED_FIELDS]
+
+    def get_readonly_fields(self, request, obj=None):
+        # GenerationRun is an immutable audit table — nothing is editable
+        # through the admin form, regardless of role.
+        return self.get_fields(request, obj)
+
+    def has_add_permission(self, request):
+        # Runs are created by the assembler, never by an admin click.
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        # View only — the form is for inspection. Returning True lets staff
+        # open the detail page; the readonly_fields above prevent edits.
+        return True
+
+    def has_delete_permission(self, request, obj=None):
+        # Audit rows are append-only; only superusers can prune (rare).
+        return request.user.is_superuser

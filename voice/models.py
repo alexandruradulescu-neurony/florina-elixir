@@ -7,7 +7,7 @@ from django.db import models
 from django.utils.translation import gettext_lazy as _
 
 from .constants import CallPhase, CallStatus, ClientStatus, LogLevel, VisitStatus
-from .encryption import EncryptedTextField
+from .encryption import EncryptedJSONField, EncryptedTextField
 
 
 class User(AbstractUser):
@@ -329,6 +329,11 @@ class Client(models.Model):
     ai_summary = models.TextField(
         blank=True, null=True, help_text="LLM-generated client profile summary"
     )
+    lessons_learned = models.TextField(
+        blank=True,
+        default="",
+        help_text="Distilled lessons from prior calls; updated by LESSONS_DISTILL after each post-call. Editable.",
+    )
     raw_data = models.JSONField(default=dict, blank=True, help_text="Full CRM data for reference")
     last_synced_at = models.DateTimeField(
         null=True, blank=True, help_text="Last time this client was synced from CRM"
@@ -422,6 +427,14 @@ class Visit(models.Model):
         related_name="visits",
         help_text="Override methodology; falls back to agent default then system default",
     )
+    scenario = models.ForeignKey(
+        "Scenario",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="visits",
+        help_text="Visit scenario type — drives mega-prompt question shaping",
+    )
     status = models.CharField(
         max_length=20,
         choices=VisitStatus.choices,
@@ -443,6 +456,13 @@ class Visit(models.Model):
         default="",
         help_text="First message the AI says on the post-call (override). Sent verbatim to ElevenLabs.",
     )
+    pre_call_prompt_locked = models.BooleanField(
+        default=False,
+        help_text="True after a manual edit; assembler will skip this field on regen",
+    )
+    pre_call_first_message_locked = models.BooleanField(default=False)
+    post_call_prompt_locked = models.BooleanField(default=False)
+    post_call_first_message_locked = models.BooleanField(default=False)
     post_call_summary = models.TextField(
         blank=True, null=True, help_text="Structured debrief summary from post-call"
     )
@@ -492,6 +512,10 @@ class GlobalSettings(models.Model):
     )
     retry_interval_minutes = models.IntegerField(
         default=5, help_text="Minutes between retry attempts for failed calls"
+    )
+    max_context_tokens_warn = models.PositiveIntegerField(
+        default=50_000,
+        help_text="When an assembly's input tokens exceed this, log a warning and badge the run",
     )
     pre_call_meta_prompt = models.TextField(
         blank=True,
@@ -559,3 +583,162 @@ class GoogleOauthCredential(models.Model):
 
     def __str__(self):
         return f"Google credentials for {self.user.username}"
+
+
+class MegaPrompt(models.Model):
+    """Versioned, single-active-per-domain meta-prompt used by the Auto Prompt Assembler.
+
+    Edit always creates a new version (never in-place). Activating a version
+    atomically deactivates any other active version in the same domain.
+    Old versions are retained forever; rollback = activating an older row.
+    """
+
+    class Domain(models.TextChoices):
+        PRE_CALL = "PRE_CALL", _("Pre-call")
+        POST_CALL = "POST_CALL", _("Post-call")
+        LESSONS_DISTILL = "LESSONS_DISTILL", _("Lessons distill")
+
+    domain = models.CharField(
+        max_length=20,
+        choices=Domain.choices,
+        db_index=True,
+        help_text="Which assembler domain this template drives",
+    )
+    name = models.CharField(max_length=255, help_text="Human label for this version")
+    meta_prompt = models.TextField(
+        help_text="Instructions sent to Claude. Supports {placeholders} — see spec §4.6."
+    )
+    is_active = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text="Only one active version per domain at a time",
+    )
+    version = models.PositiveIntegerField(default=1)
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="created_mega_prompts",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = _("Mega Prompt")
+        verbose_name_plural = _("Mega Prompts")
+        ordering = ["domain", "-version"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["domain", "version"],
+                name="megaprompt_unique_domain_version",
+            ),
+            # DB-enforce the "one active version per domain" invariant. Without
+            # this, the assembler's `.filter(is_active=True).first()` could
+            # silently pick one of multiple active rows and a race condition
+            # in seed/activate paths could create the second one.
+            models.UniqueConstraint(
+                fields=["domain"],
+                condition=models.Q(is_active=True),
+                name="megaprompt_one_active_per_domain",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        marker = " ✓" if self.is_active else ""
+        return f"[{self.get_domain_display()}] {self.name} v{self.version}{marker}"
+
+
+class Scenario(models.Model):
+    """Visit scenario type (discovery / follow-up / closing / debrief / other).
+
+    Own entity so it can grow attributes later (default question set, expected
+    duration, etc.) without a refactor.
+    """
+
+    name = models.CharField(max_length=120, unique=True)
+    slug = models.SlugField(max_length=120, unique=True)
+    description = models.TextField(blank=True, default="")
+    is_active = models.BooleanField(default=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = _("Scenario")
+        verbose_name_plural = _("Scenarios")
+        ordering = ["name"]
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class GenerationRun(models.Model):
+    """Audit log of every Auto Prompt Assembler run (pre, post, lessons distill).
+
+    Visit is set for PRE_CALL/POST_CALL runs; Client is set for LESSONS_DISTILL
+    runs. Kept forever for now — re-evaluate when volume forces it.
+    """
+
+    class TriggeredBy(models.TextChoices):
+        MANUAL = "MANUAL", _("Manual")
+        SCHEDULED = "SCHEDULED", _("Scheduled")
+        END_OF_MEETING = "END_OF_MEETING", _("End of meeting")
+
+    visit = models.ForeignKey(
+        "Visit",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="generation_runs",
+        help_text="Set for PRE_CALL/POST_CALL; NULL for LESSONS_DISTILL",
+    )
+    client = models.ForeignKey(
+        "Client",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="generation_runs",
+        help_text="Set for LESSONS_DISTILL; NULL for PRE_CALL/POST_CALL (reach via visit.client)",
+    )
+    domain = models.CharField(
+        max_length=20,
+        choices=MegaPrompt.Domain.choices,
+        db_index=True,
+    )
+    mega_prompt = models.ForeignKey(
+        MegaPrompt,
+        on_delete=models.PROTECT,
+        related_name="generation_runs",
+        help_text="The exact MegaPrompt version that was used",
+    )
+    triggered_by = models.CharField(max_length=20, choices=TriggeredBy.choices)
+    # Fields below carry PII (transcripts, manager notes, CRM history,
+    # generated voice-prompt text). Encrypted at rest via Fernet using the
+    # project's FIELD_ENCRYPTION_KEY — same scheme as the OAuth secrets in
+    # GoogleOauthCredential. These columns are opaque ciphertext at the DB
+    # layer; no JSON or text indexing on them.
+    context_bundle = EncryptedJSONField(default=dict, blank=True)
+    claude_request = EncryptedTextField(blank=True, default="")
+    claude_response = EncryptedTextField(blank=True, default="")
+    parsed_outputs = EncryptedJSONField(default=dict, blank=True)
+    input_tokens = models.PositiveIntegerField(default=0)
+    output_tokens = models.PositiveIntegerField(default=0)
+    success = models.BooleanField(default=False, db_index=True)
+    error = EncryptedTextField(blank=True, default="")
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="generation_runs",
+    )
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        verbose_name = _("Generation Run")
+        verbose_name_plural = _("Generation Runs")
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        target = self.visit_id or self.client_id or "?"
+        return f"GenerationRun #{self.pk} [{self.domain}] target={target} ok={self.success}"

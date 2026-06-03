@@ -48,3 +48,6 @@ Thumbs.db
 # Environment variables
 .env
 .env.local
+
+# Local-only tests — never commit
+voice/_tests_local/
