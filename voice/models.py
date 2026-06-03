@@ -559,3 +559,58 @@ class GoogleOauthCredential(models.Model):
 
     def __str__(self):
         return f"Google credentials for {self.user.username}"
+
+
+class MegaPrompt(models.Model):
+    """Versioned, single-active-per-domain meta-prompt used by the Auto Prompt Assembler.
+
+    Edit always creates a new version (never in-place). Activating a version
+    atomically deactivates any other active version in the same domain.
+    Old versions are retained forever; rollback = activating an older row.
+    """
+
+    class Domain(models.TextChoices):
+        PRE_CALL = "PRE_CALL", _("Pre-call")
+        POST_CALL = "POST_CALL", _("Post-call")
+        LESSONS_DISTILL = "LESSONS_DISTILL", _("Lessons distill")
+
+    domain = models.CharField(
+        max_length=20,
+        choices=Domain.choices,
+        db_index=True,
+        help_text="Which assembler domain this template drives",
+    )
+    name = models.CharField(max_length=255, help_text="Human label for this version")
+    meta_prompt = models.TextField(
+        help_text="Instructions sent to Claude. Supports {placeholders} — see spec §4.6."
+    )
+    is_active = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text="Only one active version per domain at a time",
+    )
+    version = models.PositiveIntegerField(default=1)
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="created_mega_prompts",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = _("Mega Prompt")
+        verbose_name_plural = _("Mega Prompts")
+        ordering = ["domain", "-version"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["domain", "version"],
+                name="megaprompt_unique_domain_version",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        marker = " ✓" if self.is_active else ""
+        return f"[{self.get_domain_display()}] {self.name} v{self.version}{marker}"
