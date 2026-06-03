@@ -929,7 +929,8 @@ class GenerationRunListView(SuperuserRequiredMixin, View):
             "current_domain": domain,
             "current_success": success_filter,
             "domain_choices": MegaPrompt.Domain.choices,
-            "total_count": qs.count(),
+            # Reuse paginator.count — it's already computed and avoids a 2nd COUNT(*).
+            "total_count": paginator.count,
         }
         return render(request, "voice/manager/generation_run_list.html", context)
 
@@ -938,7 +939,9 @@ class GenerationRunDetailView(SuperuserRequiredMixin, View):
     """Audit-log detail page. SUPERUSER-ONLY (decrypts PII)."""
 
     def get(self, request, pk):
+        from voice.constants import LogLevel
         from voice.models import GenerationRun
+        from voice.services.logging import log_activity
 
         try:
             run = GenerationRun.objects.select_related(
@@ -947,6 +950,23 @@ class GenerationRunDetailView(SuperuserRequiredMixin, View):
         except GenerationRun.DoesNotExist:
             messages.error(request, "Generation run not found.")
             return redirect("voice:generation_run_list")
+
+        # Audit the READ (PR #7 security finding #1): the detail view decrypts
+        # transcripts / manager notes / CRM history. Every write is already
+        # logged; reads of decrypted PII must leave a forensic record too so
+        # a compromised superuser can't browse customer data invisibly.
+        log_activity(
+            user=request.user,
+            action=f"Viewed decrypted GenerationRun #{run.pk}",
+            details={
+                "generation_run_id": run.pk,
+                "domain": run.domain,
+                "visit_id": run.visit_id,
+                "client_id": run.client_id,
+                "success": run.success,
+            },
+            level=LogLevel.INFO,
+        )
 
         context = {"run": run}
         return render(request, "voice/manager/generation_run_detail.html", context)
@@ -1015,7 +1035,8 @@ class VisitRegenerateView(SuperuserRequiredMixin, View):
     """
 
     def post(self, request, visit_id, domain):
-        from voice.models import GenerationRun, Visit
+        from voice.constants import CallPhase, CallStatus
+        from voice.models import CallAttempt, GenerationRun, Visit
         from voice.services.assembler import assemble_post_call, assemble_pre_call
 
         try:
@@ -1031,8 +1052,24 @@ class VisitRegenerateView(SuperuserRequiredMixin, View):
                 user=request.user,
             )
         elif domain == "post":
+            # PR #7 review: pass the actual transcript so the regenerated
+            # post-call prompt is transcript-aware (the webhook path already
+            # does this; the manual regen was dropping it). Use the most
+            # recent COMPLETED post-meeting transcript for this visit, if any.
+            latest_post_attempt = (
+                CallAttempt.objects.filter(
+                    visit=visit,
+                    phase=CallPhase.POST_MEETING,
+                    status=CallStatus.COMPLETED,
+                )
+                .exclude(transcript="")
+                .order_by("-created_at")
+                .first()
+            )
+            transcript = (latest_post_attempt.transcript if latest_post_attempt else "") or ""
             run = assemble_post_call(
                 visit,
+                transcript=transcript,
                 triggered_by=GenerationRun.TriggeredBy.MANUAL,
                 user=request.user,
             )
