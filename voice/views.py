@@ -950,6 +950,58 @@ class VisitLockToggleView(SuperuserRequiredMixin, View):
         return redirect("voice:visit_detail", visit_id=visit_id)
 
 
+class VisitRegenerateView(SuperuserRequiredMixin, View):
+    """Manually trigger the assembler for a visit's pre-call or post-call domain.
+
+    `domain` URL kwarg is "pre" or "post". Always uses MANUAL as the
+    triggered_by value. The assembler itself respects per-field locks, so
+    if both fields in the domain are locked, the run will be a no-op
+    success skip — that's expected.
+    """
+
+    def post(self, request, visit_id, domain):
+        from voice.models import GenerationRun, Visit
+        from voice.services.assembler import assemble_post_call, assemble_pre_call
+
+        try:
+            visit = Visit.objects.get(pk=visit_id)
+        except Visit.DoesNotExist:
+            messages.error(request, "Visit not found.")
+            return redirect("voice:visit_list")
+
+        if domain == "pre":
+            run = assemble_pre_call(
+                visit,
+                triggered_by=GenerationRun.TriggeredBy.MANUAL,
+                user=request.user,
+            )
+        elif domain == "post":
+            run = assemble_post_call(
+                visit,
+                triggered_by=GenerationRun.TriggeredBy.MANUAL,
+                user=request.user,
+            )
+        else:
+            messages.error(request, f"Unknown domain: {domain!r}")
+            return redirect("voice:visit_detail", visit_id=visit_id)
+
+        if run.success:
+            messages.success(
+                request,
+                f"{domain.upper()} prompt regenerated. "
+                f"Tokens: in={run.input_tokens}, out={run.output_tokens}.",
+            )
+        else:
+            messages.error(
+                request,
+                f"{domain.upper()} regeneration failed: {run.error}",
+            )
+        return redirect("voice:visit_detail", visit_id=visit_id)
+
+    def get(self, request, visit_id, domain):
+        return redirect("voice:visit_detail", visit_id=visit_id)
+
+
 class AgentManagementView(SuperuserRequiredMixin, View):
     """Manage sales agents."""
 
@@ -1932,6 +1984,9 @@ class VisitDetailView(SuperuserRequiredMixin, View):
         context.update(
             placeholders.visit_detail_extras(visit, pre_calls, post_calls, effective_methodology)
         )
+        context["recent_runs"] = visit.generation_runs.select_related("mega_prompt").order_by(
+            "-created_at"
+        )[:5]
         return context
 
     def get(self, request, visit_id):
@@ -1964,6 +2019,17 @@ class VisitDetailView(SuperuserRequiredMixin, View):
 
         form = VisitManagerNotesForm(request.POST, instance=visit)
         if form.is_valid():
+            # Auto-lock any prompt field the manager just edited so the next
+            # assembler regen won't blow it away. PR 3 Task 21.
+            LOCK_PAIRS = (
+                ("pre_call_prompt", "pre_call_prompt_locked"),
+                ("pre_call_first_message", "pre_call_first_message_locked"),
+                ("post_call_prompt", "post_call_prompt_locked"),
+                ("post_call_first_message", "post_call_first_message_locked"),
+            )
+            for field_name, lock_name in LOCK_PAIRS:
+                if field_name in form.changed_data:
+                    setattr(form.instance, lock_name, True)
             form.save()
             log_activity(
                 user=request.user,
