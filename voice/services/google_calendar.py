@@ -546,6 +546,7 @@ def setup_google_calendar_watch(user: User, webhook_url: str, session=None) -> d
     Returns:
         Dictionary with result: {'success': bool, 'channel_id': str, 'resource_id': str, 'expiration': datetime, 'error': str}
     """
+    import secrets
     import uuid
 
     service = get_google_calendar_service(user, session=session)
@@ -555,7 +556,11 @@ def setup_google_calendar_watch(user: User, webhook_url: str, session=None) -> d
     try:
         # Generate unique channel ID
         channel_id = str(uuid.uuid4())
-        channel_token = f"user_{user.id}_{channel_id}"
+        # Random, unguessable per-watch secret. Stored on the watch row and sent
+        # to Google as the channel token; inbound webhooks must echo it back.
+        # (Replaces the predictable "user_{id}_{channel}" token, which let a
+        # forged request target an arbitrary user — security finding CWE-345.)
+        channel_token = secrets.token_urlsafe(32)
 
         # Set expiration (Google recommends max 7 days, we'll use 6 days for safety)
         expiration = timezone.now() + timedelta(days=6)
@@ -574,6 +579,13 @@ def setup_google_calendar_watch(user: User, webhook_url: str, session=None) -> d
         resource_id = watch_response.get("resourceId")
         expiration_time = watch_response.get("expiration")
 
+        # resource_id is now part of webhook authentication (notifications must
+        # match the stored value), so we must not substitute a fallback. If
+        # Google ever omits it, fail the setup loudly rather than persist a value
+        # that would 403 every future notification for this watch.
+        if not resource_id:
+            return {"success": False, "error": "Google watch response missing resourceId"}
+
         if expiration_time:
             # Parse expiration (Google returns milliseconds since epoch)
             expiration = datetime.fromtimestamp(int(expiration_time) / 1000, tz=timezone.utc)
@@ -583,8 +595,9 @@ def setup_google_calendar_watch(user: User, webhook_url: str, session=None) -> d
             user=user,
             channel_id=channel_id,
             defaults={
-                "resource_id": resource_id or channel_id,
+                "resource_id": resource_id,
                 "expiration": expiration,
+                "token": channel_token,
             },
         )
 
