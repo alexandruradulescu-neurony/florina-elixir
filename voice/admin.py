@@ -9,11 +9,14 @@ from .models import (
     ActivityLog,
     CallAttempt,
     Client,
+    GenerationRun,
     GlobalSettings,
     GoogleCalendarWatch,
     GoogleOauthCredential,
+    MegaPrompt,
     Meeting,
     Methodology,
+    Scenario,
     User,
     Visit,
     VoicePrompt,
@@ -325,20 +328,42 @@ class GlobalSettingsAdmin(admin.ModelAdmin):
         return False
 
 
-from voice.models import GenerationRun, MegaPrompt, Scenario
-
-
 @admin.register(MegaPrompt)
 class MegaPromptAdmin(admin.ModelAdmin):
     list_display = ("domain", "name", "version", "is_active", "updated_at")
     list_filter = ("domain", "is_active")
     search_fields = ("name", "meta_prompt")
-    readonly_fields = ("version", "created_at", "updated_at", "created_by")
     ordering = ("domain", "-version")
 
+    # Spec §7: "Edit always creates a new version (never in-place)."
+    # `is_active` is never directly editable via the form — use the
+    # "Activate this version" admin action below, which atomically deactivates
+    # any sibling active version in the same domain. New rows always land
+    # inactive (forced in `save_model`); to switch the live version, the admin
+    # selects exactly one row and runs the action.
+    actions = ["make_active_atomically"]
+
+    def get_readonly_fields(self, request, obj=None):
+        base = ["version", "created_at", "updated_at", "created_by", "is_active"]
+        # An active version is immutable via this form — mutating its text
+        # would silently change what historical GenerationRun rows reference.
+        if obj is not None and obj.is_active:
+            base += ["domain", "name", "meta_prompt"]
+        return base
+
+    def save_model(self, request, obj, form, change):
+        if not change:
+            # A new MegaPrompt always lands inactive. Use the action to
+            # promote it to active (with atomic sibling deactivation).
+            obj.is_active = False
+            if not obj.created_by_id:
+                obj.created_by = request.user
+        super().save_model(request, obj, form, change)
+
     def has_delete_permission(self, request, obj=None):
-        # App-layer guard (spec §7): never delete the currently active version of any domain.
-        # Deletion of non-active versions is allowed only via the per-object delete page.
+        # App-layer guard (spec §7): never delete the currently active version
+        # of any domain. The DB partial-unique constraint on (domain) WHERE
+        # is_active also makes silent deletion safer downstream.
         if obj is not None and obj.is_active:
             return False
         return super().has_delete_permission(request, obj)
@@ -349,6 +374,35 @@ class MegaPromptAdmin(admin.ModelAdmin):
         actions = super().get_actions(request)
         actions.pop("delete_selected", None)
         return actions
+
+    @admin.action(description="Activate this version (deactivates sibling in same domain)")
+    def make_active_atomically(self, request, queryset):
+        from django.db import transaction
+
+        if queryset.count() != 1:
+            self.message_user(
+                request,
+                "Select exactly ONE MegaPrompt to activate.",
+                level="error",
+            )
+            return
+        with transaction.atomic():
+            target = queryset.select_for_update().get()
+            if target.is_active:
+                self.message_user(
+                    request,
+                    f"[{target.get_domain_display()}] v{target.version} is already active.",
+                )
+                return
+            MegaPrompt.objects.filter(
+                domain=target.domain, is_active=True
+            ).exclude(pk=target.pk).update(is_active=False)
+            target.is_active = True
+            target.save(update_fields=["is_active", "updated_at"])
+        self.message_user(
+            request,
+            f"Activated [{target.get_domain_display()}] v{target.version}; previous active version deactivated.",
+        )
 
 
 @admin.register(Scenario)
