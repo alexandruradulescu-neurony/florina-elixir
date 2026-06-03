@@ -4,7 +4,6 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("voice", "0015_encrypt_oauth_credentials"),
         ("voice", "0015_googlecalendarwatch_token"),
