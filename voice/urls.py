@@ -117,15 +117,20 @@ urlpatterns = [
     path("manager/clients/", views.ClientListView.as_view(), name="client_list"),
     path("manager/clients/add/", views.ClientCreateView.as_view(), name="client_create"),
     path(
-        "manager/clients/<int:client_id>/", views.ClientDetailView.as_view(), name="client_detail"
-    ),
-    path(
         "manager/clients/<int:client_id>/edit/", views.ClientEditView.as_view(), name="client_edit"
     ),
     path(
         "manager/clients/<int:client_id>/delete/",
         views.ClientDeleteView.as_view(),
         name="client_delete",
+    ),
+    path(
+        "manager/clients/<int:client_id>/lessons-learned/",
+        views.ClientLessonsLearnedUpdateView.as_view(),
+        name="client_lessons_update",
+    ),
+    path(
+        "manager/clients/<int:client_id>/", views.ClientDetailView.as_view(), name="client_detail"
     ),
     # Live Agent
     path("manager/agent-chat/", views.LiveAgentView.as_view(), name="live_agent"),

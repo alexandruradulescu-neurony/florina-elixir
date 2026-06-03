@@ -2224,6 +2224,52 @@ class ClientDetailView(SuperuserRequiredMixin, View):
         return render(request, "voice/manager/client_detail.html", context)
 
 
+class ClientLessonsLearnedUpdateView(SuperuserRequiredMixin, View):
+    """POST /manager/clients/<int:client_id>/lessons-learned/ — manager-edit
+    the closed-loop `lessons_learned` block.
+
+    The distiller respects manual edits (see voice/services/lessons.py): it
+    keeps manually-written content on the next distill, only merging in new
+    information from the latest post-call summary.
+    """
+
+    def post(self, request, client_id):
+        from voice.constants import LogLevel
+        from voice.services.logging import log_activity
+
+        try:
+            client = Client.objects.get(pk=client_id)
+        except Client.DoesNotExist:
+            messages.error(request, "Client not found.")
+            return redirect("voice:client_list")
+
+        new_text = (request.POST.get("lessons_learned") or "").strip()
+        old_text = (client.lessons_learned or "").strip()
+
+        if new_text == old_text:
+            messages.info(request, "No changes to lessons learned.")
+            return redirect("voice:client_detail", client_id=client_id)
+
+        client.lessons_learned = new_text
+        client.save(update_fields=["lessons_learned", "updated_at"])
+
+        log_activity(
+            user=request.user,
+            action=f"Manually updated lessons_learned for {client.name}",
+            details={
+                "client_id": client_id,
+                "old_len": len(old_text),
+                "new_len": len(new_text),
+            },
+            level=LogLevel.INFO,
+        )
+        messages.success(request, "Lessons learned updated.")
+        return redirect("voice:client_detail", client_id=client_id)
+
+    def get(self, request, client_id):
+        return redirect("voice:client_detail", client_id=client_id)
+
+
 class ClientCreateView(SuperuserRequiredMixin, View):
     """Create a new client manually."""
 
