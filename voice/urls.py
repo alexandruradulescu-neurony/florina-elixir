@@ -29,6 +29,38 @@ urlpatterns = [
     path(
         "manager/prompts/<int:prompt_id>/edit/", views.PromptEditView.as_view(), name="prompt_edit"
     ),
+    # Mega Prompts (Auto Prompt Assembler)
+    path(
+        "manager/mega-prompts/",
+        views.MegaPromptListView.as_view(),
+        name="mega_prompt_list",
+    ),
+    path(
+        "manager/mega-prompts/new/",
+        views.MegaPromptCreateView.as_view(),
+        name="mega_prompt_create",
+    ),
+    path(
+        "manager/mega-prompts/<int:pk>/edit/",
+        views.MegaPromptEditView.as_view(),
+        name="mega_prompt_edit",
+    ),
+    path(
+        "manager/mega-prompts/<int:pk>/activate/",
+        views.MegaPromptActivateView.as_view(),
+        name="mega_prompt_activate",
+    ),
+    # Generation Runs (assembler audit log)
+    path(
+        "manager/generation-runs/",
+        views.GenerationRunListView.as_view(),
+        name="generation_run_list",
+    ),
+    path(
+        "manager/generation-runs/<int:pk>/",
+        views.GenerationRunDetailView.as_view(),
+        name="generation_run_detail",
+    ),
     path("manager/agents/", views.AgentManagementView.as_view(), name="agent_management"),
     path("manager/agents/<int:agent_id>/", views.AgentDetailView.as_view(), name="agent_detail"),
     path("manager/agents/add/", views.AgentCreateView.as_view(), name="agent_add"),
@@ -75,6 +107,16 @@ urlpatterns = [
         views.VisitStatusUpdateView.as_view(),
         name="visit_status_update",
     ),
+    path(
+        "manager/visits/<int:visit_id>/lock/<str:field>/",
+        views.VisitLockToggleView.as_view(),
+        name="visit_lock_toggle",
+    ),
+    path(
+        "manager/visits/<int:visit_id>/regenerate/<str:domain>/",
+        views.VisitRegenerateView.as_view(),
+        name="visit_regenerate",
+    ),
     path("manager/calendar/", views.VisitCalendarView.as_view(), name="visit_calendar"),
     # Agent methodology assignment
     path(
@@ -86,15 +128,20 @@ urlpatterns = [
     path("manager/clients/", views.ClientListView.as_view(), name="client_list"),
     path("manager/clients/add/", views.ClientCreateView.as_view(), name="client_create"),
     path(
-        "manager/clients/<int:client_id>/", views.ClientDetailView.as_view(), name="client_detail"
-    ),
-    path(
         "manager/clients/<int:client_id>/edit/", views.ClientEditView.as_view(), name="client_edit"
     ),
     path(
         "manager/clients/<int:client_id>/delete/",
         views.ClientDeleteView.as_view(),
         name="client_delete",
+    ),
+    path(
+        "manager/clients/<int:client_id>/lessons-learned/",
+        views.ClientLessonsLearnedUpdateView.as_view(),
+        name="client_lessons_update",
+    ),
+    path(
+        "manager/clients/<int:client_id>/", views.ClientDetailView.as_view(), name="client_detail"
     ),
     # Live Agent
     path("manager/agent-chat/", views.LiveAgentView.as_view(), name="live_agent"),

@@ -633,6 +633,467 @@ class PromptEditView(SuperuserRequiredMixin, View):
         return redirect("voice:prompt_list")
 
 
+class MegaPromptListView(SuperuserRequiredMixin, View):
+    """List MegaPrompt rows grouped by domain (PRE_CALL / POST_CALL / LESSONS_DISTILL)."""
+
+    def get(self, request):
+        from voice.models import MegaPrompt  # local import to avoid top-of-file churn
+
+        all_prompts = MegaPrompt.objects.all().order_by("domain", "-version")
+        rows_by_domain = {code: [] for code, _label in MegaPrompt.Domain.choices}
+        active_by_domain = {}
+        for mp in all_prompts:
+            rows_by_domain[mp.domain].append(mp)
+            if mp.is_active:
+                active_by_domain[mp.domain] = mp
+
+        domains = [
+            {
+                "code": code,
+                "label": label,
+                "rows": rows_by_domain[code],
+                "active": active_by_domain.get(code),
+            }
+            for code, label in MegaPrompt.Domain.choices
+        ]
+
+        context = {
+            "domains": domains,
+            "total_count": all_prompts.count(),
+        }
+        return render(request, "voice/manager/mega_prompt_list.html", context)
+
+
+class MegaPromptCreateView(SuperuserRequiredMixin, View):
+    """Create a new MegaPrompt version (always lands inactive)."""
+
+    def get(self, request):
+        from voice.models import MegaPrompt
+
+        initial_domain = request.GET.get("domain", MegaPrompt.Domain.PRE_CALL)
+        if initial_domain not in {code for code, _ in MegaPrompt.Domain.choices}:
+            initial_domain = MegaPrompt.Domain.PRE_CALL
+        context = {
+            "form_title": "New mega-prompt version",
+            "domain_choices": MegaPrompt.Domain.choices,
+            "initial": {
+                "domain": initial_domain,
+                "name": "",
+                "meta_prompt": "",
+            },
+            "submit_label": "Save as new version (inactive)",
+            "is_edit": False,
+        }
+        return render(request, "voice/manager/mega_prompt_form.html", context)
+
+    def post(self, request):
+        from django.db import transaction as db_transaction
+        from django.db.models import Max
+
+        from voice.models import MegaPrompt
+
+        domain = request.POST.get("domain", "")
+        name = (request.POST.get("name") or "").strip()
+        meta_prompt = request.POST.get("meta_prompt", "")
+
+        valid_domains = {code for code, _ in MegaPrompt.Domain.choices}
+        if domain not in valid_domains:
+            messages.error(request, f"Invalid domain: {domain!r}")
+            return redirect("voice:mega_prompt_create")
+        if not name:
+            messages.error(request, "Name is required.")
+            return redirect("voice:mega_prompt_create")
+        if not meta_prompt.strip():
+            messages.error(request, "Meta-prompt content is required.")
+            return redirect("voice:mega_prompt_create")
+
+        with db_transaction.atomic():
+            max_v = (
+                (
+                    MegaPrompt.objects.select_for_update()
+                    .filter(domain=domain)
+                    .aggregate(Max("version"))["version__max"]
+                )
+                or 0
+            )
+            new = MegaPrompt.objects.create(
+                domain=domain,
+                name=name,
+                meta_prompt=meta_prompt,
+                is_active=False,
+                version=max_v + 1,
+                created_by=request.user,
+            )
+        messages.success(
+            request,
+            f"Created [{new.get_domain_display()}] v{new.version} (inactive). "
+            f"Use Activate to make it live.",
+        )
+        return redirect("voice:mega_prompt_list")
+
+
+class MegaPromptEditView(SuperuserRequiredMixin, View):
+    """Edit a MegaPrompt — ALWAYS creates a new version (never in-place mutates).
+
+    Spec §7: an active version's text is referenced by PROTECT'd GenerationRun
+    rows; mutating it would silently change what the historical audit log
+    points at. We keep the original row untouched and persist a new version.
+    """
+
+    def get(self, request, pk):
+        from voice.models import MegaPrompt
+
+        try:
+            original = MegaPrompt.objects.get(pk=pk)
+        except MegaPrompt.DoesNotExist:
+            messages.error(request, "Mega-prompt not found.")
+            return redirect("voice:mega_prompt_list")
+
+        context = {
+            "form_title": f"Edit [{original.get_domain_display()}] v{original.version} (creates new version)",
+            "domain_choices": MegaPrompt.Domain.choices,
+            "initial": {
+                "domain": original.domain,
+                "name": original.name,
+                "meta_prompt": original.meta_prompt,
+            },
+            "submit_label": "Save as new version (inactive)",
+            "is_edit": True,
+            "original": original,
+        }
+        return render(request, "voice/manager/mega_prompt_form.html", context)
+
+    def post(self, request, pk):
+        from django.db import transaction as db_transaction
+        from django.db.models import Max
+
+        from voice.models import MegaPrompt
+
+        try:
+            original = MegaPrompt.objects.get(pk=pk)
+        except MegaPrompt.DoesNotExist:
+            messages.error(request, "Mega-prompt not found.")
+            return redirect("voice:mega_prompt_list")
+
+        # Domain is preserved from the original — the form may surface it as
+        # read-only but we ignore any POST tampering here.
+        domain = original.domain
+        name = (request.POST.get("name") or "").strip()
+        meta_prompt = request.POST.get("meta_prompt", "")
+
+        if not name:
+            messages.error(request, "Name is required.")
+            return redirect("voice:mega_prompt_edit", pk=pk)
+        if not meta_prompt.strip():
+            messages.error(request, "Meta-prompt content is required.")
+            return redirect("voice:mega_prompt_edit", pk=pk)
+
+        with db_transaction.atomic():
+            max_v = (
+                (
+                    MegaPrompt.objects.select_for_update()
+                    .filter(domain=domain)
+                    .aggregate(Max("version"))["version__max"]
+                )
+                or 0
+            )
+            new = MegaPrompt.objects.create(
+                domain=domain,
+                name=name,
+                meta_prompt=meta_prompt,
+                is_active=False,
+                version=max_v + 1,
+                created_by=request.user,
+            )
+        messages.success(
+            request,
+            f"Created [{new.get_domain_display()}] v{new.version} based on v{original.version} (inactive).",
+        )
+        return redirect("voice:mega_prompt_list")
+
+
+class MegaPromptActivateView(SuperuserRequiredMixin, View):
+    """Activate a MegaPrompt version, atomically deactivating sibling actives
+    in the same domain. Auto-exports the seed file on disk so the repo stays
+    in sync with the DB.
+
+    Only POST is supported — GET should not flip state.
+    """
+
+    def post(self, request, pk):
+        from io import StringIO
+
+        from django.core.management import call_command
+        from django.db import transaction as db_transaction
+
+        from voice.constants import LogLevel
+        from voice.models import MegaPrompt
+        from voice.services.logging import log_activity
+
+        try:
+            target = MegaPrompt.objects.get(pk=pk)
+        except MegaPrompt.DoesNotExist:
+            messages.error(request, "Mega-prompt not found.")
+            return redirect("voice:mega_prompt_list")
+
+        with db_transaction.atomic():
+            target = MegaPrompt.objects.select_for_update().get(pk=pk)
+            if target.is_active:
+                messages.info(
+                    request,
+                    f"[{target.get_domain_display()}] v{target.version} is already active.",
+                )
+                return redirect("voice:mega_prompt_list")
+
+            # Atomic sibling-deactivation in the same domain.
+            MegaPrompt.objects.filter(domain=target.domain, is_active=True).exclude(
+                pk=target.pk
+            ).update(is_active=False)
+            target.is_active = True
+            target.save(update_fields=["is_active", "updated_at"])
+
+        log_activity(
+            user=request.user,
+            action=f"Activated MegaPrompt [{target.get_domain_display()}] v{target.version}",
+            details={
+                "mega_prompt_id": target.pk,
+                "domain": target.domain,
+                "version": target.version,
+            },
+        )
+
+        # Auto-export: rewrite the on-disk seed file for this domain so the
+        # repo always reflects the current active version. Failure here does
+        # NOT roll back the activation — the activation is the source of
+        # truth; the seed file is a backup.
+        try:
+            call_command("export_mega_prompts", stdout=StringIO())
+        except Exception:
+            logger.exception(
+                "Auto-export to seed file failed after activating MegaPrompt pk=%s",
+                target.pk,
+            )
+            log_activity(
+                user=request.user,
+                action="Seed-file auto-export failed after activation",
+                details={"mega_prompt_id": target.pk, "domain": target.domain},
+                level=LogLevel.WARNING,
+            )
+            messages.warning(
+                request,
+                f"Activated v{target.version}, but the seed file auto-export "
+                f"failed (see logs). Run `manage.py export_mega_prompts` "
+                f"manually to sync.",
+            )
+        else:
+            messages.success(
+                request,
+                f"Activated [{target.get_domain_display()}] v{target.version}. Seed file updated.",
+            )
+        return redirect("voice:mega_prompt_list")
+
+    def get(self, request, pk):
+        # No GET — activation must be a deliberate POST. Bounce back.
+        return redirect("voice:mega_prompt_list")
+
+
+class GenerationRunListView(SuperuserRequiredMixin, View):
+    """Audit-log viewer for assembler runs. SUPERUSER-ONLY because the detail
+    page exposes decrypted PII (transcripts, manager notes, CRM history)."""
+
+    def get(self, request):
+        from django.core.paginator import Paginator
+
+        from voice.models import GenerationRun, MegaPrompt
+
+        qs = GenerationRun.objects.select_related("visit", "client", "mega_prompt").order_by(
+            "-created_at"
+        )
+
+        domain = request.GET.get("domain", "")
+        if domain in {code for code, _ in MegaPrompt.Domain.choices}:
+            qs = qs.filter(domain=domain)
+        success_filter = request.GET.get("success", "")
+        if success_filter == "true":
+            qs = qs.filter(success=True)
+        elif success_filter == "false":
+            qs = qs.filter(success=False)
+
+        page_number = request.GET.get("page", 1)
+        paginator = Paginator(qs, 50)
+        page = paginator.get_page(page_number)
+
+        context = {
+            "page": page,
+            "paginator": paginator,
+            "current_domain": domain,
+            "current_success": success_filter,
+            "domain_choices": MegaPrompt.Domain.choices,
+            # Reuse paginator.count — it's already computed and avoids a 2nd COUNT(*).
+            "total_count": paginator.count,
+        }
+        return render(request, "voice/manager/generation_run_list.html", context)
+
+
+class GenerationRunDetailView(SuperuserRequiredMixin, View):
+    """Audit-log detail page. SUPERUSER-ONLY (decrypts PII)."""
+
+    def get(self, request, pk):
+        from voice.constants import LogLevel
+        from voice.models import GenerationRun
+        from voice.services.logging import log_activity
+
+        try:
+            run = GenerationRun.objects.select_related(
+                "visit", "client", "mega_prompt", "created_by"
+            ).get(pk=pk)
+        except GenerationRun.DoesNotExist:
+            messages.error(request, "Generation run not found.")
+            return redirect("voice:generation_run_list")
+
+        # Audit the READ (PR #7 security finding #1): the detail view decrypts
+        # transcripts / manager notes / CRM history. Every write is already
+        # logged; reads of decrypted PII must leave a forensic record too so
+        # a compromised superuser can't browse customer data invisibly.
+        log_activity(
+            user=request.user,
+            action=f"Viewed decrypted GenerationRun #{run.pk}",
+            details={
+                "generation_run_id": run.pk,
+                "domain": run.domain,
+                "visit_id": run.visit_id,
+                "client_id": run.client_id,
+                "success": run.success,
+            },
+            level=LogLevel.INFO,
+        )
+
+        context = {"run": run}
+        return render(request, "voice/manager/generation_run_detail.html", context)
+
+
+class VisitLockToggleView(SuperuserRequiredMixin, View):
+    """Toggle a single `*_locked` boolean on a Visit.
+
+    The `field` URL kwarg maps to a flag via LOCK_FIELD_MAP. POST only —
+    a GET bounces back to the visit detail.
+
+    A locked field is skipped by the assembler on the next regen so the
+    manager's manual edit isn't blown away.
+    """
+
+    LOCK_FIELD_MAP = {
+        "pre_prompt": "pre_call_prompt_locked",
+        "pre_first": "pre_call_first_message_locked",
+        "post_prompt": "post_call_prompt_locked",
+        "post_first": "post_call_first_message_locked",
+    }
+
+    def post(self, request, visit_id, field):
+        from voice.constants import LogLevel
+        from voice.models import Visit
+        from voice.services.logging import log_activity
+
+        if field not in self.LOCK_FIELD_MAP:
+            messages.error(request, f"Unknown lock field: {field!r}")
+            return redirect("voice:visit_detail", visit_id=visit_id)
+
+        attr = self.LOCK_FIELD_MAP[field]
+        try:
+            visit = Visit.objects.get(pk=visit_id)
+        except Visit.DoesNotExist:
+            messages.error(request, "Visit not found.")
+            return redirect("voice:visit_list")
+
+        new_state = not getattr(visit, attr)
+        setattr(visit, attr, new_state)
+        visit.save(update_fields=[attr, "updated_at"])
+
+        log_activity(
+            user=request.user,
+            action=f"{'Locked' if new_state else 'Unlocked'} {attr} on visit #{visit_id}",
+            details={"visit_id": visit_id, "field": attr, "locked": new_state},
+            level=LogLevel.INFO,
+        )
+        messages.success(
+            request,
+            f"{'🔒 Locked' if new_state else '🔓 Unlocked'} {attr.replace('_', ' ')}.",
+        )
+        return redirect("voice:visit_detail", visit_id=visit_id)
+
+    def get(self, request, visit_id, field):
+        return redirect("voice:visit_detail", visit_id=visit_id)
+
+
+class VisitRegenerateView(SuperuserRequiredMixin, View):
+    """Manually trigger the assembler for a visit's pre-call or post-call domain.
+
+    `domain` URL kwarg is "pre" or "post". Always uses MANUAL as the
+    triggered_by value. The assembler itself respects per-field locks, so
+    if both fields in the domain are locked, the run will be a no-op
+    success skip — that's expected.
+    """
+
+    def post(self, request, visit_id, domain):
+        from voice.constants import CallPhase, CallStatus
+        from voice.models import CallAttempt, GenerationRun, Visit
+        from voice.services.assembler import assemble_post_call, assemble_pre_call
+
+        try:
+            visit = Visit.objects.get(pk=visit_id)
+        except Visit.DoesNotExist:
+            messages.error(request, "Visit not found.")
+            return redirect("voice:visit_list")
+
+        if domain == "pre":
+            run = assemble_pre_call(
+                visit,
+                triggered_by=GenerationRun.TriggeredBy.MANUAL,
+                user=request.user,
+            )
+        elif domain == "post":
+            # PR #7 review: pass the actual transcript so the regenerated
+            # post-call prompt is transcript-aware (the webhook path already
+            # does this; the manual regen was dropping it). Use the most
+            # recent COMPLETED post-meeting transcript for this visit, if any.
+            latest_post_attempt = (
+                CallAttempt.objects.filter(
+                    visit=visit,
+                    phase=CallPhase.POST_MEETING,
+                    status=CallStatus.COMPLETED,
+                )
+                .exclude(transcript="")
+                .order_by("-created_at")
+                .first()
+            )
+            transcript = (latest_post_attempt.transcript if latest_post_attempt else "") or ""
+            run = assemble_post_call(
+                visit,
+                transcript=transcript,
+                triggered_by=GenerationRun.TriggeredBy.MANUAL,
+                user=request.user,
+            )
+        else:
+            messages.error(request, f"Unknown domain: {domain!r}")
+            return redirect("voice:visit_detail", visit_id=visit_id)
+
+        if run.success:
+            messages.success(
+                request,
+                f"{domain.upper()} prompt regenerated. "
+                f"Tokens: in={run.input_tokens}, out={run.output_tokens}.",
+            )
+        else:
+            messages.error(
+                request,
+                f"{domain.upper()} regeneration failed: {run.error}",
+            )
+        return redirect("voice:visit_detail", visit_id=visit_id)
+
+    def get(self, request, visit_id, domain):
+        return redirect("voice:visit_detail", visit_id=visit_id)
+
+
 class AgentManagementView(SuperuserRequiredMixin, View):
     """Manage sales agents."""
 
@@ -1615,6 +2076,9 @@ class VisitDetailView(SuperuserRequiredMixin, View):
         context.update(
             placeholders.visit_detail_extras(visit, pre_calls, post_calls, effective_methodology)
         )
+        context["recent_runs"] = visit.generation_runs.select_related("mega_prompt").order_by(
+            "-created_at"
+        )[:5]
         return context
 
     def get(self, request, visit_id):
@@ -1647,6 +2111,17 @@ class VisitDetailView(SuperuserRequiredMixin, View):
 
         form = VisitManagerNotesForm(request.POST, instance=visit)
         if form.is_valid():
+            # Auto-lock any prompt field the manager just edited so the next
+            # assembler regen won't blow it away. PR 3 Task 21.
+            LOCK_PAIRS = (
+                ("pre_call_prompt", "pre_call_prompt_locked"),
+                ("pre_call_first_message", "pre_call_first_message_locked"),
+                ("post_call_prompt", "post_call_prompt_locked"),
+                ("post_call_first_message", "post_call_first_message_locked"),
+            )
+            for field_name, lock_name in LOCK_PAIRS:
+                if field_name in form.changed_data:
+                    setattr(form.instance, lock_name, True)
             form.save()
             log_activity(
                 user=request.user,
@@ -1839,6 +2314,52 @@ class ClientDetailView(SuperuserRequiredMixin, View):
 
         context.update(placeholders.client_detail_extras(context))
         return render(request, "voice/manager/client_detail.html", context)
+
+
+class ClientLessonsLearnedUpdateView(SuperuserRequiredMixin, View):
+    """POST /manager/clients/<int:client_id>/lessons-learned/ — manager-edit
+    the closed-loop `lessons_learned` block.
+
+    The distiller respects manual edits (see voice/services/lessons.py): it
+    keeps manually-written content on the next distill, only merging in new
+    information from the latest post-call summary.
+    """
+
+    def post(self, request, client_id):
+        from voice.constants import LogLevel
+        from voice.services.logging import log_activity
+
+        try:
+            client = Client.objects.get(pk=client_id)
+        except Client.DoesNotExist:
+            messages.error(request, "Client not found.")
+            return redirect("voice:client_list")
+
+        new_text = (request.POST.get("lessons_learned") or "").strip()
+        old_text = (client.lessons_learned or "").strip()
+
+        if new_text == old_text:
+            messages.info(request, "No changes to lessons learned.")
+            return redirect("voice:client_detail", client_id=client_id)
+
+        client.lessons_learned = new_text
+        client.save(update_fields=["lessons_learned", "updated_at"])
+
+        log_activity(
+            user=request.user,
+            action=f"Manually updated lessons_learned for {client.name}",
+            details={
+                "client_id": client_id,
+                "old_len": len(old_text),
+                "new_len": len(new_text),
+            },
+            level=LogLevel.INFO,
+        )
+        messages.success(request, "Lessons learned updated.")
+        return redirect("voice:client_detail", client_id=client_id)
+
+    def get(self, request, client_id):
+        return redirect("voice:client_detail", client_id=client_id)
 
 
 class ClientCreateView(SuperuserRequiredMixin, View):

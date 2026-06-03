@@ -494,6 +494,32 @@
         </form>
       </div>
 
+      {# ─── Regenerate prompts (Auto Prompt Assembler — PR 3 Task 21) ─── #}
+      <div class="dcard">
+        <h3>Regenerate prompts</h3>
+        <div class="flex items-center gap-2 mt-2">
+          <form method="post"
+                action="{% url 'voice:visit_regenerate' visit.id 'pre' %}"
+                class="inline">
+            {% csrf_token %}
+            <button type="submit"
+                    class="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-semibold rounded-lg bg-teal-600 text-white hover:bg-teal-700">
+              Regenerate pre-call
+            </button>
+          </form>
+          <form method="post"
+                action="{% url 'voice:visit_regenerate' visit.id 'post' %}"
+                class="inline">
+            {% csrf_token %}
+            <button type="submit"
+                    class="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-semibold rounded-lg bg-indigo-600 text-white hover:bg-indigo-700">
+              Regenerate post-call
+            </button>
+          </form>
+        </div>
+        <p class="savehint" style="margin-top:8px;">Locked fields (🔒) are preserved on regen.</p>
+      </div>
+
       {# Profil client — only real data, no fake CRM placeholders #}
       <div class="dcard">
         <h3>Profil client</h3>
@@ -519,10 +545,61 @@
     </div>
   </div>
 
+  {# ─── Recent assembler runs (PR 3 Task 21) ─── #}
+  <section class="mt-6 bg-white rounded-xl border border-slate-200 p-4">
+    <h3 class="text-sm font-bold text-slate-900 mb-3">Recent assembler runs</h3>
+    {% if recent_runs %}
+      <table class="w-full text-xs">
+        <thead class="text-slate-400 uppercase tracking-wider">
+          <tr>
+            <th class="text-left py-1">When</th>
+            <th class="text-left py-1">Domain</th>
+            <th class="text-left py-1">Trigger</th>
+            <th class="text-left py-1">Status</th>
+            <th class="text-left py-1">Tokens (in/out)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for run in recent_runs %}
+            <tr class="border-t border-slate-100">
+              <td class="py-1">{{ run.created_at|date:"Y-m-d H:i" }}</td>
+              <td class="py-1">{{ run.get_domain_display }}</td>
+              <td class="py-1">{{ run.get_triggered_by_display }}</td>
+              <td class="py-1">
+                {% if run.success %}
+                  <span class="text-teal-700">✓ ok</span>
+                {% else %}
+                  <span class="text-rose-700">✗ {{ run.error|truncatechars:60 }}</span>
+                {% endif %}
+              </td>
+              <td class="py-1">{{ run.input_tokens }} / {{ run.output_tokens }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="text-sm text-slate-500">No runs yet.</p>
+    {% endif %}
+  </section>
+
   {# ─── Prompt edit modals (textareas belong to #visitForm via the form= attribute) ─── #}
   <dialog id="dlgPrePrompt" class="prompt-modal">
     <div class="pm-head">
       <h3>Prompt pre-call</h3>
+      <form method="post"
+            action="{% url 'voice:visit_lock_toggle' visit.id 'pre_prompt' %}"
+            class="inline-flex ml-auto mr-2">
+        {% csrf_token %}
+        <button type="submit"
+                class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md border {% if visit.pre_call_prompt_locked %}bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100{% else %}bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100{% endif %}"
+                title="{% if visit.pre_call_prompt_locked %}Locked — assembler will skip this field on regen. Click to unlock.{% else %}Unlocked — assembler may overwrite on regen. Click to lock.{% endif %}">
+          {% if visit.pre_call_prompt_locked %}
+            🔒 locked
+          {% else %}
+            🔓 unlocked
+          {% endif %}
+        </button>
+      </form>
       <button type="button"
               class="pm-x"
               onclick="this.closest('dialog').close()"
@@ -546,6 +623,20 @@
   <dialog id="dlgPreFirst" class="prompt-modal">
     <div class="pm-head">
       <h3>Primul mesaj pre-call</h3>
+      <form method="post"
+            action="{% url 'voice:visit_lock_toggle' visit.id 'pre_first' %}"
+            class="inline-flex ml-auto mr-2">
+        {% csrf_token %}
+        <button type="submit"
+                class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md border {% if visit.pre_call_first_message_locked %}bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100{% else %}bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100{% endif %}"
+                title="{% if visit.pre_call_first_message_locked %}Locked — assembler will skip this field on regen. Click to unlock.{% else %}Unlocked — assembler may overwrite on regen. Click to lock.{% endif %}">
+          {% if visit.pre_call_first_message_locked %}
+            🔒 locked
+          {% else %}
+            🔓 unlocked
+          {% endif %}
+        </button>
+      </form>
       <button type="button"
               class="pm-x"
               onclick="this.closest('dialog').close()"
@@ -569,6 +660,20 @@
   <dialog id="dlgPostPrompt" class="prompt-modal">
     <div class="pm-head">
       <h3>Prompt post-call</h3>
+      <form method="post"
+            action="{% url 'voice:visit_lock_toggle' visit.id 'post_prompt' %}"
+            class="inline-flex ml-auto mr-2">
+        {% csrf_token %}
+        <button type="submit"
+                class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md border {% if visit.post_call_prompt_locked %}bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100{% else %}bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100{% endif %}"
+                title="{% if visit.post_call_prompt_locked %}Locked — assembler will skip this field on regen. Click to unlock.{% else %}Unlocked — assembler may overwrite on regen. Click to lock.{% endif %}">
+          {% if visit.post_call_prompt_locked %}
+            🔒 locked
+          {% else %}
+            🔓 unlocked
+          {% endif %}
+        </button>
+      </form>
       <button type="button"
               class="pm-x"
               onclick="this.closest('dialog').close()"
@@ -592,6 +697,20 @@
   <dialog id="dlgPostFirst" class="prompt-modal">
     <div class="pm-head">
       <h3>Primul mesaj post-call</h3>
+      <form method="post"
+            action="{% url 'voice:visit_lock_toggle' visit.id 'post_first' %}"
+            class="inline-flex ml-auto mr-2">
+        {% csrf_token %}
+        <button type="submit"
+                class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md border {% if visit.post_call_first_message_locked %}bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100{% else %}bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100{% endif %}"
+                title="{% if visit.post_call_first_message_locked %}Locked — assembler will skip this field on regen. Click to unlock.{% else %}Unlocked — assembler may overwrite on regen. Click to lock.{% endif %}">
+          {% if visit.post_call_first_message_locked %}
+            🔒 locked
+          {% else %}
+            🔓 unlocked
+          {% endif %}
+        </button>
+      </form>
       <button type="button"
               class="pm-x"
               onclick="this.closest('dialog').close()"
