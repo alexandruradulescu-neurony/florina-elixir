@@ -62,12 +62,10 @@ from .selectors import (
 from .services import (
     format_first_message_with_context,
     format_prompt_with_context,
-    get_elevenlabs_webhook_config,
     log_activity,
     sync_google_calendar,
-    update_elevenlabs_webhook,
 )
-from .utils import build_webhook_url, get_ngrok_url
+from .utils import get_ngrok_url
 
 logger = logging.getLogger(__name__)
 
@@ -1350,72 +1348,6 @@ class AuditLogExplorerView(SuperuserRequiredMixin, View):
             "users": User.objects.filter(is_sales_agent=True).order_by("username"),
         }
         return render(request, "voice/manager/logs.html", context)
-
-
-class NgrokWebhookStatusView(SuperuserRequiredMixin, View):
-    """Dashboard view showing ngrok URL and webhook configuration status."""
-
-    def get(self, request):
-        from decouple import config
-
-        # Get ngrok URL
-        ngrok_api_url = config("NGROK_API_URL", default="http://localhost:4040/api/tunnels")
-        ngrok_url = get_ngrok_url(ngrok_api_url)
-
-        # Build webhook URL
-        webhook_url = None
-        if ngrok_url:
-            webhook_url = build_webhook_url(ngrok_url)
-
-        # Try to get current webhook config from ElevenLabs
-        webhook_config = get_elevenlabs_webhook_config()
-        current_webhook_url = webhook_config.get("url") if webhook_config else None
-        webhook_configured = (
-            current_webhook_url == webhook_url if (current_webhook_url and webhook_url) else False
-        )
-
-        # Check if update is needed
-        update_needed = ngrok_url and webhook_url and current_webhook_url != webhook_url
-
-        context = {
-            "ngrok_url": ngrok_url,
-            "webhook_url": webhook_url,
-            "current_webhook_url": current_webhook_url,
-            "webhook_configured": webhook_configured,
-            "update_needed": update_needed,
-            "webhook_config": webhook_config,
-            "ngrok_running": ngrok_url is not None,
-        }
-
-        return render(request, "voice/manager/ngrok_webhook_status.html", context)
-
-    def post(self, request):
-        """Handle webhook URL update request."""
-        from decouple import config
-
-        ngrok_api_url = config("NGROK_API_URL", default="http://localhost:4040/api/tunnels")
-        ngrok_url = get_ngrok_url(ngrok_api_url)
-
-        if not ngrok_url:
-            messages.error(request, "Ngrok is not running. Please start ngrok first.")
-            return redirect("voice:ngrok_webhook_status")
-
-        webhook_url = build_webhook_url(ngrok_url)
-
-        # Attempt to update webhook
-        result = update_elevenlabs_webhook(webhook_url)
-
-        if result.get("success"):
-            messages.success(request, "Webhook URL updated successfully in ElevenLabs!")
-        else:
-            error_msg = result.get("error", "Unknown error")
-            messages.warning(
-                request,
-                f"Could not update webhook automatically: {error_msg}. "
-                f"Please update manually in ElevenLabs dashboard. Webhook URL: {webhook_url}",
-            )
-
-        return redirect("voice:ngrok_webhook_status")
 
 
 # ============================================================================

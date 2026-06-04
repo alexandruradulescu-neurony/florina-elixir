@@ -227,19 +227,23 @@ def convert_to_utc(dt: datetime) -> datetime:
 
 
 # ============================================================================
-# Ngrok URL Detection Utilities
+# Ngrok URL Detection (legacy dev helper)
 # ============================================================================
+#
+# `validate_ngrok_url` and `build_webhook_url` were removed alongside the
+# `NgrokWebhookStatusView` and `detect_ngrok` management command — their
+# only callers. `get_ngrok_url` is still here because the Google OAuth flow
+# falls back to it when running locally (Google OAuth requires HTTPS for
+# the redirect URI; the dev tunnel was the easy way to get HTTPS on a
+# laptop). The function is harmless on prod — `requests.get(localhost:4040)`
+# raises ConnectionError, which is caught and returns None.
 
 
 def get_ngrok_url(api_url: str = "http://localhost:4040/api/tunnels") -> str | None:
-    """
-    Query ngrok local API to get current tunnel URL.
+    """Query the local ngrok API for the current public tunnel URL.
 
-    Args:
-        api_url: Ngrok API endpoint (default: http://localhost:4040/api/tunnels)
-
-    Returns:
-        Public ngrok URL (https://...) or None if ngrok is not running or no tunnel found
+    Used only by the OAuth views as a dev convenience. On prod returns
+    None (no ngrok process listening on localhost).
     """
     try:
         import requests
@@ -248,18 +252,13 @@ def get_ngrok_url(api_url: str = "http://localhost:4040/api/tunnels") -> str | N
 
         if response.status_code == 200:
             data = response.json()
-
-            # Ngrok API returns: {"tunnels": [{"public_url": "https://...", ...}, ...]}
             tunnels = data.get("tunnels", [])
-
             if tunnels:
-                # Get the first HTTP/HTTPS tunnel (prefer HTTPS)
+                # Prefer HTTPS; fall back to HTTP.
                 for tunnel in tunnels:
                     public_url = tunnel.get("public_url", "")
                     if public_url.startswith("https://"):
                         return public_url.rstrip("/")
-
-                # If no HTTPS, get first HTTP tunnel
                 for tunnel in tunnels:
                     public_url = tunnel.get("public_url", "")
                     if public_url.startswith("http://"):
@@ -268,64 +267,13 @@ def get_ngrok_url(api_url: str = "http://localhost:4040/api/tunnels") -> str | N
         return None
 
     except requests.exceptions.ConnectionError:
-        # Ngrok is not running
+        # Ngrok is not running (expected case on prod).
         return None
     except requests.exceptions.Timeout:
-        # Ngrok API not responding
         return None
     except Exception as e:
-        # Any other error
         import logging
 
         logger = logging.getLogger(__name__)
         logger.warning(f"Error querying ngrok API: {e}")
         return None
-
-
-def validate_ngrok_url(url: str) -> bool:
-    """
-    Validate if a URL is a valid ngrok URL.
-
-    Args:
-        url: URL string to validate
-
-    Returns:
-        True if URL appears to be a valid ngrok URL, False otherwise
-    """
-    if not url:
-        return False
-
-    # Check for common ngrok domain patterns
-    ngrok_patterns = [
-        ".ngrok-free.dev",
-        ".ngrok.io",
-        ".ngrok.app",
-        ".ngrok-free.app",
-    ]
-
-    url_lower = url.lower()
-    return any(pattern in url_lower for pattern in ngrok_patterns)
-
-
-def build_webhook_url(base_url: str, webhook_path: str = "/webhooks/elevenlabs/") -> str:
-    """
-    Build full webhook URL from base URL.
-
-    Args:
-        base_url: Base URL (e.g., https://abc123.ngrok.io or http://localhost:8000)
-        webhook_path: Webhook path (default: /webhooks/elevenlabs/)
-
-    Returns:
-        Full webhook URL
-    """
-    if not base_url:
-        return ""
-
-    # Remove trailing slash from base_url
-    base_url = base_url.rstrip("/")
-
-    # Ensure webhook_path starts with /
-    if not webhook_path.startswith("/"):
-        webhook_path = "/" + webhook_path
-
-    return f"{base_url}{webhook_path}"

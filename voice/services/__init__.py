@@ -43,10 +43,8 @@ from .elevenlabs import (
     fetch_call_status_from_elevenlabs,
     format_first_message_with_context,
     format_prompt_with_context,
-    get_elevenlabs_webhook_config,
     sync_call_status_from_api,
     trigger_agent_call,
-    update_elevenlabs_webhook,
 )
 
 # ============================================================================
@@ -135,8 +133,6 @@ __all__ = [
     # ElevenLabs
     "fetch_call_status_from_elevenlabs",
     "sync_call_status_from_api",
-    "get_elevenlabs_webhook_config",
-    "update_elevenlabs_webhook",
     "format_prompt_with_context",
     "format_first_message_with_context",
     "trigger_agent_call",
