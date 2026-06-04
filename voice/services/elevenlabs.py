@@ -24,6 +24,28 @@ from .pipedrive import sync_note_to_pipedrive
 logger = logging.getLogger(__name__)
 
 
+def _ca_user(call_attempt: CallAttempt):
+    """Resolve the sales-agent User for a CallAttempt regardless of source path.
+
+    The codebase is mid-migration from the legacy `Meeting` model to the newer
+    `Visit` model. `CallAttempt` carries nullable FKs to BOTH: the new
+    `process_visit_pre_calls` / `process_visit_post_calls` pipelines create
+    rows with `visit` set and `meeting=None`; legacy `check_and_trigger_calls`
+    paths set `meeting` and leave `visit=None`.
+
+    Every caller that historically did `call_attempt.meeting.agent` will
+    AttributeError on Visit-based rows. Use this helper instead — it tries the
+    Visit path first (the documented new entry point) and falls back to the
+    Meeting path for legacy rows. Returns None only when the CallAttempt is
+    orphaned (data integrity bug); `log_activity` accepts `user=None`.
+    """
+    if call_attempt.visit_id and call_attempt.visit:
+        return call_attempt.visit.agent
+    if call_attempt.meeting_id and call_attempt.meeting:
+        return call_attempt.meeting.agent
+    return None
+
+
 # ============================================================================
 # ElevenLabs API Polling Service (Fallback when webhooks fail)
 # ============================================================================
@@ -311,8 +333,18 @@ def sync_call_status_from_api(call_attempt: CallAttempt) -> bool:
     if updated:
         call_attempt.save()
 
-        # Update meeting if completed
-        if call_attempt.status == CallStatus.COMPLETED:
+        # Update meeting if completed.
+        # NOTE: `call_attempt.meeting` is None for the Visit-based pipeline
+        # (process_visit_pre_calls / process_visit_post_calls). The Visit-flow
+        # equivalents of these meeting-level updates happen elsewhere:
+        #   * `visit.status` is moved to PRE_CALL_DONE / POST_CALL_DONE in
+        #     process_visit_*_calls right after a successful trigger, and again
+        #     in the webhook handler.
+        #   * Pipedrive sync for Visit-flow goes via the post-call analysis
+        #     path that reads `visit.client` directly (not `meeting`).
+        # So we skip both blocks when meeting is None — they are no-ops, not
+        # bugs, for the new pipeline.
+        if call_attempt.status == CallStatus.COMPLETED and call_attempt.meeting:
             meeting = call_attempt.meeting
             if call_attempt.phase == CallPhase.PRE_MEETING:
                 meeting.is_pre_call_completed = True
@@ -344,9 +376,13 @@ def sync_call_status_from_api(call_attempt: CallAttempt) -> bool:
                             level=LogLevel.ERROR,
                         )
 
-        # Handle pre-meeting call failure: create -30 call if -60 failed
+        # Handle pre-meeting call failure: create -30 call if -60 failed.
+        # This retry strategy is Meeting-flow specific. The Visit flow uses
+        # `MAX_CALL_ATTEMPTS_PER_PHASE` caps managed in process_visit_pre_calls,
+        # so skip this whole block when meeting is None.
         if (
-            call_attempt.phase == CallPhase.PRE_MEETING
+            call_attempt.meeting
+            and call_attempt.phase == CallPhase.PRE_MEETING
             and call_attempt.status in [CallStatus.NO_ANSWER, CallStatus.FAILED]
             and call_attempt.scheduled_offset_minutes == PRE_MEETING_OFFSETS[0]
         ):  # -60 minutes
@@ -371,7 +407,7 @@ def sync_call_status_from_api(call_attempt: CallAttempt) -> bool:
                 )
                 log_activity(
                     meeting=call_attempt.meeting,
-                    user=call_attempt.meeting.agent,
+                    user=_ca_user(call_attempt),
                     action="Created -30 minute retry call after -60 call failed",
                     details={
                         "failed_call_id": call_attempt.id,
@@ -381,7 +417,7 @@ def sync_call_status_from_api(call_attempt: CallAttempt) -> bool:
 
         log_activity(
             meeting=call_attempt.meeting,
-            user=call_attempt.meeting.agent,
+            user=_ca_user(call_attempt),
             action="Call status synced from API",
             details={
                 "call_id": call_attempt.external_call_id,
@@ -740,7 +776,7 @@ def trigger_agent_call(
         result["error"] = error_msg
         log_activity(
             meeting=call_attempt.meeting,
-            user=call_attempt.meeting.agent,
+            user=_ca_user(call_attempt),
             action="Call failed - invalid phone number",
             details={"phone_number": agent_phone, "error": error_msg},
             level=LogLevel.ERROR,
@@ -759,7 +795,7 @@ def trigger_agent_call(
         result["error"] = error_msg
         log_activity(
             meeting=call_attempt.meeting,
-            user=call_attempt.meeting.agent,
+            user=_ca_user(call_attempt),
             action="Call failed - missing ElevenLabs API key",
             details={"error": error_msg},
             level=LogLevel.ERROR,
@@ -773,7 +809,7 @@ def trigger_agent_call(
         result["error"] = error_msg
         log_activity(
             meeting=call_attempt.meeting,
-            user=call_attempt.meeting.agent,
+            user=_ca_user(call_attempt),
             action="Call failed - missing ElevenLabs Agent ID",
             details={"error": error_msg},
             level=LogLevel.ERROR,
@@ -787,7 +823,7 @@ def trigger_agent_call(
         result["error"] = error_msg
         log_activity(
             meeting=call_attempt.meeting,
-            user=call_attempt.meeting.agent,
+            user=_ca_user(call_attempt),
             action="Call failed - missing ElevenLabs Phone Number ID",
             details={"error": error_msg},
             level=LogLevel.ERROR,
@@ -874,7 +910,7 @@ def trigger_agent_call(
                 # Log successful call initiation
                 log_activity(
                     meeting=call_attempt.meeting,
-                    user=call_attempt.meeting.agent,
+                    user=_ca_user(call_attempt),
                     action="Call successfully initiated via ElevenLabs API",
                     details={
                         "call_id": call_id,
@@ -896,7 +932,7 @@ def trigger_agent_call(
                 logger.error(error_msg)
                 log_activity(
                     meeting=call_attempt.meeting,
-                    user=call_attempt.meeting.agent,
+                    user=_ca_user(call_attempt),
                     action="Call failed - no call_id in response",
                     details={"error": error_msg, "response": str(call_data)},
                     level=LogLevel.ERROR,
@@ -939,7 +975,7 @@ def trigger_agent_call(
 
             log_activity(
                 meeting=call_attempt.meeting,
-                user=call_attempt.meeting.agent,
+                user=_ca_user(call_attempt),
                 action="Call failed - ElevenLabs API error",
                 details={
                     "error": error_msg,
@@ -959,7 +995,7 @@ def trigger_agent_call(
 
         log_activity(
             meeting=call_attempt.meeting,
-            user=call_attempt.meeting.agent,
+            user=_ca_user(call_attempt),
             action="Call initiation failed",
             details={"error": error_msg, "phone_number": formatted_phone},
             level=LogLevel.ERROR,
