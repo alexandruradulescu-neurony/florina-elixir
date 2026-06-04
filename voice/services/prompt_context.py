@@ -44,6 +44,7 @@ def _fmt_local_datetime(dt) -> str:
         return ""
     return timezone.localtime(dt).strftime("%d %B %Y, %H:%M")
 
+
 logger = logging.getLogger(__name__)
 
 

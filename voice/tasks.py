@@ -392,9 +392,7 @@ def retry_failed_call(call_attempt_id: int):
         meeting = call_attempt.meeting
         agent = (visit.agent if visit else None) or (meeting.agent if meeting else None)
         if agent is None:
-            logger.error(
-                "CallAttempt %s (retry) has neither visit nor meeting.", call_attempt_id
-            )
+            logger.error("CallAttempt %s (retry) has neither visit nor meeting.", call_attempt_id)
             return {"success": False, "error": "No agent resolvable"}
 
         # Validate agent has phone number
@@ -498,9 +496,7 @@ def trigger_pre_meeting_call(meeting_id: int, offset_minutes: int):
         # external event. We link by calendar event id when possible.
         linked_visit = None
         if meeting.external_id:
-            linked_visit = Visit.objects.filter(
-                calendar_event_id=meeting.external_id
-            ).first()
+            linked_visit = Visit.objects.filter(calendar_event_id=meeting.external_id).first()
 
         # PR 6 hard cap: count existing CallAttempts and refuse to create more.
         existing_for_phase = CallAttempt.objects.filter(
@@ -624,9 +620,7 @@ def trigger_post_meeting_call(meeting_id: int, offset_minutes: int):
         # PR 6: link to Visit if one exists for this calendar event.
         linked_visit = None
         if meeting.external_id:
-            linked_visit = Visit.objects.filter(
-                calendar_event_id=meeting.external_id
-            ).first()
+            linked_visit = Visit.objects.filter(calendar_event_id=meeting.external_id).first()
 
         # PR 6 hard cap.
         existing_for_phase = CallAttempt.objects.filter(
