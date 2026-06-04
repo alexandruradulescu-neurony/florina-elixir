@@ -25,6 +25,90 @@ from .services import (
 logger = logging.getLogger(__name__)
 
 
+def _phase_dial_count(*, visit=None, meeting=None, phase: str) -> int:
+    """Total dial attempts for a (visit OR meeting, phase) target.
+
+    Each `CallAttempt` row represents at least 1 dial; the new `retry_count`
+    field (PR 6 follow-up) tracks how many TIMES that row was re-dialed by
+    `retry_failed_call`. Total dials = sum of (1 + retry_count) across rows.
+
+    This replaces the earlier row-count-only check, which was inert against
+    the retry loop in `check_and_trigger_calls`: `retry_failed_call` reuses
+    the row instead of creating a new one, so row count stayed at 1 and the
+    cap never fired — the runaway-50-calls bug the PR was supposed to stop.
+    """
+    from django.db.models import Sum
+
+    qs = CallAttempt.objects.filter(phase=phase)
+    if visit is not None:
+        qs = qs.filter(visit=visit)
+    elif meeting is not None:
+        qs = qs.filter(meeting=meeting)
+    else:
+        return 0
+    # `Sum(1 + retry_count)` via annotated F-expression to do it in a single query.
+    total = qs.aggregate(total=Sum("retry_count"))["total"] or 0
+    return total + qs.count()
+
+
+def _resolve_prompt_for_call(call_attempt):
+    """Return ``(prompt_text, first_message_text)`` for an outbound dial.
+
+    PR 6 — fixes prod bug where automatic dials bypassed the Auto Prompt
+    Assembler's output and rang the agent with EL's default greeting.
+
+    Resolution order:
+      1. If the CallAttempt is linked to a Visit (new pipeline) AND that
+         Visit has the appropriate `pre_call_prompt` / `post_call_prompt`
+         populated by the assembler → use it directly (and its sibling
+         `*_first_message`). This is the correct path for every
+         visit-pipeline dial.
+      2. Otherwise (or if the visit's prompt field is empty), fall back
+         to the legacy `VoicePrompt` model via `get_active_prompt(phase)`.
+         The legacy `VoicePrompt` table is deprecated and typically empty
+         on prod, so this fallback usually means "no prompt available".
+
+    Returns `(None, None)` when no usable prompt source exists — the
+    caller must mark the CallAttempt as FAILED rather than dialing
+    without an override (which would let EL fall back to its default
+    agent greeting, the original bug symptom).
+    """
+    visit = getattr(call_attempt, "visit", None)
+    if visit is not None:
+        if call_attempt.phase == CallPhase.PRE_MEETING:
+            body = (visit.pre_call_prompt or "").strip()
+            first = (visit.pre_call_first_message or "").strip()
+        else:
+            body = (visit.post_call_prompt or "").strip()
+            first = (visit.post_call_first_message or "").strip()
+        if body:
+            return body, (first or None)
+        logger.warning(
+            "CallAttempt %s links to visit %s but the assembled %s prompt is empty; "
+            "falling back to legacy VoicePrompt.",
+            call_attempt.id,
+            visit.id,
+            "pre-call" if call_attempt.phase == CallPhase.PRE_MEETING else "post-call",
+        )
+
+    # Legacy meeting-only fallback
+    prompt = get_active_prompt(call_attempt.phase)
+    if not prompt or not prompt.system_prompt or not prompt.system_prompt.strip():
+        return None, None
+    meeting = getattr(call_attempt, "meeting", None)
+    if meeting:
+        formatted = format_prompt_with_context(prompt.system_prompt, meeting)
+        first_msg = (
+            format_first_message_with_context(prompt.first_message, meeting)
+            if prompt.first_message
+            else None
+        )
+    else:
+        formatted = prompt.system_prompt
+        first_msg = prompt.first_message or None
+    return formatted, first_msg
+
+
 def check_and_trigger_calls():
     """
     Main periodic task that checks for meetings needing calls and triggers them.
@@ -98,14 +182,31 @@ def check_and_trigger_calls():
 
         # RETRY LOGIC: Check for failed calls that need retries
         # Pre-meeting: retry failed calls every 5 minutes until meeting starts
+        from .constants import MAX_CALL_ATTEMPTS_PER_PHASE
+
         failed_pre_calls = CallAttempt.objects.filter(
             meeting__start_time__gt=now,  # Meeting hasn't started
             phase="PRE",
             status__in=[CallStatus.NO_ANSWER, CallStatus.FAILED],
             meeting__agent__is_sales_agent=True,
-        ).select_related("meeting", "meeting__agent")
+        ).select_related("meeting", "meeting__agent", "visit")
 
         for call_attempt in failed_pre_calls:
+            # PR 6 hard cap (corrected): count total DIALS, not rows.
+            # `retry_failed_call` reuses the same row + increments retry_count;
+            # row-counting was inert against the runaway it's supposed to stop.
+            dials = _phase_dial_count(
+                visit=call_attempt.visit, meeting=call_attempt.meeting, phase="PRE"
+            )
+            if dials >= MAX_CALL_ATTEMPTS_PER_PHASE:
+                logger.info(
+                    "Pre-call retry suppressed: CallAttempt #%s — already %d/%d dials for this phase.",
+                    call_attempt.id,
+                    dials,
+                    MAX_CALL_ATTEMPTS_PER_PHASE,
+                )
+                continue
+
             # Check if it's been at least 5 minutes since last attempt
             # Use updated_at as proxy for last retry time
             time_since_last_attempt = now - call_attempt.updated_at
@@ -125,9 +226,21 @@ def check_and_trigger_calls():
             phase="POST",
             status__in=[CallStatus.NO_ANSWER, CallStatus.FAILED],
             meeting__agent__is_sales_agent=True,
-        ).select_related("meeting", "meeting__agent")
+        ).select_related("meeting", "meeting__agent", "visit")
 
         for call_attempt in failed_post_calls:
+            dials = _phase_dial_count(
+                visit=call_attempt.visit, meeting=call_attempt.meeting, phase="POST"
+            )
+            if dials >= MAX_CALL_ATTEMPTS_PER_PHASE:
+                logger.info(
+                    "Post-call retry suppressed: CallAttempt #%s — already %d/%d dials for this phase.",
+                    call_attempt.id,
+                    dials,
+                    MAX_CALL_ATTEMPTS_PER_PHASE,
+                )
+                continue
+
             # Check if it's been at least 5 minutes since last attempt
             time_since_last_attempt = now - call_attempt.updated_at
             if (
@@ -204,8 +317,19 @@ def execute_scheduled_call(call_attempt_id: int):
 
     try:
         call_attempt = CallAttempt.objects.get(id=call_attempt_id)
+        # Visit-linked attempts use the new pipeline; meeting-only attempts
+        # use the legacy path. Pull agent from whichever is available.
+        visit = call_attempt.visit
         meeting = call_attempt.meeting
-        agent = meeting.agent
+        agent = (visit.agent if visit else None) or (meeting.agent if meeting else None)
+        if agent is None:
+            logger.error(
+                "CallAttempt %s has neither visit nor meeting — cannot resolve agent.",
+                call_attempt_id,
+            )
+            call_attempt.status = CallStatus.FAILED
+            call_attempt.save()
+            return {"success": False, "error": "No agent resolvable"}
 
         # Validate agent has phone number
         if not agent.phone_number:
@@ -214,25 +338,24 @@ def execute_scheduled_call(call_attempt_id: int):
             call_attempt.save()
             return {"success": False, "error": "No phone number"}
 
-        # Get active prompt
-        prompt = get_active_prompt(call_attempt.phase)
-        if not prompt:
-            logger.error(f"No active prompt found for phase {call_attempt.phase}")
+        # PR 6: resolve prompt via shared helper — prefers visit.pre/post_call_prompt
+        # when a Visit is linked (the new pipeline). The prior code unconditionally
+        # called `get_active_prompt(phase)` and ignored the assembled prompt.
+        formatted_prompt, formatted_first_message = _resolve_prompt_for_call(call_attempt)
+        if not formatted_prompt:
+            logger.error(
+                "No usable prompt for CallAttempt %s (phase=%s). Marking FAILED.",
+                call_attempt_id,
+                call_attempt.phase,
+            )
             call_attempt.status = CallStatus.FAILED
             call_attempt.save()
-            return {"success": False, "error": "No active prompt"}
-
-        # Format prompt with meeting context
-        formatted_prompt = format_prompt_with_context(prompt.system_prompt, meeting)
-        formatted_first_message = None
-        if prompt.first_message:
-            formatted_first_message = format_first_message_with_context(
-                prompt.first_message, meeting
-            )
+            return {"success": False, "error": "No usable prompt source"}
 
         # Prepare context data
         context_data = {
-            "meeting_id": meeting.id,
+            "meeting_id": getattr(meeting, "id", None),
+            "visit_id": getattr(visit, "id", None),
             "offset_minutes": call_attempt.scheduled_offset_minutes,
             "call_attempt_id": call_attempt.id,
         }
@@ -278,8 +401,13 @@ def retry_failed_call(call_attempt_id: int):
 
     try:
         call_attempt = CallAttempt.objects.get(id=call_attempt_id)
+        # Resolve agent from visit-or-meeting (PR 6).
+        visit = call_attempt.visit
         meeting = call_attempt.meeting
-        agent = meeting.agent
+        agent = (visit.agent if visit else None) or (meeting.agent if meeting else None)
+        if agent is None:
+            logger.error("CallAttempt %s (retry) has neither visit nor meeting.", call_attempt_id)
+            return {"success": False, "error": "No agent resolvable"}
 
         # Validate agent has phone number
         if not agent.phone_number:
@@ -288,28 +416,47 @@ def retry_failed_call(call_attempt_id: int):
             )
             return {"success": False, "error": "No phone number"}
 
-        # Get active prompt
-        prompt = get_active_prompt(call_attempt.phase)
-        if not prompt:
-            logger.error(f"No active prompt found for phase {call_attempt.phase}")
-            return {"success": False, "error": "No active prompt"}
+        # PR 6 second-pass hard cap: even if the scheduler picked us, refuse
+        # to redial if the total dials for this (target, phase) have already
+        # hit MAX_CALL_ATTEMPTS_PER_PHASE. This is the defense-in-depth check;
+        # the scheduler's pre-spawn check is the primary one.
+        from .constants import MAX_CALL_ATTEMPTS_PER_PHASE
 
+        total_dials = _phase_dial_count(visit=visit, meeting=meeting, phase=call_attempt.phase)
+        if total_dials >= MAX_CALL_ATTEMPTS_PER_PHASE:
+            logger.warning(
+                "Retry refused for CallAttempt %s — already %d/%d dials. "
+                "(Scheduler should have suppressed; reporting for forensics.)",
+                call_attempt_id,
+                total_dials,
+                MAX_CALL_ATTEMPTS_PER_PHASE,
+            )
+            return {"success": False, "error": "Call attempt cap reached"}
+
+        # PR 6: prefer visit.pre/post_call_prompt via shared helper.
+        formatted_prompt, formatted_first_message = _resolve_prompt_for_call(call_attempt)
+        if not formatted_prompt:
+            logger.error(
+                "No usable prompt for retry CallAttempt %s (phase=%s).",
+                call_attempt_id,
+                call_attempt.phase,
+            )
+            return {"success": False, "error": "No usable prompt source"}
+
+        # PR 6 follow-up: increment retry_count BEFORE dialing so the cap
+        # accounting reflects the dial attempt even if the EL call itself
+        # errors out. `update_fields` keeps the change atomic with the
+        # status reset below.
+        call_attempt.retry_count = (call_attempt.retry_count or 0) + 1
         # Reset call attempt status to SCHEDULED for retry
         call_attempt.status = CallStatus.SCHEDULED
         call_attempt.external_call_id = None  # Clear old call ID
-        call_attempt.save()
-
-        # Format prompt with meeting context
-        formatted_prompt = format_prompt_with_context(prompt.system_prompt, meeting)
-        formatted_first_message = None
-        if prompt.first_message:
-            formatted_first_message = format_first_message_with_context(
-                prompt.first_message, meeting
-            )
+        call_attempt.save(update_fields=["retry_count", "status", "external_call_id", "updated_at"])
 
         # Prepare context data
         context_data = {
-            "meeting_id": meeting.id,
+            "meeting_id": getattr(meeting, "id", None),
+            "visit_id": getattr(visit, "id", None),
             "offset_minutes": call_attempt.scheduled_offset_minutes,
             "call_attempt_id": call_attempt.id,
             "is_retry": True,
@@ -362,6 +509,9 @@ def trigger_pre_meeting_call(meeting_id: int, offset_minutes: int):
         offset_minutes: Offset in minutes (negative, e.g., -60, -30)
     """
     try:
+        from .constants import MAX_CALL_ATTEMPTS_PER_PHASE
+        from .models import Visit
+
         meeting = Meeting.objects.get(id=meeting_id)
         agent = meeting.agent
 
@@ -376,28 +526,20 @@ def trigger_pre_meeting_call(meeting_id: int, offset_minutes: int):
             )
             return {"success": False, "error": "No phone number"}
 
-        # Get active prompt for pre-meeting
-        prompt = get_active_prompt(CallPhase.PRE_MEETING)
-        if not prompt:
-            logger.error("No active pre-meeting prompt found")
-            log_activity(
-                meeting=meeting,
-                user=agent,
-                action="Pre-meeting call failed - no active prompt",
-                level=LogLevel.ERROR,
-            )
-            return {"success": False, "error": "No active prompt"}
+        # PR 6: try to find a Visit linked to this Meeting so we can use the
+        # assembler's prompt. Two side-by-side data models exist (Meeting and
+        # Visit); the calendar sync may have produced both for the same
+        # external event. We link by calendar event id when possible.
+        linked_visit = None
+        if meeting.external_id:
+            linked_visit = Visit.objects.filter(calendar_event_id=meeting.external_id).first()
 
-        # Validate prompt has content
-        if not prompt.system_prompt or not prompt.system_prompt.strip():
-            logger.error("Active pre-meeting prompt exists but has no system_prompt content")
-            log_activity(
-                meeting=meeting,
-                user=agent,
-                action="Pre-meeting call failed - prompt has no content",
-                level=LogLevel.ERROR,
-            )
-            return {"success": False, "error": "Prompt has no content"}
+        # PR 6 hard cap: count total dials (initial + retries) for this
+        # (meeting OR linked-visit, phase) and refuse to create more once
+        # the cap is reached.
+        existing_dials = _phase_dial_count(
+            visit=linked_visit, meeting=meeting, phase=CallPhase.PRE_MEETING
+        )
 
         # Check if CallAttempt already exists (from pre-programming)
         call_attempt = CallAttempt.objects.filter(
@@ -408,29 +550,50 @@ def trigger_pre_meeting_call(meeting_id: int, offset_minutes: int):
         ).first()
 
         if not call_attempt:
+            if existing_dials >= MAX_CALL_ATTEMPTS_PER_PHASE:
+                logger.info(
+                    "Meeting %s pre-call cap reached (%d/%d dials) — no new attempt.",
+                    meeting_id,
+                    existing_dials,
+                    MAX_CALL_ATTEMPTS_PER_PHASE,
+                )
+                return {"success": False, "error": "Call attempt cap reached"}
+
             # Create new call attempt record if it doesn't exist
             scheduled_time = meeting.start_time + timedelta(minutes=offset_minutes)
             call_attempt = CallAttempt.objects.create(
                 meeting=meeting,
+                visit=linked_visit,  # PR 6: link to Visit if found
                 phase=CallPhase.PRE_MEETING,
                 scheduled_offset_minutes=offset_minutes,
                 scheduled_time=scheduled_time,
                 status=CallStatus.SCHEDULED,
             )
+        elif linked_visit and call_attempt.visit_id is None:
+            # Pre-programmed CallAttempt exists but isn't yet linked to the visit.
+            # Linking it lets `_resolve_prompt_for_call` see the assembled prompt.
+            call_attempt.visit = linked_visit
+            call_attempt.save(update_fields=["visit", "updated_at"])
 
-        # Format prompt with meeting context
-        formatted_prompt = format_prompt_with_context(prompt.system_prompt, meeting)
-
-        # Format first_message if available
-        formatted_first_message = None
-        if prompt.first_message:
-            formatted_first_message = format_first_message_with_context(
-                prompt.first_message, meeting
+        # PR 6: resolve prompt via shared helper — prefers visit.pre_call_prompt
+        # if a Visit is linked, falls through to legacy VoicePrompt otherwise.
+        formatted_prompt, formatted_first_message = _resolve_prompt_for_call(call_attempt)
+        if not formatted_prompt:
+            logger.error("No usable prompt for pre-meeting call (meeting=%s)", meeting_id)
+            log_activity(
+                meeting=meeting,
+                user=agent,
+                action="Pre-meeting call failed - no usable prompt source",
+                level=LogLevel.ERROR,
             )
+            call_attempt.status = CallStatus.FAILED
+            call_attempt.save()
+            return {"success": False, "error": "No usable prompt source"}
 
         # Prepare context data
         context_data = {
             "meeting_id": meeting.id,
+            "visit_id": getattr(call_attempt.visit, "id", None),
             "offset_minutes": offset_minutes,
             "call_attempt_id": call_attempt.id,
         }
@@ -475,6 +638,9 @@ def trigger_post_meeting_call(meeting_id: int, offset_minutes: int):
         offset_minutes: Offset in minutes (positive, e.g., 15, 30)
     """
     try:
+        from .constants import MAX_CALL_ATTEMPTS_PER_PHASE
+        from .models import Visit
+
         meeting = Meeting.objects.get(id=meeting_id)
         agent = meeting.agent
 
@@ -489,28 +655,15 @@ def trigger_post_meeting_call(meeting_id: int, offset_minutes: int):
             )
             return {"success": False, "error": "No phone number"}
 
-        # Get active prompt for post-meeting
-        prompt = get_active_prompt(CallPhase.POST_MEETING)
-        if not prompt:
-            logger.error("No active post-meeting prompt found")
-            log_activity(
-                meeting=meeting,
-                user=agent,
-                action="Post-meeting call failed - no active prompt",
-                level=LogLevel.ERROR,
-            )
-            return {"success": False, "error": "No active prompt"}
+        # PR 6: link to Visit if one exists for this calendar event.
+        linked_visit = None
+        if meeting.external_id:
+            linked_visit = Visit.objects.filter(calendar_event_id=meeting.external_id).first()
 
-        # Validate prompt has content
-        if not prompt.system_prompt or not prompt.system_prompt.strip():
-            logger.error("Active post-meeting prompt exists but has no system_prompt content")
-            log_activity(
-                meeting=meeting,
-                user=agent,
-                action="Post-meeting call failed - prompt has no content",
-                level=LogLevel.ERROR,
-            )
-            return {"success": False, "error": "Prompt has no content"}
+        # PR 6 hard cap: count total dials across linked visit + meeting.
+        existing_dials = _phase_dial_count(
+            visit=linked_visit, meeting=meeting, phase=CallPhase.POST_MEETING
+        )
 
         # Check if CallAttempt already exists (from pre-programming)
         call_attempt = CallAttempt.objects.filter(
@@ -521,29 +674,47 @@ def trigger_post_meeting_call(meeting_id: int, offset_minutes: int):
         ).first()
 
         if not call_attempt:
+            if existing_dials >= MAX_CALL_ATTEMPTS_PER_PHASE:
+                logger.info(
+                    "Meeting %s post-call cap reached (%d/%d dials) — no new attempt.",
+                    meeting_id,
+                    existing_dials,
+                    MAX_CALL_ATTEMPTS_PER_PHASE,
+                )
+                return {"success": False, "error": "Call attempt cap reached"}
+
             # Create new call attempt record if it doesn't exist
             scheduled_time = meeting.end_time + timedelta(minutes=offset_minutes)
             call_attempt = CallAttempt.objects.create(
                 meeting=meeting,
+                visit=linked_visit,  # PR 6
                 phase=CallPhase.POST_MEETING,
                 scheduled_offset_minutes=offset_minutes,
                 scheduled_time=scheduled_time,
                 status=CallStatus.SCHEDULED,
             )
+        elif linked_visit and call_attempt.visit_id is None:
+            call_attempt.visit = linked_visit
+            call_attempt.save(update_fields=["visit", "updated_at"])
 
-        # Format prompt with meeting context
-        formatted_prompt = format_prompt_with_context(prompt.system_prompt, meeting)
-
-        # Format first_message if available
-        formatted_first_message = None
-        if prompt.first_message:
-            formatted_first_message = format_first_message_with_context(
-                prompt.first_message, meeting
+        # PR 6: shared prompt resolver.
+        formatted_prompt, formatted_first_message = _resolve_prompt_for_call(call_attempt)
+        if not formatted_prompt:
+            logger.error("No usable prompt for post-meeting call (meeting=%s)", meeting_id)
+            log_activity(
+                meeting=meeting,
+                user=agent,
+                action="Post-meeting call failed - no usable prompt source",
+                level=LogLevel.ERROR,
             )
+            call_attempt.status = CallStatus.FAILED
+            call_attempt.save()
+            return {"success": False, "error": "No usable prompt source"}
 
         # Prepare context data
         context_data = {
             "meeting_id": meeting.id,
+            "visit_id": getattr(call_attempt.visit, "id", None),
             "offset_minutes": offset_minutes,
             "call_attempt_id": call_attempt.id,
         }
@@ -791,7 +962,7 @@ def process_visit_pre_calls():
       3. Trigger ElevenLabs call with generated prompt
       4. Update visit status
     """
-    from .constants import VisitStatus
+    from .constants import MAX_CALL_ATTEMPTS_PER_PHASE, VisitStatus
     from .models import CallAttempt, GenerationRun, GlobalSettings
     from .selectors import get_visits_needing_pre_call
     from .services.assembler import assemble_pre_call
@@ -822,6 +993,19 @@ def process_visit_pre_calls():
                     ],
                 ).exists()
                 if existing:
+                    continue
+
+                # PR 6 hard cap: count total dials (initial + retries) and
+                # bail once the cap is reached. Counting dials (not just rows)
+                # is essential because `retry_failed_call` reuses rows.
+                total_dials = _phase_dial_count(visit=visit, phase=CallPhase.PRE_MEETING)
+                if total_dials >= MAX_CALL_ATTEMPTS_PER_PHASE:
+                    logger.info(
+                        "Visit %s pre-call cap reached (%d/%d dials) — no new attempt.",
+                        visit.id,
+                        total_dials,
+                        MAX_CALL_ATTEMPTS_PER_PHASE,
+                    )
                     continue
 
                 # Enrich client data
@@ -863,13 +1047,16 @@ def process_visit_pre_calls():
                     scheduled_time=timezone.now(),
                 )
 
-                # Trigger the call
+                # Trigger the call. PR 6: pass `visit.pre_call_first_message`
+                # (was hardcoded `None` — the assembler's first-message output
+                # was being dropped, so EL fell back to its default greeting
+                # for the agent.)
                 result = trigger_agent_call(
                     agent_phone=visit.agent.phone_number,
                     prompt_text=prompt,
                     context_data={"visit_id": visit.id, "client": visit.client.name},
                     call_attempt=call,
-                    first_message_text=None,
+                    first_message_text=visit.pre_call_first_message or None,
                 )
 
                 if result.get("success"):
@@ -903,7 +1090,7 @@ def process_visit_post_calls():
       2. Trigger ElevenLabs call
       3. (After call completes via webhook): summarize transcript, push to CRM
     """
-    from .constants import VisitStatus
+    from .constants import MAX_CALL_ATTEMPTS_PER_PHASE, VisitStatus
     from .models import CallAttempt, GenerationRun, GlobalSettings
     from .selectors import get_visits_needing_post_call
     from .services.assembler import assemble_post_call
@@ -929,6 +1116,17 @@ def process_visit_post_calls():
                     ],
                 ).exists()
                 if existing:
+                    continue
+
+                # PR 6 hard cap — see process_visit_pre_calls for rationale.
+                total_dials = _phase_dial_count(visit=visit, phase=CallPhase.POST_MEETING)
+                if total_dials >= MAX_CALL_ATTEMPTS_PER_PHASE:
+                    logger.info(
+                        "Visit %s post-call cap reached (%d/%d dials) — no new attempt.",
+                        visit.id,
+                        total_dials,
+                        MAX_CALL_ATTEMPTS_PER_PHASE,
+                    )
                     continue
 
                 settings = GlobalSettings.load()
@@ -967,12 +1165,13 @@ def process_visit_post_calls():
                     scheduled_time=timezone.now(),
                 )
 
+                # PR 6: pass `visit.post_call_first_message` — was hardcoded None.
                 result = trigger_agent_call(
                     agent_phone=visit.agent.phone_number,
                     prompt_text=prompt,
                     context_data={"visit_id": visit.id, "client": visit.client.name},
                     call_attempt=call,
-                    first_message_text=None,
+                    first_message_text=visit.post_call_first_message or None,
                 )
 
                 if result.get("success"):

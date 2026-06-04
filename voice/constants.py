@@ -48,7 +48,15 @@ POST_MEETING_OFFSETS = [15, 30]  # 15 mins after, 30 mins after
 SCHEDULER_WINDOW = 10  # Check within ±5 minutes of target time
 
 # Retry configuration
-MAX_RETRY_ATTEMPTS = 3
+# Hard cap on total CallAttempt rows per (visit OR meeting, phase). The
+# scheduler refuses to create or retry a CallAttempt once this count is
+# reached. PR 6: prior to this cap the retry loop in `check_and_trigger_calls`
+# ran every 5 minutes against any FAILED/NO_ANSWER call until the meeting
+# started — easily producing 50+ outbound dials per night. User explicitly
+# asked for "hard cap of two calls" per phase.
+MAX_CALL_ATTEMPTS_PER_PHASE = 2
+# Legacy alias kept for back-compat (was unreferenced; treated as the same cap now).
+MAX_RETRY_ATTEMPTS = MAX_CALL_ATTEMPTS_PER_PHASE
 RETRY_DELAY_SECONDS = 60  # Wait 1 minute between retries
 
 

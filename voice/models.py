@@ -186,6 +186,15 @@ class CallAttempt(models.Model):
     executed_at = models.DateTimeField(
         null=True, blank=True, help_text="When the call was actually executed"
     )
+    retry_count = models.PositiveIntegerField(
+        default=0,
+        help_text=(
+            "Number of redials performed on THIS row (does NOT count the initial dial). "
+            "PR 6: was missing — `retry_failed_call` reuses the same CallAttempt row, "
+            "so the only signal that retries happened was `updated_at` movement, which "
+            "made row-counting caps inert. Total dials for this row = 1 + retry_count."
+        ),
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
