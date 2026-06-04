@@ -1057,11 +1057,21 @@ def process_visit_post_call_completion(call_attempt_id: int):
         try:
             from .services.lessons import distill_lessons
 
-            evaluation_outcome = getattr(call, "outcome", "") or ""
+            # Best-effort outcome from the analyze_post_call structured analysis;
+            # the prior `getattr(call, "outcome", "")` always returned "" because
+            # CallAttempt has no `outcome` field (Code Review F3).
+            outcome = ""
+            if isinstance(getattr(call, "analysis", None), dict):
+                for k in ("objective_attained", "outcome", "status_label"):
+                    v = call.analysis.get(k)
+                    if isinstance(v, str) and v:
+                        outcome = v
+                        break
+
             distill_lessons(
                 client=visit.client,
                 new_post_call_summary=visit.post_call_summary or "",
-                evaluation_outcome=evaluation_outcome,
+                evaluation_outcome=outcome,
             )
         except Exception:
             logger.exception(

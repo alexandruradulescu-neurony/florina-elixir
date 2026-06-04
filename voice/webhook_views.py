@@ -340,25 +340,49 @@ class ElevenLabsWebhookView(View):
                     visit.save(update_fields=["status", "updated_at"])
                     logger.info(f"Visit #{visit.id} advanced to {new_status}")
 
-                # If the transcript arrived AFTER the post-call prompt was first
-                # generated (e.g., the scheduled job ran with transcript=""), this
-                # re-assembly bakes the actual transcript into the prompt for any
-                # subsequent retry dial. Failures are logged but never raised — the
-                # webhook's primary job is to acknowledge the call, not to keep the
-                # prompt fresh.
-                if call_attempt.phase == CallPhase.POST_MEETING:
+                # Closed-loop: after a successful post-call debrief, distill the
+                # new transcript / analysis into Client.lessons_learned so future
+                # pre-call assemblies are smarter. Failures are logged but never
+                # raised — the webhook must always acknowledge the call quickly
+                # and the debrief itself is the user-visible success.
+                #
+                # (Previously this branch re-ran `assemble_post_call` to bake the
+                # late-arriving transcript into the prompt "for retry dials". But
+                # the scheduler only retries FAILED/NO_ANSWER attempts, never a
+                # COMPLETED post-meeting — the re-assembly was ~4k tokens of
+                # wasted Claude spend per real post-call. Dropped in PR 5.)
+                if (
+                    call_attempt.phase == CallPhase.POST_MEETING
+                    and call_attempt.status == CallStatus.COMPLETED
+                    and call_attempt.transcript
+                ):
                     try:
                         from voice.models import GenerationRun
-                        from voice.services.assembler import assemble_post_call
+                        from voice.services.lessons import distill_lessons
 
-                        assemble_post_call(
-                            visit,
-                            transcript=call_attempt.transcript or "",
+                        # Pull a structured outcome signal from the analyze_post_call
+                        # JSON if present; otherwise fall back to the empty string
+                        # (the distill prompt tolerates that). Best-effort — never
+                        # block the webhook on a missing key.
+                        outcome = ""
+                        if isinstance(call_attempt.analysis, dict):
+                            for k in ("objective_attained", "outcome", "status_label"):
+                                v = call_attempt.analysis.get(k)
+                                if isinstance(v, str) and v:
+                                    outcome = v
+                                    break
+
+                        distill_lessons(
+                            client=visit.client,
+                            new_post_call_summary=visit.post_call_summary
+                            or call_attempt.summary
+                            or call_attempt.transcript[:2000],
+                            evaluation_outcome=outcome,
                             triggered_by=GenerationRun.TriggeredBy.END_OF_MEETING,
                         )
                     except Exception:
                         logger.exception(
-                            "End-of-meeting POST_CALL re-assembly failed for visit=%s",
+                            "LESSONS_DISTILL chain failed for visit=%s (debrief still complete)",
                             visit.id,
                         )
 

@@ -241,6 +241,9 @@ def _run_assembly(
             error="Claude API call returned None",
         )
 
+    # Hoist `parsed` to a single binding before the try so the failure-record
+    # branch can reference it unambiguously (no `dir()` inspection needed).
+    parsed: dict[str, Any] = {}
     try:
         parsed = _parse_response(raw)
         body, first_message = _validate_pair(parsed)
@@ -254,7 +257,7 @@ def _run_assembly(
             context_bundle=context,
             claude_request=rendered,
             claude_response=raw,
-            parsed_outputs=parsed if "parsed" in dir() else {},
+            parsed_outputs=parsed,
             input_tokens=in_tok,
             output_tokens=out_tok,
             success=False,

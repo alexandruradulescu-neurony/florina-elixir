@@ -820,13 +820,52 @@ class MegaPromptActivateView(SuperuserRequiredMixin, View):
     Only POST is supported — GET should not flip state.
     """
 
-    def post(self, request, pk):
+    @staticmethod
+    def _export_seed_file_async(mega_prompt_pk: int, domain: str) -> None:
+        """Run `export_mega_prompts` off the request thread.
+
+        Spawned via `transaction.on_commit` so it fires only after the
+        activation transaction has actually committed. The actual file write
+        happens in a daemon thread so the HTTP response returns immediately —
+        the seed file is a backup, the DB is the source of truth. A daemon
+        thread is appropriate because:
+          - Failure is not user-visible (logged + ActivityLog warning).
+          - There's nothing to await — the next mutation will overwrite anyway.
+          - If the process is restarted mid-write, the next activation re-runs
+            the export.
+        """
         from io import StringIO
+        from threading import Thread
 
         from django.core.management import call_command
-        from django.db import transaction as db_transaction
 
         from voice.constants import LogLevel
+        from voice.services.logging import log_activity
+
+        def _do_export() -> None:
+            try:
+                call_command("export_mega_prompts", stdout=StringIO())
+            except Exception:
+                logger.exception(
+                    "Async auto-export to seed file failed for MegaPrompt pk=%s",
+                    mega_prompt_pk,
+                )
+                # Best-effort audit row; swallow if logging itself fails.
+                try:
+                    log_activity(
+                        user=None,
+                        action="Seed-file auto-export failed (async)",
+                        details={"mega_prompt_id": mega_prompt_pk, "domain": domain},
+                        level=LogLevel.WARNING,
+                    )
+                except Exception:
+                    logger.exception("Failed to write ActivityLog for failed async export")
+
+        Thread(target=_do_export, name="megaprompt-seed-export", daemon=True).start()
+
+    def post(self, request, pk):
+        from django.db import transaction as db_transaction
+
         from voice.models import MegaPrompt
         from voice.services.logging import log_activity
 
@@ -852,6 +891,15 @@ class MegaPromptActivateView(SuperuserRequiredMixin, View):
             target.is_active = True
             target.save(update_fields=["is_active", "updated_at"])
 
+            # Schedule the seed-file rewrite to run AFTER this transaction
+            # commits, in a daemon thread off the request path. PR 5 / async
+            # export-on-activate. Failure of the file write does NOT roll back
+            # the DB activation — the DB is the source of truth, the seed
+            # file is a backup.
+            db_transaction.on_commit(
+                lambda pk=target.pk, dom=target.domain: self._export_seed_file_async(pk, dom)
+            )
+
         log_activity(
             user=request.user,
             action=f"Activated MegaPrompt [{target.get_domain_display()}] v{target.version}",
@@ -862,34 +910,11 @@ class MegaPromptActivateView(SuperuserRequiredMixin, View):
             },
         )
 
-        # Auto-export: rewrite the on-disk seed file for this domain so the
-        # repo always reflects the current active version. Failure here does
-        # NOT roll back the activation — the activation is the source of
-        # truth; the seed file is a backup.
-        try:
-            call_command("export_mega_prompts", stdout=StringIO())
-        except Exception:
-            logger.exception(
-                "Auto-export to seed file failed after activating MegaPrompt pk=%s",
-                target.pk,
-            )
-            log_activity(
-                user=request.user,
-                action="Seed-file auto-export failed after activation",
-                details={"mega_prompt_id": target.pk, "domain": target.domain},
-                level=LogLevel.WARNING,
-            )
-            messages.warning(
-                request,
-                f"Activated v{target.version}, but the seed file auto-export "
-                f"failed (see logs). Run `manage.py export_mega_prompts` "
-                f"manually to sync.",
-            )
-        else:
-            messages.success(
-                request,
-                f"Activated [{target.get_domain_display()}] v{target.version}. Seed file updated.",
-            )
+        messages.success(
+            request,
+            f"Activated [{target.get_domain_display()}] v{target.version}. "
+            f"Seed file is being updated in the background.",
+        )
         return redirect("voice:mega_prompt_list")
 
     def get(self, request, pk):
@@ -1032,12 +1057,70 @@ class VisitRegenerateView(SuperuserRequiredMixin, View):
     triggered_by value. The assembler itself respects per-field locks, so
     if both fields in the domain are locked, the run will be a no-op
     success skip — that's expected.
+
+    Rate-limited (PR 5, Code Review F2 / earlier security finding) at two
+    levels because each POST triggers a paid Claude API call:
+
+    - **Per-(user, visit, domain) cooldown**: a 30-second floor between
+      successive regenerations of the same field. Kills the impatient
+      double-click case before it bills two Claude calls. Implemented via
+      `cache.add` so it's atomic.
+    - **Per-user hourly cap**: 60 regenerations per user per hour, sliding
+      hour bucket. Bounds an authenticated abuse / runaway-script scenario
+      (still gated to superusers, but credentials get compromised).
+
+    Both limits return a 429-equivalent flash message + redirect; nothing
+    here proxies through to Claude until both pass.
     """
+
+    REGEN_COOLDOWN_SECONDS = 30
+    REGEN_HOURLY_LIMIT = 60
+
+    def _check_rate_limit(self, request, visit_id, domain) -> str | None:
+        """Return a flash-message string if rate-limited; None otherwise."""
+        from django.core.cache import cache
+
+        user_id = request.user.id
+        cooldown_key = f"regen_rate:{user_id}:{visit_id}:{domain}"
+        # cache.add atomically returns False if the key already exists.
+        if not cache.add(cooldown_key, "1", timeout=self.REGEN_COOLDOWN_SECONDS):
+            return (
+                f"You regenerated this {domain}-call prompt very recently — "
+                f"please wait up to {self.REGEN_COOLDOWN_SECONDS}s and try again."
+            )
+
+        hourly_key = f"regen_hourly:{user_id}"
+        count = cache.get(hourly_key, 0)
+        if count >= self.REGEN_HOURLY_LIMIT:
+            # Don't burn the cooldown slot we just claimed — release it so the
+            # user isn't double-penalised after the hourly window rolls over.
+            cache.delete(cooldown_key)
+            return (
+                f"You've hit the regeneration limit of {self.REGEN_HOURLY_LIMIT}/hour "
+                f"(Claude API cost guardrail). Wait for the hour to roll over."
+            )
+        # Best-effort increment. `cache.incr` would be atomic if the backend
+        # supports it (Memcached/Redis do; LocMemCache does too via lock).
+        try:
+            cache.incr(hourly_key)
+        except ValueError:
+            cache.set(hourly_key, count + 1, timeout=3600)
+        return None
 
     def post(self, request, visit_id, domain):
         from voice.constants import CallPhase, CallStatus
         from voice.models import CallAttempt, GenerationRun, Visit
         from voice.services.assembler import assemble_post_call, assemble_pre_call
+
+        if domain not in ("pre", "post"):
+            messages.error(request, f"Unknown domain: {domain!r}")
+            return redirect("voice:visit_detail", visit_id=visit_id)
+
+        # Rate-limit BEFORE looking up the visit (no DB hit on rejected calls).
+        rate_msg = self._check_rate_limit(request, visit_id, domain)
+        if rate_msg:
+            messages.warning(request, rate_msg)
+            return redirect("voice:visit_detail", visit_id=visit_id)
 
         try:
             visit = Visit.objects.get(pk=visit_id)
@@ -1051,7 +1134,7 @@ class VisitRegenerateView(SuperuserRequiredMixin, View):
                 triggered_by=GenerationRun.TriggeredBy.MANUAL,
                 user=request.user,
             )
-        elif domain == "post":
+        else:  # domain == "post"
             # PR #7 review: pass the actual transcript so the regenerated
             # post-call prompt is transcript-aware (the webhook path already
             # does this; the manual regen was dropping it). Use the most
@@ -1073,9 +1156,6 @@ class VisitRegenerateView(SuperuserRequiredMixin, View):
                 triggered_by=GenerationRun.TriggeredBy.MANUAL,
                 user=request.user,
             )
-        else:
-            messages.error(request, f"Unknown domain: {domain!r}")
-            return redirect("voice:visit_detail", visit_id=visit_id)
 
         if run.success:
             messages.success(

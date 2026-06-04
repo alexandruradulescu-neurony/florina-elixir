@@ -45,6 +45,13 @@ def _resolve_anthropic_key() -> str:
     return ""
 
 
+# Hard wall-clock cap on a single Claude call. Without this the SDK default
+# (~10 minutes) lets a single hung call freeze the entire scheduled job loop
+# in process_visit_pre_calls / process_visit_post_calls (one call per visit,
+# sequential). 60s is generous for the prompt sizes we send.
+_CLAUDE_TIMEOUT_SECONDS = float(config("ANTHROPIC_TIMEOUT_SECONDS", default=60.0, cast=float))
+
+
 def _get_client():
     """Lazy-init the Anthropic client."""
     global _client
@@ -54,7 +61,7 @@ def _get_client():
         api_key = _resolve_anthropic_key()
         if not api_key:
             raise ValueError("ANTHROPIC_API_KEY not configured in .env")
-        _client = anthropic.Anthropic(api_key=api_key)
+        _client = anthropic.Anthropic(api_key=api_key, timeout=_CLAUDE_TIMEOUT_SECONDS)
     return _client
 
 
@@ -63,41 +70,20 @@ def is_configured() -> bool:
     return bool(_resolve_anthropic_key())
 
 
-def _call_claude(system_prompt: str, user_message: str, max_tokens: int = 4096) -> str | None:
-    """
-    Make a single Claude API call.
-
-    Args:
-        system_prompt: System instructions.
-        user_message: User content.
-        max_tokens: Max response tokens.
-
-    Returns:
-        Response text or None on failure.
-    """
-    try:
-        client = _get_client()
-        response = client.messages.create(
-            model=config("LLM_MODEL", default="claude-sonnet-4-20250514"),
-            max_tokens=max_tokens,
-            system=system_prompt,
-            messages=[{"role": "user", "content": user_message}],
-        )
-        return response.content[0].text
-    except Exception as e:
-        logger.error(f"Claude API call failed: {e}", exc_info=True)
-        return None
-
-
 def _call_claude_with_usage(
     system_prompt: str,
     user_message: str,
     max_tokens: int = 4096,
 ) -> tuple[str | None, int, int]:
-    """Like _call_claude, but also returns (input_tokens, output_tokens).
+    """Make a single Claude API call.
 
-    Returns (text_or_none, input_tokens, output_tokens). On failure, returns
-    (None, 0, 0).
+    Returns ``(text_or_none, input_tokens, output_tokens)``. On failure
+    (network error, timeout, malformed response, missing key), returns
+    ``(None, 0, 0)`` and logs the error — never raises to the caller.
+
+    Timeout is enforced at the SDK client level (see ``_get_client``),
+    so a hung call surfaces here as an exception after
+    ``ANTHROPIC_TIMEOUT_SECONDS`` rather than freezing the worker.
     """
     try:
         client = _get_client()
@@ -114,6 +100,22 @@ def _call_claude_with_usage(
     except Exception as e:
         logger.error(f"Claude API call failed: {e}", exc_info=True)
         return None, 0, 0
+
+
+def _call_claude(system_prompt: str, user_message: str, max_tokens: int = 4096) -> str | None:
+    """Backwards-compatible thin wrapper around ``_call_claude_with_usage``.
+
+    Existing callers that don't need token accounting (``summarize_*``,
+    ``generate_voice_prompt``, ``analyze_post_call``, ``generate_client_summary``)
+    keep their signature. They now also benefit from the SDK timeout and
+    pick up token accounting for free if they ever want it.
+    """
+    text, _in_tok, _out_tok = _call_claude_with_usage(
+        system_prompt=system_prompt,
+        user_message=user_message,
+        max_tokens=max_tokens,
+    )
+    return text
 
 
 def summarize_methodology_pdf(pdf_text: str) -> str | None:
