@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from typing import Any
 
 from voice.models import GenerationRun, GlobalSettings, MegaPrompt, Visit
@@ -51,10 +52,38 @@ def _load_active(domain: str) -> MegaPrompt | None:
     return MegaPrompt.objects.filter(domain=domain, is_active=True).first()
 
 
+_RO_MIXED_QUOTE_RE = re.compile(r"„([^„\"\n]{0,400}?)\"")
+
+
+def _repair_romanian_quotes(text: str) -> str:
+    """Defense-in-depth: fix the *one* specific Claude quirk we've seen break JSON.
+
+    Claude is heavily trained on Romanian where text is often written with a
+    low U+201E opening quote (`„`) but an ASCII `"` (U+0022) as the closing
+    quote — instead of the typographically correct U+201D right curly close
+    (`"`). When that pattern shows up *inside* a JSON string value, the ASCII
+    `"` terminates the string prematurely and json.loads dies with
+    `Expecting property name enclosed in double quotes`.
+
+    Targeted fix: any `„…"` pattern (Romanian open + ASCII close, no other
+    Romanian-open or ASCII-quote between them, capped at 400 chars so we
+    can't accidentally span the entire body field) gets its closing rewritten
+    to U+201D. Anchoring to the Romanian opening makes this surgical — we
+    don't touch ASCII `"` that genuinely delimit JSON properties or values.
+
+    This is best-effort. If a future Claude version invents a new quirk,
+    json.loads will still fail loud (GenerationRun.error captures the detail).
+    """
+    return _RO_MIXED_QUOTE_RE.sub(lambda m: f"„{m.group(1)}”", text)
+
+
 def _parse_response(raw: str) -> dict[str, Any]:
     """Parse JSON `{body, first_message}` from Claude's response.
 
-    Tolerates fenced markdown (```json … ```) and stray whitespace.
+    Tolerates fenced markdown (```json … ```) and stray whitespace. Applies a
+    targeted repair pass for the Romanian mixed-quote bug class before
+    attempting json.loads (see `_repair_romanian_quotes`).
+
     Raises ValueError on unrecoverable failure.
     """
     text = (raw or "").strip()
@@ -67,7 +96,17 @@ def _parse_response(raw: str) -> dict[str, Any]:
         text = text.strip()
         if text.endswith("```"):
             text = text[:-3].strip()
-    parsed = json.loads(text)
+    try:
+        parsed = json.loads(text)
+    except json.JSONDecodeError:
+        # Try repair pass and re-parse. If repair didn't change the text we
+        # don't bother retrying — re-raise the original error in the caller.
+        repaired = _repair_romanian_quotes(text)
+        if repaired != text:
+            logger.warning("assembler: json.loads failed; retrying after Romanian-quote repair")
+            parsed = json.loads(repaired)
+        else:
+            raise
     if not isinstance(parsed, dict):
         raise ValueError("Claude response was JSON but not an object")
     return parsed

@@ -232,6 +232,21 @@ def render_placeholders(template: str, values: dict[str, Any]) -> str:
     Values are NEVER evaluated as templates themselves, so a value containing
     `{another_placeholder}` will appear literally in the output (not recursed).
     Unknown placeholders are left in place and logged at WARNING.
+
+    Backtick escape: placeholders inside Markdown-style backtick code spans
+    (`` `{name}` ``) are PRESERVED unchanged. This lets a mega-prompt author
+    distinguish two intents:
+
+      - `{client_summary}` outside backticks — render-time data injection
+        (substituted with the value here; Claude sees the real content)
+      - `` `{agent_first_name}` `` inside backticks — dial-time passthrough
+        (passed through verbatim so Claude can echo the literal placeholder
+        in its output; the elevenlabs.format_prompt_for_visit pass substitutes
+        it at the moment the call is dialed)
+
+    The split-on-backticks approach honors any pair of single backticks. Multi-
+    backtick code fences (``` ``…`` ```) are not used in our seed files, so we
+    don't model them.
     """
     seen_unknown: set[str] = set()
 
@@ -248,4 +263,9 @@ def render_placeholders(template: str, values: dict[str, Any]) -> str:
             )
         return match.group(0)
 
-    return _PLACEHOLDER_RE.sub(repl, template)
+    # Split on single backticks. Even indices are outside backticks
+    # (substitute); odd indices are inside backticks (preserve literally).
+    parts = template.split("`")
+    for i in range(0, len(parts), 2):
+        parts[i] = _PLACEHOLDER_RE.sub(repl, parts[i])
+    return "`".join(parts)
