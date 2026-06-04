@@ -431,151 +431,18 @@ def sync_call_status_from_api(call_attempt: CallAttempt) -> bool:
 
 
 # ============================================================================
-# ElevenLabs Webhook Management API
-# ============================================================================
-
-
-def get_elevenlabs_webhook_config() -> dict[str, Any] | None:
-    """
-    Get current webhook configuration from ElevenLabs.
-
-    Note: This function attempts to query ElevenLabs API for webhook configuration.
-    The exact endpoint may vary - this is a placeholder that can be updated
-    when ElevenLabs API documentation is available.
-
-    Returns:
-        Dictionary with webhook config: {'url': str, 'events': list, ...} or None if not available
-    """
-    import requests
-    from decouple import config
-
-    elevenlabs_api_key = config("ELEVENLABS_API_KEY", default="")
-    if not elevenlabs_api_key:
-        return None
-
-    try:
-        headers = {"xi-api-key": elevenlabs_api_key}
-
-        # Try to get webhook configuration
-        # Possible endpoints (to be verified with ElevenLabs docs):
-        # - GET /v1/webhooks
-        # - GET /v1/convai/webhooks
-
-        # Try webhooks endpoint first
-        api_url = "https://api.elevenlabs.io/v1/webhooks"
-        response = requests.get(api_url, headers=headers, timeout=10)
-
-        if response.status_code == 200:
-            data = response.json()
-            # Return first webhook if available
-            if isinstance(data, list) and len(data) > 0:
-                return data[0]
-            elif isinstance(data, dict) and "webhooks" in data:
-                webhooks = data["webhooks"]
-                if isinstance(webhooks, list) and len(webhooks) > 0:
-                    return webhooks[0]
-            elif isinstance(data, dict):
-                return data
-
-        # If not found, return None (webhook not configured)
-        return None
-
-    except requests.exceptions.RequestException:
-        # API endpoint may not exist or may require different authentication
-        # Return None to indicate we can't check via API
-        return None
-    except Exception as e:
-        logger.warning(f"Error fetching ElevenLabs webhook config: {e}")
-        return None
-
-
-def update_elevenlabs_webhook(webhook_url: str) -> dict[str, Any]:
-    """
-    Update webhook URL in ElevenLabs.
-
-    Note: This function attempts to update webhook via ElevenLabs API.
-    The exact endpoint may vary - this is a placeholder that can be updated
-    when ElevenLabs API documentation is available.
-
-    Args:
-        webhook_url: Full webhook URL to configure
-
-    Returns:
-        Dictionary with result: {'success': bool, 'error': str}
-    """
-    import requests
-    from decouple import config
-
-    result = {"success": False, "error": None}
-
-    elevenlabs_api_key = config("ELEVENLABS_API_KEY", default="")
-    if not elevenlabs_api_key:
-        result["error"] = "Missing ElevenLabs API key"
-        return result
-
-    try:
-        headers = {"Content-Type": "application/json", "xi-api-key": elevenlabs_api_key}
-
-        # Try to update webhook configuration
-        # Possible endpoints (to be verified with ElevenLabs docs):
-        # - POST /v1/webhooks (create new)
-        # - PUT /v1/webhooks/{webhook_id} (update existing)
-        # - PATCH /v1/webhooks/{webhook_id} (update existing)
-
-        # First, try to get existing webhook
-        existing_webhook = get_elevenlabs_webhook_config()
-
-        if existing_webhook and existing_webhook.get("id"):
-            # Update existing webhook
-            webhook_id = existing_webhook["id"]
-            api_url = f"https://api.elevenlabs.io/v1/webhooks/{webhook_id}"
-
-            payload = {
-                "url": webhook_url,
-                "events": ["post_call_transcription"],  # Default event type
-            }
-
-            # Try PUT first, then PATCH
-            for method in ["put", "patch"]:
-                try:
-                    response = getattr(requests, method)(
-                        api_url, headers=headers, json=payload, timeout=10
-                    )
-                    if response.status_code in [200, 201, 204]:
-                        result["success"] = True
-                        return result
-                except requests.exceptions.RequestException:
-                    continue
-        else:
-            # Create new webhook
-            api_url = "https://api.elevenlabs.io/v1/webhooks"
-
-            payload = {"url": webhook_url, "events": ["post_call_transcription"]}
-
-            response = requests.post(api_url, headers=headers, json=payload, timeout=10)
-            if response.status_code in [200, 201]:
-                result["success"] = True
-                return result
-
-        # If we get here, update failed
-        result["error"] = f"API returned status {response.status_code}: {response.text[:200]}"
-        return result
-
-    except requests.exceptions.RequestException as e:
-        result["error"] = f"Request failed: {str(e)}"
-        logger.warning(f"Could not update ElevenLabs webhook via API: {e}")
-        logger.info("This is expected if ElevenLabs doesn't provide webhook management API")
-        logger.info("Please update webhook manually in ElevenLabs dashboard")
-        return result
-    except Exception as e:
-        result["error"] = f"Unexpected error: {str(e)}"
-        logger.warning(f"Error updating ElevenLabs webhook: {e}")
-        return result
-
-
-# ============================================================================
 # ElevenLabs Conversational AI Integration Service
 # ============================================================================
+#
+# The previous version of this file shipped a `get_elevenlabs_webhook_config`
+# / `update_elevenlabs_webhook` pair. Both were speculative — the doc strings
+# admitted the endpoints they hit were "placeholder[s] ... to be updated when
+# ElevenLabs API documentation is available." They were only ever called from
+# the `NgrokWebhookStatusView` (a dev dashboard) and the `detect_ngrok`
+# management command, both of which have been removed. Removing the
+# placeholder functions too — the real webhook URL is configured manually in
+# the ElevenLabs dashboard, which is also what the docstrings ended up
+# instructing operators to do as a fallback.
 # Note: Twilio number must be configured in ElevenLabs dashboard.
 # ElevenLabs handles all Twilio operations internally.
 

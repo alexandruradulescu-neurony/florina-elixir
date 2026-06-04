@@ -10,60 +10,20 @@ class VoiceConfig(AppConfig):
     name = "voice"
 
     def ready(self):
+        """App ready hook.
+
+        Scheduled jobs are registered via django-apscheduler's
+        ``runapscheduler`` management command — not here — to avoid the
+        scheduler auto-starting inside every gunicorn worker, every
+        management command, and every test process.
+
+        The previous version of this method ran an ngrok auto-detection
+        block on every startup that polled ``localhost:4040`` and printed
+        webhook-configuration hints. That made sense in the era of local
+        development against ngrok tunnels, but the app now lives on a
+        real domain (``florina.vm.neurony.dev``); the auto-detect was
+        dead noise on every worker boot. Removed entirely. OAuth flows
+        that need an HTTPS callback in dev continue to resolve the
+        ngrok URL on-demand inside the OAuth view, where the lookup is
+        actually used.
         """
-        Register scheduled jobs with APScheduler.
-        Jobs are registered when runapscheduler management command is executed.
-        Also auto-detect ngrok URL on startup.
-        """
-        # Jobs will be registered via django-apscheduler's runapscheduler command
-        # This prevents issues with auto-starting scheduler during Django startup
-
-        # Auto-detect ngrok URL on startup (only in DEBUG mode)
-        from django.conf import settings
-
-        if settings.DEBUG:
-            try:
-                from decouple import config
-
-                from voice.services import get_elevenlabs_webhook_config
-                from voice.utils import build_webhook_url, get_ngrok_url
-
-                # Prefer explicit NGROK_URL from .env over auto-detection
-                ngrok_url = config("NGROK_URL", default="")
-                if not ngrok_url:
-                    ngrok_api_url = config(
-                        "NGROK_API_URL", default="http://localhost:4040/api/tunnels"
-                    )
-                    ngrok_url = get_ngrok_url(ngrok_api_url)
-
-                if ngrok_url:
-                    webhook_url = build_webhook_url(ngrok_url)
-                    logger.info(f"Ngrok detected: {ngrok_url}")
-                    logger.info(f"Webhook URL: {webhook_url}")
-
-                    # Check if webhook needs updating
-                    webhook_config = get_elevenlabs_webhook_config()
-                    if webhook_config:
-                        current_url = webhook_config.get("url", "")
-                        if current_url != webhook_url:
-                            logger.info(
-                                f"Webhook URL mismatch detected. Current: {current_url}, Should be: {webhook_url}"
-                            )
-                            logger.info(
-                                "Run 'python manage.py detect_ngrok --update' to update automatically, or update manually in ElevenLabs dashboard"
-                            )
-                        else:
-                            logger.info("Webhook URL is correctly configured")
-                    else:
-                        logger.info(f"Webhook URL to configure in ElevenLabs: {webhook_url}")
-                        logger.info(
-                            "Run 'python manage.py detect_ngrok' for configuration instructions"
-                        )
-                else:
-                    logger.info(
-                        "Ngrok not detected. Webhooks will not work until ngrok is started."
-                    )
-                    logger.info("To start ngrok: ngrok http --url=sales-assist.ngrok.app 8003")
-            except Exception as e:
-                # Don't fail startup if ngrok detection fails
-                logger.warning(f"Error detecting ngrok URL on startup: {e}")

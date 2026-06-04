@@ -69,11 +69,6 @@ urlpatterns = [
     path(
         "manager/calls/trigger/", views.ManualCallTriggerView.as_view(), name="manual_call_trigger"
     ),
-    path(
-        "webhooks/ngrok-status/",
-        views.NgrokWebhookStatusView.as_view(),
-        name="ngrok_webhook_status",
-    ),
     # Methodologies
     path("manager/methodologies/", views.MethodologyListView.as_view(), name="methodology_list"),
     path(
