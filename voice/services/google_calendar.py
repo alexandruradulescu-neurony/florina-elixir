@@ -352,8 +352,14 @@ def sync_google_calendar(
     Returns:
         Dictionary with sync results: {'created': count, 'updated': count, 'errors': []}
     """
-    # Import here to avoid circular dependency
-    from .scheduler import pre_program_meeting_calls
+    # `pre_program_meeting_calls` is no longer called from this sync.
+    # Its CallAttempt(meeting=..., status=SCHEDULED) rows were dialed by the
+    # legacy `check_and_trigger_calls` task, which has been retired. The Visit
+    # pipeline (`detect_visits_task` → `process_visit_pre_calls`) is now the
+    # single source of truth for outbound calls — it works directly from the
+    # Visit table and does not look at meeting-linked CallAttempts. Leaving
+    # the calls in here would silently generate orphan SCHEDULED rows every
+    # sync cycle.
 
     if not user.is_sales_agent:
         log_activity(
@@ -467,8 +473,7 @@ def sync_google_calendar(
                             "end_time": end_time.isoformat(),
                         },
                     )
-                    # Pre-program all calls for new meeting
-                    pre_program_meeting_calls(meeting, force_recreate=False)
+                    # (Pre-programmed meeting CallAttempts removed — see top of function.)
                 else:
                     # Check if meeting times changed
                     time_changed = meeting.start_time != start_time or meeting.end_time != end_time
@@ -486,9 +491,11 @@ def sync_google_calendar(
                         },
                     )
 
-                    # Re-program calls if meeting times changed
-                    if time_changed:
-                        pre_program_meeting_calls(meeting, force_recreate=True)
+                    # (Pre-programmed meeting CallAttempts removed — see top of function.)
+                    # Time-change re-programming used to live here; the visit
+                    # pipeline re-evaluates visits on its own schedule.
+                    _ = time_changed  # noqa: F841 — kept as a marker for the
+                    # next PR that migrates Meeting → Visit fully.
 
             except Exception as e:
                 error_msg = f"Error processing event {event.get('id', 'unknown')}: {str(e)}"

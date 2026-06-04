@@ -249,16 +249,19 @@ def should_trigger_post_call(meeting: Meeting, offset: int) -> bool:
 
 
 def check_pre_meeting_calls() -> list[tuple[Meeting, int]]:
-    """
-    Find meetings that need pre-meeting calls triggered.
-    Uses selectors to find meetings, then applies decision logic.
+    """Find meetings that need pre-meeting calls triggered.
+
+    NOTE: This is part of the legacy meeting-flow. Its scheduled caller
+    (`check_and_trigger_calls`) was dropped, but two surviving consumers
+    still rely on it and will be migrated in a follow-up PR (Y1b):
+      * `ProgrammedCallsView` for the manager dashboard's "programmed
+        calls" page.
+      * `check_scheduler` diagnostic management command.
 
     Returns:
         List of tuples (Meeting, offset_minutes) for meetings that need calls
     """
     meetings_to_call = []
-
-    # Get meetings from selectors
     meetings_with_offsets = get_meetings_for_pre_call_check()
 
     for meeting, offset in meetings_with_offsets:
@@ -274,16 +277,14 @@ def check_pre_meeting_calls() -> list[tuple[Meeting, int]]:
 
 
 def check_post_meeting_calls() -> list[tuple[Meeting, int]]:
-    """
-    Find meetings that need post-meeting calls triggered.
-    Uses selectors to find meetings, then applies decision logic.
+    """Find meetings that need post-meeting calls triggered. Same legacy
+    notes as `check_pre_meeting_calls` — kept until Y1b migrates the two
+    surviving consumers.
 
     Returns:
         List of tuples (Meeting, offset_minutes) for meetings that need calls
     """
     meetings_to_call = []
-
-    # Get meetings from selectors
     meetings_with_offsets = get_meetings_for_post_call_check()
 
     for meeting, offset in meetings_with_offsets:

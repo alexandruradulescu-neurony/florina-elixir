@@ -22,15 +22,10 @@ class Command(BaseCommand):
         scheduler = BackgroundScheduler()
         scheduler.add_jobstore(DjangoJobStore(), "default")
 
-        # Schedule call check task every 5 minutes
-        scheduler.add_job(
-            tasks.check_and_trigger_calls,
-            trigger=IntervalTrigger(minutes=5),
-            id="check_and_trigger_calls",
-            name="Check and trigger calls",
-            replace_existing=True,
-            jobstore="default",
-        )
+        # NOTE: `check_and_trigger_calls` (the legacy Meeting-flow scheduler)
+        # was dropped — its responsibilities are now split between
+        # `process_visit_pre_calls` and `process_visit_post_calls` below, both
+        # of which work directly off the Visit model.
 
         # Schedule calendar sync every hour
         scheduler.add_job(
@@ -95,7 +90,6 @@ class Command(BaseCommand):
         scheduler.start()
         self.stdout.write(self.style.SUCCESS("APScheduler started successfully!"))
         self.stdout.write("Registered jobs:")
-        self.stdout.write("  - check_and_trigger_calls (every 5 minutes)")
         self.stdout.write("  - sync_all_user_calendars (every hour)")
         self.stdout.write("  - sync_pending_calls (every 15 minutes)")
         self.stdout.write("  - sync_all_clients (daily at 2:00 AM)")
