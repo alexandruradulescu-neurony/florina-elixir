@@ -438,6 +438,29 @@ class GenerationRunAdmin(admin.ModelAdmin):
     # filter by the structured columns above.
     ordering = ("-created_at",)
 
+    # 100-row default was loading several MB of encrypted blobs per page even
+    # though none of those columns are in `list_display`. Halved + the
+    # `get_queryset` override below now `.defer()`s the ciphertext fields, so
+    # the listing pulls only the structural columns it actually renders.
+    list_per_page = 50
+
+    # FK columns surfaced in list_display — without these the listing fires one
+    # query per row to resolve `visit` and `client` (N+1 in a 50-row page).
+    list_select_related = ("visit", "client", "mega_prompt")
+
+    def get_queryset(self, request):
+        """Drop the encrypted-blob columns from the LIST queryset.
+
+        These fields each carry up to ~50 KB of ciphertext per row. The
+        listing shows only `created_at / domain / visit / client / success /
+        input_tokens / output_tokens` (see `list_display` above) — so the
+        ciphertext is fetched, decrypted, and discarded for every row.
+        `defer()` keeps them out of the SELECT until someone opens a detail
+        page, where the form field accessor lazily loads (and decrypts)
+        them on demand.
+        """
+        return super().get_queryset(request).defer(*self.ENCRYPTED_FIELDS)
+
     def get_fields(self, request, obj=None):
         # Concrete columns only (no reverse relations); hide encrypted blobs
         # from non-superuser staff.

@@ -209,6 +209,12 @@ class CallAttempt(models.Model):
             models.Index(
                 fields=["scheduled_time", "status"], name="voice_calla_schedul_status_idx"
             ),
+            # Hot paths discovered in code review: tasks.py loops
+            # `CallAttempt.objects.filter(visit=...)` per visit (PR Y1a
+            # retained `_phase_dial_count` which reads on `visit`), and
+            # admin views display call attempts scoped by visit.
+            models.Index(fields=["visit"], name="voice_calla_visit_idx"),
+            models.Index(fields=["visit", "phase"], name="voice_calla_visit_phase_idx"),
         ]
 
     def __str__(self):
@@ -393,7 +399,7 @@ class Methodology(models.Model):
         null=True,
         help_text="LLM-processed summary of the methodology, editable by manager",
     )
-    is_active = models.BooleanField(default=True)
+    is_active = models.BooleanField(default=True, db_index=True)
     created_by = models.ForeignKey(
         User,
         on_delete=models.SET_NULL,
@@ -503,6 +509,11 @@ class Visit(models.Model):
             models.Index(fields=["status"]),
             models.Index(fields=["calendar_event_id"]),
             models.Index(fields=["agent", "start_time"]),
+            # Hot paths from manager dashboards and audit views: visits scoped
+            # by client (client detail page, lessons distiller) and by
+            # (agent, status) for the agent-management N+1-fix selector.
+            models.Index(fields=["client"], name="voice_visit_client_idx"),
+            models.Index(fields=["agent", "status"], name="voice_visit_agent_status_idx"),
         ]
 
     def __str__(self):
@@ -755,6 +766,14 @@ class GenerationRun(models.Model):
         verbose_name = _("Generation Run")
         verbose_name_plural = _("Generation Runs")
         ordering = ["-created_at"]
+        indexes = [
+            # `domain`, `success`, `created_at` are individually indexed via
+            # `db_index=True` on the field. Add covering indexes for the
+            # admin's most common filter combinations and for visit-scoped
+            # listings on the visit-detail page.
+            models.Index(fields=["visit"], name="voice_genrun_visit_idx"),
+            models.Index(fields=["domain", "success"], name="voice_genrun_domsucc_idx"),
+        ]
 
     def __str__(self) -> str:
         target = self.visit_id or self.client_id or "?"

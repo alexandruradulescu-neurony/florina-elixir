@@ -1207,20 +1207,55 @@ class AgentManagementView(SuperuserRequiredMixin, View):
     """Manage sales agents."""
 
     def get(self, request):
+        from django.db.models import Count, Q
+
+        from .constants import CallStatus, VisitStatus
+
         today = timezone.now().date()
-        agents = (
+
+        # The previous implementation ran 4 queries per agent inside the loop
+        # below — `.count()` on `visits_today`, on `visits_today` filtered to
+        # COMPLETE, on `CallAttempt`-by-agent, and on the same filtered to
+        # COMPLETED. With 10 agents that's 40 queries per page; the cost
+        # scales linearly. The annotate call below collapses all four counts
+        # plus the methodology join into a single query.
+        #
+        # `distinct=True` on the COUNT is required: when Django joins both
+        # `visits` and `visits__call_attempts` for the call counts, a single
+        # visit with N call attempts otherwise multiplies the visit count by
+        # N (Cartesian product). `COUNT(DISTINCT pk)` deduplicates.
+        agents = list(
             User.objects.filter(is_sales_agent=True)
             .select_related("default_methodology")
+            .annotate(
+                visits_today_count=Count(
+                    "visits",
+                    filter=Q(visits__start_time__date=today),
+                    distinct=True,
+                ),
+                visits_complete_today_count=Count(
+                    "visits",
+                    filter=Q(
+                        visits__start_time__date=today,
+                        visits__status=VisitStatus.COMPLETE,
+                    ),
+                    distinct=True,
+                ),
+                total_calls_count=Count("visits__call_attempts", distinct=True),
+                completed_calls_count=Count(
+                    "visits__call_attempts",
+                    filter=Q(visits__call_attempts__status=CallStatus.COMPLETED),
+                    distinct=True,
+                ),
+            )
             .order_by("username")
         )
         methodologies = Methodology.objects.filter(is_active=True).order_by("name")
 
         enriched_agents = []
         for agent in agents:
-            today_visits = Visit.objects.filter(agent=agent, start_time__date=today)
-            total_calls = CallAttempt.objects.filter(visit__agent=agent)
-            completed_calls = total_calls.filter(status="COMPLETED").count()
-            total_call_count = total_calls.count()
+            total_call_count = agent.total_calls_count
+            completed_calls = agent.completed_calls_count
 
             # Config issues
             issues = []
@@ -1234,8 +1269,8 @@ class AgentManagementView(SuperuserRequiredMixin, View):
             enriched_agents.append(
                 {
                     "agent": agent,
-                    "visits_today": today_visits.count(),
-                    "visits_complete_today": today_visits.filter(status="COMPLETE").count(),
+                    "visits_today": agent.visits_today_count,
+                    "visits_complete_today": agent.visits_complete_today_count,
                     "total_calls": total_call_count,
                     "call_success_rate": round(completed_calls / total_call_count * 100)
                     if total_call_count
@@ -1249,7 +1284,7 @@ class AgentManagementView(SuperuserRequiredMixin, View):
         context = {
             "agents": enriched_agents,
             "methodologies": methodologies,
-            "agent_count": agents.count(),
+            "agent_count": len(agents),  # already materialized — no extra query
             "configured_count": sum(1 for a in enriched_agents if a["is_configured"]),
         }
         placeholders.agents_extras(context)
