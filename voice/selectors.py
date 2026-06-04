@@ -172,21 +172,8 @@ def get_meetings_for_post_call_check() -> list[tuple[Meeting, int]]:
     return results
 
 
-def get_call_attempts_for_meeting(meeting: Meeting, phase: str = None) -> list[CallAttempt]:
-    """
-    Get all call attempts for a meeting, optionally filtered by phase.
-
-    Args:
-        meeting: Meeting instance
-        phase: Optional CallPhase to filter by
-
-    Returns:
-        List of CallAttempt instances
-    """
-    queryset = CallAttempt.objects.filter(meeting=meeting)
-    if phase:
-        queryset = queryset.filter(phase=phase)
-    return list(queryset.order_by("created_at"))
+# `get_call_attempts_for_meeting` removed — its only caller was the dropped
+# MeetingDetailView. Visit-scoped equivalents live elsewhere in this file.
 
 
 def get_sales_agents() -> list:
@@ -407,36 +394,33 @@ def get_agent_call_statistics(agent):
     }
 
 
-def get_upcoming_meetings_for_agent(agent, limit: int = 10):
-    """
-    Get upcoming meetings for an agent with timeline data.
+def get_upcoming_visits_for_agent(agent, limit: int = 10):
+    """Upcoming visits for the sales-agent dashboard.
 
-    Args:
-        agent: User instance (sales agent)
-        limit: Maximum number of meetings to return
-
-    Returns:
-        QuerySet of Meeting instances
+    Replaces the older `get_upcoming_meetings_for_agent` selector that
+    returned `Meeting` rows. The dashboard now queries `Visit` directly —
+    Meeting is being retired.
     """
-    return Meeting.objects.filter(agent=agent, start_time__gte=timezone.now()).order_by(
-        "start_time"
-    )[:limit]
+    return (
+        Visit.objects.filter(agent=agent, start_time__gte=timezone.now())
+        .select_related("client")
+        .order_by("start_time")[:limit]
+    )
+
+
+# Backwards-compat alias. Callers should migrate to `get_upcoming_visits_for_agent`.
+get_upcoming_meetings_for_agent = get_upcoming_visits_for_agent
 
 
 def get_agent_timeline_data(agent, date=None):
-    """
-    Get timeline data for agent's day (calls, meetings, debriefs).
+    """Timeline items for an agent's day: pre-calls, the visit itself, post-calls.
 
-    Args:
-        agent: User instance (sales agent)
-        date: Optional date (defaults to today)
-
-    Returns:
-        List of timeline items with type, time, status, and data
+    Returned item dicts use `visit` (and `call` for call rows). The template
+    reads `item.visit.title`, `item.visit.client.name`, etc.
     """
     from datetime import datetime, time
 
-    from .models import CallAttempt, Meeting
+    from .models import CallAttempt
 
     if not date:
         date = timezone.now().date()
@@ -447,71 +431,64 @@ def get_agent_timeline_data(agent, date=None):
 
     timeline_items = []
 
-    # Get meetings for this date
-    meetings = Meeting.objects.filter(
-        agent=agent, start_time__gte=date_start, start_time__lte=date_end
-    ).order_by("start_time")
+    visits = (
+        Visit.objects.filter(agent=agent, start_time__gte=date_start, start_time__lte=date_end)
+        .select_related("client")
+        .order_by("start_time")
+    )
 
-    for meeting in meetings:
-        # Pre-meeting calls
-        pre_calls = CallAttempt.objects.filter(
-            meeting=meeting, phase=CallPhase.PRE_MEETING
-        ).order_by("created_at")
+    for visit in visits:
+        pre_calls = CallAttempt.objects.filter(visit=visit, phase=CallPhase.PRE_MEETING).order_by(
+            "created_at"
+        )
 
         for call in pre_calls:
-            # Use scheduled_time if available (from pre-programming), otherwise calculate it
             if call.scheduled_time:
                 call_time = call.scheduled_time
             else:
-                # Fallback: calculate from meeting start time + offset
-                call_time = meeting.start_time + timedelta(minutes=call.scheduled_offset_minutes)
+                call_time = visit.start_time + timedelta(minutes=call.scheduled_offset_minutes)
 
             timeline_items.append(
                 {
                     "type": "pre_call",
                     "time": call_time,
-                    "meeting": meeting,
+                    "visit": visit,
                     "call": call,
                     "status": call.status,
                     "offset": call.scheduled_offset_minutes,
                 }
             )
 
-        # Meeting itself
         timeline_items.append(
             {
-                "type": "meeting",
-                "time": meeting.start_time,
-                "meeting": meeting,
+                "type": "meeting",  # event type kept for template-class compatibility
+                "time": visit.start_time,
+                "visit": visit,
                 "status": "scheduled",
             }
         )
 
-        # Post-meeting calls
-        post_calls = CallAttempt.objects.filter(
-            meeting=meeting, phase=CallPhase.POST_MEETING
-        ).order_by("created_at")
+        post_calls = CallAttempt.objects.filter(visit=visit, phase=CallPhase.POST_MEETING).order_by(
+            "created_at"
+        )
 
         for call in post_calls:
-            # Use scheduled_time if available (from pre-programming), otherwise calculate it
             if call.scheduled_time:
                 call_time = call.scheduled_time
             else:
-                # Fallback: calculate from meeting end time + offset
-                call_time = meeting.end_time + timedelta(minutes=call.scheduled_offset_minutes)
+                call_time = visit.end_time + timedelta(minutes=call.scheduled_offset_minutes)
 
             timeline_items.append(
                 {
                     "type": "post_call",
                     "time": call_time,
-                    "meeting": meeting,
+                    "visit": visit,
                     "call": call,
                     "status": call.status,
                     "offset": call.scheduled_offset_minutes,
                 }
             )
 
-    # Sort by time
     timeline_items.sort(key=lambda x: x["time"])
 
     return timeline_items

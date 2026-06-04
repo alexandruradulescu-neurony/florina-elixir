@@ -143,7 +143,9 @@ urlpatterns = [
     path("manager/agent-chat/api/", views.LiveAgentChatAPI.as_view(), name="live_agent_api"),
     # Sales Agent dashboards
     path("dashboard/agent/", views.SalesAgentDashboardView.as_view(), name="sales_agent_dashboard"),
-    path("meeting/<int:meeting_id>/", views.MeetingDetailView.as_view(), name="meeting_detail"),
+    # `meeting/<int:meeting_id>/` route + MeetingDetailView removed — the agent
+    # dashboard no longer exposes a per-meeting detail page (visits are
+    # surfaced inline). Manager users still have `/manager/visits/<id>/`.
     path("profile/", views.SalesAgentProfileView.as_view(), name="sales_agent_profile"),
     # Webhooks
     path(

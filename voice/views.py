@@ -55,7 +55,6 @@ from .selectors import (
     get_next_upcoming_visit,
     get_recent_activity_logs,
     get_recent_post_call_summaries,
-    get_upcoming_meetings_for_agent,
     get_visits_for_date,
     get_weekly_summary,
 )
@@ -1403,56 +1402,33 @@ class SalesAgentDashboardView(SalesAgentRequiredMixin, View):
     """Sales agent dashboard with timeline view."""
 
     def get(self, request):
+        from .selectors import get_upcoming_visits_for_agent
+
         agent = request.user
         timeline_data = get_agent_timeline_data(agent)
-        upcoming_meetings = get_upcoming_meetings_for_agent(agent, limit=10)
+        upcoming_visits = get_upcoming_visits_for_agent(agent, limit=10)
         call_stats = get_agent_call_statistics(agent)
 
-        # Calculate count for template (works with both QuerySet and list)
-        upcoming_meetings_count = (
-            upcoming_meetings.count()
-            if hasattr(upcoming_meetings, "count")
-            else len(upcoming_meetings)
+        # Materialize the queryset count once; the template needs both the
+        # queryset (for iteration) and the integer (for the stat badge).
+        upcoming_visits_count = (
+            upcoming_visits.count() if hasattr(upcoming_visits, "count") else len(upcoming_visits)
         )
 
         context = {
             "timeline_data": timeline_data,
-            "upcoming_meetings": upcoming_meetings,
-            "upcoming_meetings_count": upcoming_meetings_count,
+            "upcoming_visits": upcoming_visits,
+            "upcoming_visits_count": upcoming_visits_count,
             "call_stats": call_stats,
         }
         return render(request, "voice/agent/dashboard.html", context)
 
 
-class MeetingDetailView(LoginRequiredMixin, View):
-    """Detailed meeting view with tabs for pre/post meeting calls."""
-
-    def get(self, request, meeting_id):
-        try:
-            # Superusers can view any meeting, sales agents can only view their own
-            if request.user.is_superuser:
-                meeting = Meeting.objects.get(id=meeting_id)
-            else:
-                meeting = Meeting.objects.get(id=meeting_id, agent=request.user)
-        except Meeting.DoesNotExist:
-            messages.error(request, "Meeting not found.")
-            if request.user.is_superuser:
-                return redirect("voice:programmed_calls")
-            else:
-                return redirect("voice:sales_agent_dashboard")
-
-        from .constants import CallPhase
-        from .selectors import get_call_attempts_for_meeting
-
-        pre_calls = get_call_attempts_for_meeting(meeting, phase=CallPhase.PRE_MEETING)
-        post_calls = get_call_attempts_for_meeting(meeting, phase=CallPhase.POST_MEETING)
-
-        context = {
-            "meeting": meeting,
-            "pre_calls": pre_calls,
-            "post_calls": post_calls,
-        }
-        return render(request, "voice/agent/meeting_detail.html", context)
+# `MeetingDetailView` was removed alongside the dashboard's `meeting_detail`
+# link. The agent dashboard's "Upcoming Visits" table no longer offers a
+# detail-page button — agents see schedule status only on the timeline.
+# Manager users still have `/manager/visits/<id>/` (see `VisitDetailView`
+# elsewhere in this file).
 
 
 class SalesAgentProfileView(SalesAgentRequiredMixin, View):
