@@ -1108,36 +1108,33 @@ class VisitRegenerateView(SuperuserRequiredMixin, View):
         return None
 
     def post(self, request, visit_id, domain):
-        from voice.constants import CallPhase, CallStatus
-        from voice.models import CallAttempt, GenerationRun, Visit
-        from voice.services.assembler import assemble_post_call, assemble_pre_call
-
-        if domain not in ("pre", "post"):
-            messages.error(request, f"Unknown domain: {domain!r}")
-            return redirect("voice:visit_detail", visit_id=visit_id)
-
-        # Rate-limit BEFORE looking up the visit (no DB hit on rejected calls).
-        rate_msg = self._check_rate_limit(request, visit_id, domain)
-        if rate_msg:
-            messages.warning(request, rate_msg)
-            return redirect("voice:visit_detail", visit_id=visit_id)
-
+        # PR #12 hardened just the assembler call; the user still got a 500
+        # with no flash message, meaning the exception lives OUTSIDE that
+        # inner try (rate-limit cache, ORM error on Visit lookup, import
+        # failure, etc.). Wrap the ENTIRE post body so NOTHING here can 500
+        # — every failure surfaces to a flash message with the exception
+        # type + message so we can diagnose without server-log access.
         try:
-            visit = Visit.objects.get(pk=visit_id)
-        except Visit.DoesNotExist:
-            messages.error(request, "Visit not found.")
-            return redirect("voice:visit_list")
+            from voice.constants import CallPhase, CallStatus
+            from voice.models import CallAttempt, GenerationRun, Visit
+            from voice.services.assembler import assemble_post_call, assemble_pre_call
 
-        # Wrap the assembler call so uncaught exceptions surface to a flash
-        # message instead of a generic 500. The assembler's design intent is
-        # that every failure mode produces a `GenerationRun(success=False)`
-        # with `.error` populated — but unguarded paths exist (e.g. an
-        # exception inside `_record_run` itself, an ORM-level OperationalError
-        # from a stale migration, or an `ImproperlyConfigured` from
-        # `EncryptedTextField` with a missing/rotated key). Surfacing the
-        # exception type + first 300 chars makes a prod debug session a 5-second
-        # affair instead of an SSH expedition through server logs.
-        try:
+            if domain not in ("pre", "post"):
+                messages.error(request, f"Unknown domain: {domain!r}")
+                return redirect("voice:visit_detail", visit_id=visit_id)
+
+            # Rate-limit BEFORE looking up the visit (no DB hit on rejected calls).
+            rate_msg = self._check_rate_limit(request, visit_id, domain)
+            if rate_msg:
+                messages.warning(request, rate_msg)
+                return redirect("voice:visit_detail", visit_id=visit_id)
+
+            try:
+                visit = Visit.objects.get(pk=visit_id)
+            except Visit.DoesNotExist:
+                messages.error(request, "Visit not found.")
+                return redirect("voice:visit_list")
+
             if domain == "pre":
                 run = assemble_pre_call(
                     visit,
@@ -1168,13 +1165,17 @@ class VisitRegenerateView(SuperuserRequiredMixin, View):
                 )
         except Exception as exc:
             logger.exception(
-                "Assembler raised an unhandled exception (visit=%s domain=%s)",
+                "VisitRegenerateView.post raised (visit=%s domain=%s)",
                 visit_id,
                 domain,
             )
+            # Show the operator the exception type + a useful chunk of the
+            # message (longer than PR #12's 300 so DB driver errors with
+            # column names fit). Falls back to repr if str(exc) is empty.
+            detail = str(exc).strip() or repr(exc)
             messages.error(
                 request,
-                f"Assembler crashed: {type(exc).__name__}: {str(exc)[:300]}",
+                f"VisitRegenerate crashed: {type(exc).__name__}: {detail[:500]}",
             )
             return redirect("voice:visit_detail", visit_id=visit_id)
 
