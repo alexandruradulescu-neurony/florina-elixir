@@ -1,164 +1,146 @@
 {% extends 'voice/base.html' %}
+{% load static %}
 
 {% block title %}
   {% if editing %}
     Edit {{ client.name }}
   {% else %}
-    Add Client
+    New client
   {% endif %}
-  - Sales Assistant
+  — Sales Assistant
 {% endblock %}
 
-{% block page_header %}
-  <div>
-    <div class="flex items-center gap-2 text-xs text-slate-400 mb-1">
-      <a href="{% url 'voice:client_list' %}"
-         class="hover:text-teal-600 transition-colors">Clients</a>
-      <span>/</span>
-      <span class="text-slate-500">
-        {% if editing %}
-          {{ client.name }}
-        {% else %}
-          New
-        {% endif %}
-      </span>
-    </div>
-    <h1 class="text-xl font-bold text-slate-900">
+{% block header_utility %}
+  <nav class="breadcrumb">
+    <a href="{% url 'voice:client_list' %}">Clients</a>
+    <span class="sep">/</span>
+    <span class="cur">
       {% if editing %}
-        Edit {{ client.name }}
+        {{ client.name }}
       {% else %}
-        Add Client
+        New client
       {% endif %}
-    </h1>
-    <p class="text-sm text-slate-500">
-      {% if editing %}
-        Update client details
-      {% else %}
-        Add a client manually
-      {% endif %}
-    </p>
-  </div>
+    </span>
+  </nav>
+{% endblock %}
+
+{% block display_title %}
+  {% if editing %}
+    Edit {{ client.name }}
+  {% else %}
+    New client
+  {% endif %}
+{% endblock %}
+
+{% block display_subtitle %}
+  <p class="subtitle">
+    {% if editing %}
+      Update client details
+    {% else %}
+      Add a client manually
+    {% endif %}
+  </p>
 {% endblock %}
 
 {% block content %}
 
   {% if form.non_field_errors %}
-    <div class="mb-5 rounded-xl bg-red-50 border border-red-200 px-4 py-3">
-      {% for error in form.non_field_errors %}
-        <p class="text-sm text-red-700">{{ error }}</p>
-      {% endfor %}
+    <div class="toast toast-error" style="margin-bottom:16px;">
+      {% for error in form.non_field_errors %}<span>{{ error }}</span>{% endfor %}
     </div>
   {% endif %}
 
-  <form method="post" class="max-w-3xl">
+  <form method="post" class="form-layout">
     {% csrf_token %}
+    <div class="form-card">
 
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-      <!-- Left: Form fields -->
-      <div class="lg:col-span-2 space-y-6">
-
-        <div class="bg-white rounded-xl border border-slate-200 p-5">
-          <h2 class="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4">
-            Client Information
-          </h2>
-
-          <div class="mb-4">
-            <label class="block text-xs font-medium text-slate-700 mb-1.5">
-              Company Name <span class="text-red-400">*</span>
-            </label>
-            <input type="text"
-                   name="name"
-                   value="{{ form.name.value|default:'' }}"
-                   class="w-full h-9 rounded-lg border border-slate-200 text-sm text-slate-700 px-3 focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-400 placeholder-slate-300"
-                   placeholder="Company name"
-                   required>
-            {% if form.name.errors %}
-              <p class="text-xs text-red-500 mt-1">{{ form.name.errors.0 }}</p>
-            {% endif %}
-          </div>
-
-          <div class="grid grid-cols-2 gap-4 mb-4">
-            <div>
-              <label class="block text-xs font-medium text-slate-700 mb-1.5">
-                CRM ID <span class="text-red-400">*</span>
-              </label>
-              <input type="text"
-                     name="crm_id"
-                     value="{{ form.crm_id.value|default:'' }}"
-                     class="w-full h-9 rounded-lg border border-slate-200 text-sm text-slate-700 px-3 focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-400 placeholder-slate-300"
-                     placeholder="CRM organization ID"
-                     required>
-              {% if form.crm_id.errors %}
-                <p class="text-xs text-red-500 mt-1">{{ form.crm_id.errors.0 }}</p>
-              {% endif %}
-            </div>
-            <div>
-              <label class="block text-xs font-medium text-slate-700 mb-1.5">Domain</label>
-              <input type="text"
-                     name="domain"
-                     value="{{ form.domain.value|default:'' }}"
-                     class="w-full h-9 rounded-lg border border-slate-200 text-sm text-slate-700 px-3 focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-400 placeholder-slate-300"
-                     placeholder="e.g. acme.com">
-            </div>
-          </div>
-
-          <div class="mb-4">
-            <label class="block text-xs font-medium text-slate-700 mb-1.5">Industry</label>
-            <input type="text"
-                   name="industry"
-                   value="{{ form.industry.value|default:'' }}"
-                   class="w-full h-9 rounded-lg border border-slate-200 text-sm text-slate-700 px-3 focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-400 placeholder-slate-300"
-                   placeholder="e.g. Technology, Finance, Retail">
-          </div>
+      <fieldset class="form-fieldset">
+        <h3>Client information</h3>
+        <div class="form-row">
+          <label for="{{ form.name.id_for_label }}">Company name</label>
+          <input type="text"
+                 name="{{ form.name.name }}"
+                 id="{{ form.name.id_for_label }}"
+                 value="{{ form.name.value|default:'' }}"
+                 placeholder="Company name"
+                 required>
+          {% if form.name.errors %}<span class="field-error">{{ form.name.errors.0 }}</span>{% endif %}
         </div>
+        <div class="form-row">
+          <label for="{{ form.crm_id.id_for_label }}">CRM ID</label>
+          <input type="text"
+                 name="{{ form.crm_id.name }}"
+                 id="{{ form.crm_id.id_for_label }}"
+                 value="{{ form.crm_id.value|default:'' }}"
+                 placeholder="CRM organization ID"
+                 required>
+          <span class="helptext">External identifier for syncing this client from the CRM.</span>
+          {% if form.crm_id.errors %}<span class="field-error">{{ form.crm_id.errors.0 }}</span>{% endif %}
+        </div>
+        <div class="form-row">
+          <label for="{{ form.domain.id_for_label }}">Domain</label>
+          <input type="text"
+                 name="{{ form.domain.name }}"
+                 id="{{ form.domain.id_for_label }}"
+                 value="{{ form.domain.value|default:'' }}"
+                 placeholder="e.g. acme.com">
+          {% if form.domain.errors %}<span class="field-error">{{ form.domain.errors.0 }}</span>{% endif %}
+        </div>
+        <div class="form-row">
+          <label for="{{ form.industry.id_for_label }}">Industry</label>
+          <input type="text"
+                 name="{{ form.industry.name }}"
+                 id="{{ form.industry.id_for_label }}"
+                 value="{{ form.industry.value|default:'' }}"
+                 placeholder="e.g. Technology, Finance, Retail">
+          {% if form.industry.errors %}
+            <span class="field-error">{{ form.industry.errors.0 }}</span>
+          {% endif %}
+        </div>
+      </fieldset>
 
-        <div class="bg-white rounded-xl border border-slate-200 p-5">
-          <h2 class="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4">AI Summary</h2>
-          <textarea name="ai_summary"
-                    rows="6"
-                    class="w-full rounded-lg border border-slate-200 text-sm text-slate-700 p-3 focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-400 placeholder-slate-300 resize-y"
+      <fieldset class="form-fieldset">
+        <h3>AI summary</h3>
+        <div class="form-row">
+          <label for="{{ form.ai_summary.id_for_label }}">Summary</label>
+          <textarea name="{{ form.ai_summary.name }}"
+                    id="{{ form.ai_summary.id_for_label }}"
                     placeholder="Brief client summary — key contacts, deal history, talking points...">{{ form.ai_summary.value|default:'' }}</textarea>
-          <p class="text-[10px] text-slate-400 mt-1.5">
-            This summary is used in pre-call coaching prompts. Can be auto-generated from CRM data later.
-          </p>
+          <span class="helptext">Used in pre-call coaching prompts. Can be auto-generated from CRM data later.</span>
+          {% if form.ai_summary.errors %}
+            <span class="field-error">{{ form.ai_summary.errors.0 }}</span>
+          {% endif %}
         </div>
+      </fieldset>
 
-      </div>
+    </div>
 
-      <!-- Right: Actions -->
-      <div>
-        <div class="bg-white rounded-xl border border-slate-200 p-5 sticky top-4">
-          <button type="submit"
-                  class="w-full h-10 rounded-lg bg-teal-500 hover:bg-teal-600 text-white text-sm font-medium transition-colors mb-3">
+    <aside class="form-sidebar">
+      <div class="card">
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary">
             {% if editing %}
-              Save Changes
+              Save changes
             {% else %}
-              Create Client
+              Create client
             {% endif %}
           </button>
           <a href="{% if editing %}{% url 'voice:client_detail' client.id %}{% else %}{% url 'voice:client_list' %}{% endif %}"
-             class="block w-full h-10 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium text-center leading-10 hover:bg-slate-50 transition-colors">
-            Cancel
-          </a>
-
-          {% if editing %}
-            <div class="mt-4 pt-4 border-t border-slate-100">
-              <form method="post"
-                    action="{% url 'voice:client_delete' client.id %}"
-                    onsubmit="return confirm('Delete {{ client.name }}? This cannot be undone.')">
-                {% csrf_token %}
-                <button type="submit"
-                        class="w-full h-9 rounded-lg border border-red-200 text-red-600 text-xs font-medium hover:bg-red-50 transition-colors">
-                  Delete Client
-                </button>
-              </form>
-            </div>
-          {% endif %}
+             class="btn btn-secondary">Cancel</a>
         </div>
       </div>
-
-    </div>
+      {% if editing %}
+        <div class="card">
+          <h3>Danger zone</h3>
+          <form method="post"
+                action="{% url 'voice:client_delete' client.id %}"
+                onsubmit="return confirm('Delete {{ client.name }}? This cannot be undone.')">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-danger" style="width:100%;">Delete client</button>
+          </form>
+        </div>
+      {% endif %}
+    </aside>
   </form>
 
 {% endblock %}

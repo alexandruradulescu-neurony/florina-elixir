@@ -1,4 +1,5 @@
 {% extends 'voice/base.html' %}
+{% load static %}
 
 {% block title %}
   {% if editing %}
@@ -6,171 +7,154 @@
   {% else %}
     New visit
   {% endif %}
-  - Sales Assistant
+  — Sales Assistant
 {% endblock %}
 
-{% block page_header %}
-  <div>
-    <div class="flex items-center gap-2 text-xs text-slate-400 mb-1">
-      <a href="{% url 'voice:visit_list' %}"
-         class="hover:text-teal-600 transition-colors">Visits</a>
-      <span>/</span>
-      <span class="text-slate-500">
-        {% if editing %}
-          {{ visit.title }}
-        {% else %}
-          New
-        {% endif %}
-      </span>
-    </div>
-    <h1 class="text-xl font-bold text-slate-900">
+{% block header_utility %}
+  <nav class="breadcrumb">
+    <a href="{% url 'voice:visit_list' %}">Visits</a>
+    <span class="sep">/</span>
+    <span class="cur">
       {% if editing %}
-        Edit visit
+        {{ visit.title }}
       {% else %}
         New visit
       {% endif %}
-    </h1>
-    <p class="text-sm text-slate-500">
-      {% if editing %}
-        Update visit details
-      {% else %}
-        Add a visit manually
-      {% endif %}
-    </p>
-  </div>
+    </span>
+  </nav>
+{% endblock %}
+
+{% block display_title %}
+  {% if editing %}
+    Edit visit
+  {% else %}
+    New visit
+  {% endif %}
+{% endblock %}
+
+{% block display_subtitle %}
+  <p class="subtitle">
+    {% if editing %}
+      Update visit details
+    {% else %}
+      Add a visit manually
+    {% endif %}
+  </p>
 {% endblock %}
 
 {% block content %}
 
   {% if form.non_field_errors %}
-    <div class="mb-5 rounded-xl bg-red-50 border border-red-200 px-4 py-3">
-      {% for error in form.non_field_errors %}
-        <p class="text-sm text-red-700">{{ error }}</p>
-      {% endfor %}
+    <div class="toast toast-error" style="margin-bottom:16px;">
+      {% for error in form.non_field_errors %}<span>{{ error }}</span>{% endfor %}
     </div>
   {% endif %}
 
-  <form method="post" class="max-w-3xl">
+  <form method="post" class="form-layout">
     {% csrf_token %}
+    <div class="form-card">
 
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-      <!-- Left: Form fields -->
-      <div class="lg:col-span-2 space-y-6">
-
-        <div class="bg-white rounded-xl border border-slate-200 p-5">
-          <h2 class="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4">
-            Visit Information
-          </h2>
-
-          <div class="mb-4">
-            <label class="block text-xs font-medium text-slate-700 mb-1.5">
-              Title <span class="text-red-400">*</span>
-            </label>
-            {{ form.title }}
-            {% if form.title.errors %}
-              <p class="text-xs text-red-500 mt-1">{{ form.title.errors.0 }}</p>
-            {% endif %}
-          </div>
-
-          <div class="grid grid-cols-2 gap-4">
-            <div>
-              <label class="block text-xs font-medium text-slate-700 mb-1.5">
-                Agent <span class="text-red-400">*</span>
-              </label>
-              {{ form.agent }}
-              {% if form.agent.errors %}
-                <p class="text-xs text-red-500 mt-1">{{ form.agent.errors.0 }}</p>
-              {% endif %}
-            </div>
-            <div>
-              <label class="block text-xs font-medium text-slate-700 mb-1.5">
-                Client <span class="text-red-400">*</span>
-              </label>
-              {{ form.client }}
-              {% if form.client.errors %}
-                <p class="text-xs text-red-500 mt-1">{{ form.client.errors.0 }}</p>
-              {% endif %}
-            </div>
-          </div>
+      <fieldset class="form-fieldset">
+        <h3>Visit information</h3>
+        <div class="form-row">
+          <label for="{{ form.title.id_for_label }}">Title</label>
+          <input type="text"
+                 name="{{ form.title.name }}"
+                 id="{{ form.title.id_for_label }}"
+                 value="{{ form.title.value|default:'' }}"
+                 placeholder="e.g. Quarterly review"
+                 required>
+          {% if form.title.errors %}<span class="field-error">{{ form.title.errors.0 }}</span>{% endif %}
         </div>
-
-        <div class="bg-white rounded-xl border border-slate-200 p-5">
-          <h2 class="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4">Schedule</h2>
-          <div class="grid grid-cols-3 gap-4">
-            <div>
-              <label class="block text-xs font-medium text-slate-700 mb-1.5">
-                Date <span class="text-red-400">*</span>
-              </label>
-              {{ form.visit_date }}
-              {% if form.visit_date.errors %}
-                <p class="text-xs text-red-500 mt-1">{{ form.visit_date.errors.0 }}</p>
-              {% endif %}
-            </div>
-            <div>
-              <label class="block text-xs font-medium text-slate-700 mb-1.5">
-                Start time <span class="text-red-400">*</span>
-              </label>
-              {{ form.visit_start_time }}
-              {% if form.visit_start_time.errors %}
-                <p class="text-xs text-red-500 mt-1">{{ form.visit_start_time.errors.0 }}</p>
-              {% endif %}
-            </div>
-            <div>
-              <label class="block text-xs font-medium text-slate-700 mb-1.5">
-                Length (min) <span class="text-red-400">*</span>
-              </label>
-              {{ form.visit_duration_minutes }}
-              {% if form.visit_duration_minutes.errors %}
-                <p class="text-xs text-red-500 mt-1">{{ form.visit_duration_minutes.errors.0 }}</p>
-              {% endif %}
-            </div>
-          </div>
+        <div class="form-row">
+          <label for="{{ form.agent.id_for_label }}">Agent</label>
+          {{ form.agent }}
+          {% if form.agent.errors %}<span class="field-error">{{ form.agent.errors.0 }}</span>{% endif %}
         </div>
-
-        <div class="bg-white rounded-xl border border-slate-200 p-5">
-          <h2 class="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4">Coaching</h2>
-          <div class="mb-4">
-            <label class="block text-xs font-medium text-slate-700 mb-1.5">Methodology override</label>
-            {{ form.methodology }}
-            <p class="text-[10px] text-slate-400 mt-1.5">
-              Optional. Falls back to the agent's default, then the system default.
-            </p>
-          </div>
-          <div>
-            <label class="block text-xs font-medium text-slate-700 mb-1.5">Manager notes</label>
-            {{ form.manager_notes }}
-          </div>
+        <div class="form-row">
+          <label for="{{ form.client.id_for_label }}">Client</label>
+          {{ form.client }}
+          {% if form.client.errors %}<span class="field-error">{{ form.client.errors.0 }}</span>{% endif %}
         </div>
+      </fieldset>
 
-      </div>
+      <fieldset class="form-fieldset">
+        <h3>Schedule</h3>
+        <div class="form-row">
+          <label for="{{ form.visit_date.id_for_label }}">Date</label>
+          {{ form.visit_date }}
+          {% if form.visit_date.errors %}
+            <span class="field-error">{{ form.visit_date.errors.0 }}</span>
+          {% endif %}
+        </div>
+        <div class="form-row">
+          <label for="{{ form.visit_start_time.id_for_label }}">Start time</label>
+          {{ form.visit_start_time }}
+          {% if form.visit_start_time.errors %}
+            <span class="field-error">{{ form.visit_start_time.errors.0 }}</span>
+          {% endif %}
+        </div>
+        <div class="form-row">
+          <label for="{{ form.visit_duration_minutes.id_for_label }}">Length (minutes)</label>
+          {{ form.visit_duration_minutes }}
+          <span class="helptext">Between 5 and 480 minutes.</span>
+          {% if form.visit_duration_minutes.errors %}
+            <span class="field-error">{{ form.visit_duration_minutes.errors.0 }}</span>
+          {% endif %}
+        </div>
+      </fieldset>
 
-      <!-- Right: Actions -->
-      <div>
-        <div class="bg-white rounded-xl border border-slate-200 p-5 sticky top-4">
-          <button type="submit"
-                  class="w-full h-10 rounded-lg bg-teal-500 hover:bg-teal-600 text-white text-sm font-medium transition-colors mb-3">
+      <fieldset class="form-fieldset">
+        <h3>Coaching</h3>
+        <div class="form-row">
+          <label for="{{ form.methodology.id_for_label }}">Methodology override</label>
+          {{ form.methodology }}
+          <span class="helptext">Optional. Falls back to the agent's default, then the system default.</span>
+          {% if form.methodology.errors %}
+            <span class="field-error">{{ form.methodology.errors.0 }}</span>
+          {% endif %}
+        </div>
+        <div class="form-row">
+          <label for="{{ form.manager_notes.id_for_label }}">Manager notes</label>
+          <textarea name="{{ form.manager_notes.name }}"
+                    id="{{ form.manager_notes.id_for_label }}"
+                    placeholder='Special requirements (e.g. "Push for Q3 close")...'>{{ form.manager_notes.value|default:'' }}</textarea>
+          {% if form.manager_notes.errors %}
+            <span class="field-error">{{ form.manager_notes.errors.0 }}</span>
+          {% endif %}
+        </div>
+      </fieldset>
+
+    </div>
+
+    <aside class="form-sidebar">
+      <div class="card">
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary">
             {% if editing %}
-              Save Changes
+              Save changes
             {% else %}
-              Create Visit
+              Create visit
             {% endif %}
           </button>
           <a href="{% if editing %}{% url 'voice:visit_detail' visit.id %}{% else %}{% url 'voice:visit_list' %}{% endif %}"
-             class="block w-full h-10 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium text-center leading-10 hover:bg-slate-50 transition-colors">
-            Cancel
-          </a>
-
-          {% if not editing %}
-            <p class="text-[10px] text-slate-400 mt-4 leading-relaxed">
-              New visits are saved as <strong>Planned</strong>. The system automatically places
-              the AI pre-call and post-call at the scheduled times.
-            </p>
-          {% endif %}
+             class="btn btn-secondary">Cancel</a>
         </div>
       </div>
-
-    </div>
+      {% if not editing %}
+        <div class="card">
+          <h3>What happens next</h3>
+          <ol class="checklist">
+            <li>
+              The visit is saved as <strong>Planned</strong>.
+            </li>
+            <li>Pre-call and post-call prompts are auto-assembled on the schedule.</li>
+            <li>The AI agent dials at the configured offsets before/after the meeting.</li>
+            <li>You can lock or regenerate individual prompts from the visit page.</li>
+          </ol>
+        </div>
+      {% endif %}
+    </aside>
   </form>
 
 {% endblock %}
