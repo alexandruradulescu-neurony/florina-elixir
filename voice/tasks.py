@@ -25,6 +25,32 @@ from .services import (
 logger = logging.getLogger(__name__)
 
 
+def _phase_dial_count(*, visit=None, meeting=None, phase: str) -> int:
+    """Total dial attempts for a (visit OR meeting, phase) target.
+
+    Each `CallAttempt` row represents at least 1 dial; the new `retry_count`
+    field (PR 6 follow-up) tracks how many TIMES that row was re-dialed by
+    `retry_failed_call`. Total dials = sum of (1 + retry_count) across rows.
+
+    This replaces the earlier row-count-only check, which was inert against
+    the retry loop in `check_and_trigger_calls`: `retry_failed_call` reuses
+    the row instead of creating a new one, so row count stayed at 1 and the
+    cap never fired — the runaway-50-calls bug the PR was supposed to stop.
+    """
+    from django.db.models import Sum
+
+    qs = CallAttempt.objects.filter(phase=phase)
+    if visit is not None:
+        qs = qs.filter(visit=visit)
+    elif meeting is not None:
+        qs = qs.filter(meeting=meeting)
+    else:
+        return 0
+    # `Sum(1 + retry_count)` via annotated F-expression to do it in a single query.
+    total = qs.aggregate(total=Sum("retry_count"))["total"] or 0
+    return total + qs.count()
+
+
 def _resolve_prompt_for_call(call_attempt):
     """Return ``(prompt_text, first_message_text)`` for an outbound dial.
 
@@ -158,39 +184,25 @@ def check_and_trigger_calls():
         # Pre-meeting: retry failed calls every 5 minutes until meeting starts
         from .constants import MAX_CALL_ATTEMPTS_PER_PHASE
 
-        def _attempts_for_call(ca):
-            """Count CallAttempts for the same (visit OR meeting, phase) combo.
-
-            The hard cap applies to TOTAL calls (initial + retries) per
-            visit/meeting+phase — not just retries. Once `MAX_CALL_ATTEMPTS_PER_PHASE`
-            rows exist, no more dials of any kind.
-            """
-            qs = CallAttempt.objects.filter(phase=ca.phase)
-            if ca.visit_id:
-                qs = qs.filter(visit_id=ca.visit_id)
-            elif ca.meeting_id:
-                qs = qs.filter(meeting_id=ca.meeting_id)
-            else:
-                return 1  # standalone — treat as exhausted-after-self
-            return qs.count()
-
         failed_pre_calls = CallAttempt.objects.filter(
             meeting__start_time__gt=now,  # Meeting hasn't started
             phase="PRE",
             status__in=[CallStatus.NO_ANSWER, CallStatus.FAILED],
             meeting__agent__is_sales_agent=True,
-        ).select_related("meeting", "meeting__agent")
+        ).select_related("meeting", "meeting__agent", "visit")
 
         for call_attempt in failed_pre_calls:
-            # PR 6 hard cap: stop dialing once we've hit MAX_CALL_ATTEMPTS_PER_PHASE
-            # for this (visit OR meeting, phase) combo. Prevents the 50-calls-per-
-            # night runaway flagged in prod.
-            attempts = _attempts_for_call(call_attempt)
-            if attempts >= MAX_CALL_ATTEMPTS_PER_PHASE:
+            # PR 6 hard cap (corrected): count total DIALS, not rows.
+            # `retry_failed_call` reuses the same row + increments retry_count;
+            # row-counting was inert against the runaway it's supposed to stop.
+            dials = _phase_dial_count(
+                visit=call_attempt.visit, meeting=call_attempt.meeting, phase="PRE"
+            )
+            if dials >= MAX_CALL_ATTEMPTS_PER_PHASE:
                 logger.info(
-                    "Pre-call retry suppressed: CallAttempt #%s — already %d/%d attempts for this phase.",
+                    "Pre-call retry suppressed: CallAttempt #%s — already %d/%d dials for this phase.",
                     call_attempt.id,
-                    attempts,
+                    dials,
                     MAX_CALL_ATTEMPTS_PER_PHASE,
                 )
                 continue
@@ -214,15 +226,17 @@ def check_and_trigger_calls():
             phase="POST",
             status__in=[CallStatus.NO_ANSWER, CallStatus.FAILED],
             meeting__agent__is_sales_agent=True,
-        ).select_related("meeting", "meeting__agent")
+        ).select_related("meeting", "meeting__agent", "visit")
 
         for call_attempt in failed_post_calls:
-            attempts = _attempts_for_call(call_attempt)
-            if attempts >= MAX_CALL_ATTEMPTS_PER_PHASE:
+            dials = _phase_dial_count(
+                visit=call_attempt.visit, meeting=call_attempt.meeting, phase="POST"
+            )
+            if dials >= MAX_CALL_ATTEMPTS_PER_PHASE:
                 logger.info(
-                    "Post-call retry suppressed: CallAttempt #%s — already %d/%d attempts for this phase.",
+                    "Post-call retry suppressed: CallAttempt #%s — already %d/%d dials for this phase.",
                     call_attempt.id,
-                    attempts,
+                    dials,
                     MAX_CALL_ATTEMPTS_PER_PHASE,
                 )
                 continue
@@ -402,6 +416,23 @@ def retry_failed_call(call_attempt_id: int):
             )
             return {"success": False, "error": "No phone number"}
 
+        # PR 6 second-pass hard cap: even if the scheduler picked us, refuse
+        # to redial if the total dials for this (target, phase) have already
+        # hit MAX_CALL_ATTEMPTS_PER_PHASE. This is the defense-in-depth check;
+        # the scheduler's pre-spawn check is the primary one.
+        from .constants import MAX_CALL_ATTEMPTS_PER_PHASE
+
+        total_dials = _phase_dial_count(visit=visit, meeting=meeting, phase=call_attempt.phase)
+        if total_dials >= MAX_CALL_ATTEMPTS_PER_PHASE:
+            logger.warning(
+                "Retry refused for CallAttempt %s — already %d/%d dials. "
+                "(Scheduler should have suppressed; reporting for forensics.)",
+                call_attempt_id,
+                total_dials,
+                MAX_CALL_ATTEMPTS_PER_PHASE,
+            )
+            return {"success": False, "error": "Call attempt cap reached"}
+
         # PR 6: prefer visit.pre/post_call_prompt via shared helper.
         formatted_prompt, formatted_first_message = _resolve_prompt_for_call(call_attempt)
         if not formatted_prompt:
@@ -412,10 +443,15 @@ def retry_failed_call(call_attempt_id: int):
             )
             return {"success": False, "error": "No usable prompt source"}
 
+        # PR 6 follow-up: increment retry_count BEFORE dialing so the cap
+        # accounting reflects the dial attempt even if the EL call itself
+        # errors out. `update_fields` keeps the change atomic with the
+        # status reset below.
+        call_attempt.retry_count = (call_attempt.retry_count or 0) + 1
         # Reset call attempt status to SCHEDULED for retry
         call_attempt.status = CallStatus.SCHEDULED
         call_attempt.external_call_id = None  # Clear old call ID
-        call_attempt.save()
+        call_attempt.save(update_fields=["retry_count", "status", "external_call_id", "updated_at"])
 
         # Prepare context data
         context_data = {
@@ -498,10 +534,12 @@ def trigger_pre_meeting_call(meeting_id: int, offset_minutes: int):
         if meeting.external_id:
             linked_visit = Visit.objects.filter(calendar_event_id=meeting.external_id).first()
 
-        # PR 6 hard cap: count existing CallAttempts and refuse to create more.
-        existing_for_phase = CallAttempt.objects.filter(
-            meeting=meeting, phase=CallPhase.PRE_MEETING
-        ).count()
+        # PR 6 hard cap: count total dials (initial + retries) for this
+        # (meeting OR linked-visit, phase) and refuse to create more once
+        # the cap is reached.
+        existing_dials = _phase_dial_count(
+            visit=linked_visit, meeting=meeting, phase=CallPhase.PRE_MEETING
+        )
 
         # Check if CallAttempt already exists (from pre-programming)
         call_attempt = CallAttempt.objects.filter(
@@ -512,11 +550,11 @@ def trigger_pre_meeting_call(meeting_id: int, offset_minutes: int):
         ).first()
 
         if not call_attempt:
-            if existing_for_phase >= MAX_CALL_ATTEMPTS_PER_PHASE:
+            if existing_dials >= MAX_CALL_ATTEMPTS_PER_PHASE:
                 logger.info(
-                    "Meeting %s pre-call cap reached (%d/%d) — no new attempt.",
+                    "Meeting %s pre-call cap reached (%d/%d dials) — no new attempt.",
                     meeting_id,
-                    existing_for_phase,
+                    existing_dials,
                     MAX_CALL_ATTEMPTS_PER_PHASE,
                 )
                 return {"success": False, "error": "Call attempt cap reached"}
@@ -622,10 +660,10 @@ def trigger_post_meeting_call(meeting_id: int, offset_minutes: int):
         if meeting.external_id:
             linked_visit = Visit.objects.filter(calendar_event_id=meeting.external_id).first()
 
-        # PR 6 hard cap.
-        existing_for_phase = CallAttempt.objects.filter(
-            meeting=meeting, phase=CallPhase.POST_MEETING
-        ).count()
+        # PR 6 hard cap: count total dials across linked visit + meeting.
+        existing_dials = _phase_dial_count(
+            visit=linked_visit, meeting=meeting, phase=CallPhase.POST_MEETING
+        )
 
         # Check if CallAttempt already exists (from pre-programming)
         call_attempt = CallAttempt.objects.filter(
@@ -636,11 +674,11 @@ def trigger_post_meeting_call(meeting_id: int, offset_minutes: int):
         ).first()
 
         if not call_attempt:
-            if existing_for_phase >= MAX_CALL_ATTEMPTS_PER_PHASE:
+            if existing_dials >= MAX_CALL_ATTEMPTS_PER_PHASE:
                 logger.info(
-                    "Meeting %s post-call cap reached (%d/%d) — no new attempt.",
+                    "Meeting %s post-call cap reached (%d/%d dials) — no new attempt.",
                     meeting_id,
-                    existing_for_phase,
+                    existing_dials,
                     MAX_CALL_ATTEMPTS_PER_PHASE,
                 )
                 return {"success": False, "error": "Call attempt cap reached"}
@@ -957,17 +995,15 @@ def process_visit_pre_calls():
                 if existing:
                     continue
 
-                # PR 6 hard cap: also count FAILED/NO_ANSWER. The query above
-                # skipped them, so without this guard a Visit whose first attempt
-                # NO_ANSWER'd would keep getting fresh attempts every 5 minutes.
-                total_attempts = CallAttempt.objects.filter(
-                    visit=visit, phase=CallPhase.PRE_MEETING
-                ).count()
-                if total_attempts >= MAX_CALL_ATTEMPTS_PER_PHASE:
+                # PR 6 hard cap: count total dials (initial + retries) and
+                # bail once the cap is reached. Counting dials (not just rows)
+                # is essential because `retry_failed_call` reuses rows.
+                total_dials = _phase_dial_count(visit=visit, phase=CallPhase.PRE_MEETING)
+                if total_dials >= MAX_CALL_ATTEMPTS_PER_PHASE:
                     logger.info(
-                        "Visit %s pre-call cap reached (%d/%d) — no new attempt.",
+                        "Visit %s pre-call cap reached (%d/%d dials) — no new attempt.",
                         visit.id,
-                        total_attempts,
+                        total_dials,
                         MAX_CALL_ATTEMPTS_PER_PHASE,
                     )
                     continue
@@ -1083,14 +1119,12 @@ def process_visit_post_calls():
                     continue
 
                 # PR 6 hard cap — see process_visit_pre_calls for rationale.
-                total_attempts = CallAttempt.objects.filter(
-                    visit=visit, phase=CallPhase.POST_MEETING
-                ).count()
-                if total_attempts >= MAX_CALL_ATTEMPTS_PER_PHASE:
+                total_dials = _phase_dial_count(visit=visit, phase=CallPhase.POST_MEETING)
+                if total_dials >= MAX_CALL_ATTEMPTS_PER_PHASE:
                     logger.info(
-                        "Visit %s post-call cap reached (%d/%d) — no new attempt.",
+                        "Visit %s post-call cap reached (%d/%d dials) — no new attempt.",
                         visit.id,
-                        total_attempts,
+                        total_dials,
                         MAX_CALL_ATTEMPTS_PER_PHASE,
                     )
                     continue
