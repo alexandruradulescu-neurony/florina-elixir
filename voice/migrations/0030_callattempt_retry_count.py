@@ -4,15 +4,17 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('voice', '0029_remove_globalsettings_post_call_meta_prompt_and_more'),
+        ("voice", "0029_remove_globalsettings_post_call_meta_prompt_and_more"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='callattempt',
-            name='retry_count',
-            field=models.PositiveIntegerField(default=0, help_text='Number of redials performed on THIS row (does NOT count the initial dial). PR 6: was missing — `retry_failed_call` reuses the same CallAttempt row, so the only signal that retries happened was `updated_at` movement, which made row-counting caps inert. Total dials for this row = 1 + retry_count.'),
+            model_name="callattempt",
+            name="retry_count",
+            field=models.PositiveIntegerField(
+                default=0,
+                help_text="Number of redials performed on THIS row (does NOT count the initial dial). PR 6: was missing — `retry_failed_call` reuses the same CallAttempt row, so the only signal that retries happened was `updated_at` movement, which made row-counting caps inert. Total dials for this row = 1 + retry_count.",
+            ),
         ),
     ]
