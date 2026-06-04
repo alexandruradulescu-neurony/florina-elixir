@@ -98,6 +98,24 @@ def check_and_trigger_calls():
 
         # RETRY LOGIC: Check for failed calls that need retries
         # Pre-meeting: retry failed calls every 5 minutes until meeting starts
+        from .constants import MAX_CALL_ATTEMPTS_PER_PHASE
+
+        def _attempts_for_call(ca):
+            """Count CallAttempts for the same (visit OR meeting, phase) combo.
+
+            The hard cap applies to TOTAL calls (initial + retries) per
+            visit/meeting+phase — not just retries. Once `MAX_CALL_ATTEMPTS_PER_PHASE`
+            rows exist, no more dials of any kind.
+            """
+            qs = CallAttempt.objects.filter(phase=ca.phase)
+            if ca.visit_id:
+                qs = qs.filter(visit_id=ca.visit_id)
+            elif ca.meeting_id:
+                qs = qs.filter(meeting_id=ca.meeting_id)
+            else:
+                return 1  # standalone — treat as exhausted-after-self
+            return qs.count()
+
         failed_pre_calls = CallAttempt.objects.filter(
             meeting__start_time__gt=now,  # Meeting hasn't started
             phase="PRE",
@@ -106,6 +124,19 @@ def check_and_trigger_calls():
         ).select_related("meeting", "meeting__agent")
 
         for call_attempt in failed_pre_calls:
+            # PR 6 hard cap: stop dialing once we've hit MAX_CALL_ATTEMPTS_PER_PHASE
+            # for this (visit OR meeting, phase) combo. Prevents the 50-calls-per-
+            # night runaway flagged in prod.
+            attempts = _attempts_for_call(call_attempt)
+            if attempts >= MAX_CALL_ATTEMPTS_PER_PHASE:
+                logger.info(
+                    "Pre-call retry suppressed: CallAttempt #%s — already %d/%d attempts for this phase.",
+                    call_attempt.id,
+                    attempts,
+                    MAX_CALL_ATTEMPTS_PER_PHASE,
+                )
+                continue
+
             # Check if it's been at least 5 minutes since last attempt
             # Use updated_at as proxy for last retry time
             time_since_last_attempt = now - call_attempt.updated_at
@@ -128,6 +159,16 @@ def check_and_trigger_calls():
         ).select_related("meeting", "meeting__agent")
 
         for call_attempt in failed_post_calls:
+            attempts = _attempts_for_call(call_attempt)
+            if attempts >= MAX_CALL_ATTEMPTS_PER_PHASE:
+                logger.info(
+                    "Post-call retry suppressed: CallAttempt #%s — already %d/%d attempts for this phase.",
+                    call_attempt.id,
+                    attempts,
+                    MAX_CALL_ATTEMPTS_PER_PHASE,
+                )
+                continue
+
             # Check if it's been at least 5 minutes since last attempt
             time_since_last_attempt = now - call_attempt.updated_at
             if (
@@ -791,7 +832,7 @@ def process_visit_pre_calls():
       3. Trigger ElevenLabs call with generated prompt
       4. Update visit status
     """
-    from .constants import VisitStatus
+    from .constants import MAX_CALL_ATTEMPTS_PER_PHASE, VisitStatus
     from .models import CallAttempt, GenerationRun, GlobalSettings
     from .selectors import get_visits_needing_pre_call
     from .services.assembler import assemble_pre_call
@@ -822,6 +863,21 @@ def process_visit_pre_calls():
                     ],
                 ).exists()
                 if existing:
+                    continue
+
+                # PR 6 hard cap: also count FAILED/NO_ANSWER. The query above
+                # skipped them, so without this guard a Visit whose first attempt
+                # NO_ANSWER'd would keep getting fresh attempts every 5 minutes.
+                total_attempts = CallAttempt.objects.filter(
+                    visit=visit, phase=CallPhase.PRE_MEETING
+                ).count()
+                if total_attempts >= MAX_CALL_ATTEMPTS_PER_PHASE:
+                    logger.info(
+                        "Visit %s pre-call cap reached (%d/%d) — no new attempt.",
+                        visit.id,
+                        total_attempts,
+                        MAX_CALL_ATTEMPTS_PER_PHASE,
+                    )
                     continue
 
                 # Enrich client data
@@ -863,13 +919,16 @@ def process_visit_pre_calls():
                     scheduled_time=timezone.now(),
                 )
 
-                # Trigger the call
+                # Trigger the call. PR 6: pass `visit.pre_call_first_message`
+                # (was hardcoded `None` — the assembler's first-message output
+                # was being dropped, so EL fell back to its default greeting
+                # for the agent.)
                 result = trigger_agent_call(
                     agent_phone=visit.agent.phone_number,
                     prompt_text=prompt,
                     context_data={"visit_id": visit.id, "client": visit.client.name},
                     call_attempt=call,
-                    first_message_text=None,
+                    first_message_text=visit.pre_call_first_message or None,
                 )
 
                 if result.get("success"):
@@ -903,7 +962,7 @@ def process_visit_post_calls():
       2. Trigger ElevenLabs call
       3. (After call completes via webhook): summarize transcript, push to CRM
     """
-    from .constants import VisitStatus
+    from .constants import MAX_CALL_ATTEMPTS_PER_PHASE, VisitStatus
     from .models import CallAttempt, GenerationRun, GlobalSettings
     from .selectors import get_visits_needing_post_call
     from .services.assembler import assemble_post_call
@@ -929,6 +988,19 @@ def process_visit_post_calls():
                     ],
                 ).exists()
                 if existing:
+                    continue
+
+                # PR 6 hard cap — see process_visit_pre_calls for rationale.
+                total_attempts = CallAttempt.objects.filter(
+                    visit=visit, phase=CallPhase.POST_MEETING
+                ).count()
+                if total_attempts >= MAX_CALL_ATTEMPTS_PER_PHASE:
+                    logger.info(
+                        "Visit %s post-call cap reached (%d/%d) — no new attempt.",
+                        visit.id,
+                        total_attempts,
+                        MAX_CALL_ATTEMPTS_PER_PHASE,
+                    )
                     continue
 
                 settings = GlobalSettings.load()
@@ -967,12 +1039,13 @@ def process_visit_post_calls():
                     scheduled_time=timezone.now(),
                 )
 
+                # PR 6: pass `visit.post_call_first_message` — was hardcoded None.
                 result = trigger_agent_call(
                     agent_phone=visit.agent.phone_number,
                     prompt_text=prompt,
                     context_data={"visit_id": visit.id, "client": visit.client.name},
                     call_attempt=call,
-                    first_message_text=None,
+                    first_message_text=visit.post_call_first_message or None,
                 )
 
                 if result.get("success"):
