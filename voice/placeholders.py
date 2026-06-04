@@ -11,7 +11,7 @@ real source that should eventually replace it. When that source ships, find
 the function by name and replace its body — templates do not need to change.
 """
 
-from voice.constants import VisitStatus
+from voice.constants import CallPhase, CallStatus, VisitStatus
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Per-record helpers
@@ -57,7 +57,9 @@ def outcome_chips_for_summary(visit):
     except Exception:
         return []
     ca = (
-        CallAttempt.objects.filter(visit=visit, phase="POST", status="COMPLETED")
+        CallAttempt.objects.filter(
+            visit=visit, phase=CallPhase.POST_MEETING, status=CallStatus.COMPLETED
+        )
         .exclude(analysis={})
         .order_by("-executed_at", "-created_at")
         .first()
@@ -980,11 +982,11 @@ def _call_state_for_phase(visit, phase_code):
     except Exception:
         return "pending"
     qs = CallAttempt.objects.filter(visit=visit, phase=phase_code)
-    if qs.filter(status="COMPLETED").exists():
+    if qs.filter(status=CallStatus.COMPLETED).exists():
         return "done"
-    if qs.filter(status__in=["FAILED", "NO_ANSWER"]).exists():
+    if qs.filter(status__in=[CallStatus.FAILED, CallStatus.NO_ANSWER]).exists():
         return "failed"
-    if qs.filter(status__in=["INITIATED", "IN_PROGRESS"]).exists():
+    if qs.filter(status__in=[CallStatus.INITIATED, CallStatus.IN_PROGRESS]).exists():
         return "active"
     return "pending"
 

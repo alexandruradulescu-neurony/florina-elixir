@@ -1680,11 +1680,15 @@ class ProgrammedCallsView(SuperuserRequiredMixin, View):
         agents = User.objects.filter(is_sales_agent=True).order_by("username")
 
         # Get statistics (only for actual calls)
+        from .constants import CallStatus
+
         total_calls = CallAttempt.objects.count()
-        scheduled_calls = CallAttempt.objects.filter(status="SCHEDULED").count()
-        in_progress_calls = CallAttempt.objects.filter(status="IN_PROGRESS").count()
-        completed_calls = CallAttempt.objects.filter(status="COMPLETED").count()
-        failed_calls = CallAttempt.objects.filter(status__in=["NO_ANSWER", "FAILED"]).count()
+        scheduled_calls = CallAttempt.objects.filter(status=CallStatus.SCHEDULED).count()
+        in_progress_calls = CallAttempt.objects.filter(status=CallStatus.IN_PROGRESS).count()
+        completed_calls = CallAttempt.objects.filter(status=CallStatus.COMPLETED).count()
+        failed_calls = CallAttempt.objects.filter(
+            status__in=[CallStatus.NO_ANSWER, CallStatus.FAILED]
+        ).count()
 
         context = {
             "calls": all_calls,
@@ -2026,19 +2030,22 @@ class VisitListView(SuperuserRequiredMixin, View):
             visits = visits.filter(status=status_filter)
 
         # Enrich visits with call counts for display
+        from .constants import CallPhase, CallStatus
+
         enriched_visits = []
+        failed_statuses = [CallStatus.FAILED, CallStatus.NO_ANSWER]
         for visit in visits:
-            pre = CallAttempt.objects.filter(visit=visit, phase="PRE")
-            post = CallAttempt.objects.filter(visit=visit, phase="POST")
+            pre = CallAttempt.objects.filter(visit=visit, phase=CallPhase.PRE_MEETING)
+            post = CallAttempt.objects.filter(visit=visit, phase=CallPhase.POST_MEETING)
             enriched_visits.append(
                 {
                     "visit": visit,
                     "pre_call_count": pre.count(),
-                    "pre_call_done": pre.filter(status="COMPLETED").exists(),
+                    "pre_call_done": pre.filter(status=CallStatus.COMPLETED).exists(),
                     "post_call_count": post.count(),
-                    "post_call_done": post.filter(status="COMPLETED").exists(),
-                    "has_failed_call": pre.filter(status__in=["FAILED", "NO_ANSWER"]).exists()
-                    or post.filter(status__in=["FAILED", "NO_ANSWER"]).exists(),
+                    "post_call_done": post.filter(status=CallStatus.COMPLETED).exists(),
+                    "has_failed_call": pre.filter(status__in=failed_statuses).exists()
+                    or post.filter(status__in=failed_statuses).exists(),
                 }
             )
 
@@ -2076,8 +2083,14 @@ class VisitDetailView(SuperuserRequiredMixin, View):
     """View and edit a single visit — manager notes, methodology override, call status."""
 
     def _build_context(self, visit, form):
-        pre_calls = CallAttempt.objects.filter(visit=visit, phase="PRE").order_by("created_at")
-        post_calls = CallAttempt.objects.filter(visit=visit, phase="POST").order_by("created_at")
+        from .constants import CallPhase
+
+        pre_calls = CallAttempt.objects.filter(visit=visit, phase=CallPhase.PRE_MEETING).order_by(
+            "created_at"
+        )
+        post_calls = CallAttempt.objects.filter(visit=visit, phase=CallPhase.POST_MEETING).order_by(
+            "created_at"
+        )
 
         # Progress steps for the tracker
         from .constants import VisitStatus
@@ -2123,21 +2136,26 @@ class VisitDetailView(SuperuserRequiredMixin, View):
             },
         ]
 
-        # Pre-call status summary
+        # Pre/post-call status summaries — share the same enum-driven buckets.
+        from .constants import CallStatus
+
+        _failed = [CallStatus.FAILED, CallStatus.NO_ANSWER]
+        _active = [CallStatus.INITIATED, CallStatus.IN_PROGRESS]
+
         pre_call_status = "pending"
-        if pre_calls.filter(status="COMPLETED").exists():
+        if pre_calls.filter(status=CallStatus.COMPLETED).exists():
             pre_call_status = "done"
-        elif pre_calls.filter(status__in=["FAILED", "NO_ANSWER"]).exists():
+        elif pre_calls.filter(status__in=_failed).exists():
             pre_call_status = "failed"
-        elif pre_calls.filter(status__in=["INITIATED", "IN_PROGRESS"]).exists():
+        elif pre_calls.filter(status__in=_active).exists():
             pre_call_status = "active"
 
         post_call_status = "pending"
-        if post_calls.filter(status="COMPLETED").exists():
+        if post_calls.filter(status=CallStatus.COMPLETED).exists():
             post_call_status = "done"
-        elif post_calls.filter(status__in=["FAILED", "NO_ANSWER"]).exists():
+        elif post_calls.filter(status__in=_failed).exists():
             post_call_status = "failed"
-        elif post_calls.filter(status__in=["INITIATED", "IN_PROGRESS"]).exists():
+        elif post_calls.filter(status__in=_active).exists():
             post_call_status = "active"
 
         effective_methodology = visit.get_effective_methodology()
