@@ -21,7 +21,28 @@ import logging
 import re
 from typing import Any
 
+from django.utils import timezone
+
 from voice.models import Client, Visit
+
+
+def _fmt_local_date(dt) -> str:
+    """Format a datetime in the project's local timezone, YYYY-MM-DD."""
+    if not dt:
+        return "?"
+    return timezone.localtime(dt).strftime("%Y-%m-%d")
+
+
+def _fmt_local_datetime(dt) -> str:
+    """Format a datetime in the project's local timezone, ``DD Month YYYY, HH:MM``.
+
+    PR 6: was bare `dt.strftime(...)` which uses the datetime's INTERNAL tz
+    (UTC for tz-aware DB rows) — Florina was reading visit times in UTC
+    instead of Bucharest. `timezone.localtime` honors `settings.TIME_ZONE`.
+    """
+    if not dt:
+        return ""
+    return timezone.localtime(dt).strftime("%d %B %Y, %H:%M")
 
 logger = logging.getLogger(__name__)
 
@@ -113,7 +134,7 @@ def _format_past_visits(visits) -> str:
         return ""
     lines = []
     for v in visits:
-        date = v.start_time.strftime("%Y-%m-%d") if v.start_time else "?"
+        date = _fmt_local_date(v.start_time)
         summary = (v.post_call_summary or "").strip()
         if summary:
             lines.append(f"- {date} · {v.title}\n  {summary[:400]}")
@@ -139,7 +160,7 @@ def build_pre_call_context(visit: Visit) -> dict[str, Any]:
         "client_industry": client.industry or "",
         "client_summary": client.ai_summary or "",
         "client_lessons_learned": client.lessons_learned or "",
-        "visit_time": visit.start_time.strftime("%d %B %Y, %H:%M") if visit.start_time else "",
+        "visit_time": _fmt_local_datetime(visit.start_time),
         "scenario": visit.scenario.name if visit.scenario_id else "",
         "manager_notes": visit.manager_notes or "",
         "methodology_summary": (methodology.ai_summary if methodology else "") or "",

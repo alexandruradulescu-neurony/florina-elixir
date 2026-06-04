@@ -119,7 +119,12 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = "en-us"
 
-TIME_ZONE = "UTC"
+# Server runs in UTC (USE_TZ=True keeps timestamps tz-aware in the DB), but
+# the app is single-tenant for a Romanian sales team — Django renders all
+# template times in this `TIME_ZONE`. PR 6: previously "UTC" — visit times
+# rendered 2-3 hours off the user's local Bucharest time, and the assembler's
+# `{visit_time}` placeholder fed Florina UTC clock readings.
+TIME_ZONE = "Europe/Bucharest"
 
 USE_I18N = True
 
