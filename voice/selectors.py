@@ -8,6 +8,9 @@ from datetime import timedelta
 from django.utils import timezone
 
 from .constants import (
+    POST_MEETING_OFFSETS,
+    PRE_MEETING_OFFSETS,
+    SCHEDULER_WINDOW,
     CallPhase,
     CallStatus,
     VisitStatus,
@@ -63,10 +66,110 @@ def get_call_attempt_by_external_id(external_call_id: str) -> CallAttempt | None
         return None
 
 
-# `get_meetings_for_pre_call_check` and `get_meetings_for_post_call_check`
-# (the legacy windowed-by-now meeting selectors used by `check_and_trigger_calls`)
-# were dropped together with their caller. The Visit-flow uses
-# `get_visits_needing_pre_call` / `get_visits_needing_post_call` below.
+def get_meetings_for_pre_call_check() -> list[tuple[Meeting, int]]:
+    """Find meetings that need pre-meeting calls triggered.
+
+    NOTE: This is the legacy windowed selector used by the dropped
+    `check_and_trigger_calls` task. It still has TWO live callers that
+    will be migrated in a follow-up PR (Y1b):
+      * `ProgrammedCallsView.get()` for the superuser-dashboard
+        "programmed calls" page.
+      * `check_scheduler` diagnostic management command.
+
+    The Visit-flow scheduler (`process_visit_pre_calls`) does not use
+    this — it queries the Visit table directly via
+    `get_visits_needing_pre_call`. When the two callers above are
+    migrated, drop this function.
+
+    For pre-meeting calls with offset -60:
+    - Meeting at 16:00 should get a call at 15:00 (60 min before)
+    - We want to find meetings where: meeting.start_time + offset is within current window
+    - So: meeting.start_time should be between (now - offset - window/2) and (now - offset + window/2)
+    - Since offset is negative (-60), this becomes: (now + 60 - 5) to (now + 60 + 5)
+
+    Returns:
+        List of tuples (Meeting, offset_minutes) for meetings that need calls
+    """
+    now = timezone.now()
+    results = []
+
+    for offset in PRE_MEETING_OFFSETS:
+        # Allow some past tolerance to catch up on missed calls (extend window backward by 10 min).
+        window_start = (
+            now
+            - timedelta(minutes=offset)
+            - timedelta(minutes=SCHEDULER_WINDOW / 2)
+            - timedelta(minutes=10)
+        )
+        window_end = now - timedelta(minutes=offset) + timedelta(minutes=SCHEDULER_WINDOW / 2)
+
+        meetings = Meeting.objects.filter(
+            start_time__gte=window_start,
+            start_time__lte=window_end,
+            start_time__gt=now,
+            agent__is_sales_agent=True,
+        )
+
+        for meeting in meetings:
+            if offset == PRE_MEETING_OFFSETS[0]:  # First call (-60 mins)
+                if not CallAttempt.objects.filter(
+                    meeting=meeting, phase=CallPhase.PRE_MEETING, scheduled_offset_minutes=offset
+                ).exists():
+                    results.append((meeting, offset))
+            else:  # Retry call (-30 mins)
+                if (
+                    not meeting.is_pre_call_completed
+                    and not CallAttempt.objects.filter(
+                        meeting=meeting,
+                        phase=CallPhase.PRE_MEETING,
+                        scheduled_offset_minutes=offset,
+                    ).exists()
+                ):
+                    results.append((meeting, offset))
+
+    return results
+
+
+def get_meetings_for_post_call_check() -> list[tuple[Meeting, int]]:
+    """Find meetings that need post-meeting calls triggered. Same live-caller
+    notes as `get_meetings_for_pre_call_check` — kept until Y1b migrates
+    `ProgrammedCallsView` and `check_scheduler` off it.
+
+    For post-meeting calls with offset +15:
+    - Meeting ends at 17:00 should get a call at 17:15 (15 min after)
+
+    Returns:
+        List of tuples (Meeting, offset_minutes) for meetings that need calls
+    """
+    now = timezone.now()
+    results = []
+
+    for offset in POST_MEETING_OFFSETS:
+        window_start = now - timedelta(minutes=offset) - timedelta(minutes=SCHEDULER_WINDOW / 2)
+        window_end = now - timedelta(minutes=offset) + timedelta(minutes=SCHEDULER_WINDOW / 2)
+
+        meetings = Meeting.objects.filter(
+            end_time__gte=window_start, end_time__lte=window_end, agent__is_sales_agent=True
+        )
+
+        for meeting in meetings:
+            if offset == POST_MEETING_OFFSETS[0]:  # First call (+15 mins)
+                if not CallAttempt.objects.filter(
+                    meeting=meeting, phase=CallPhase.POST_MEETING, scheduled_offset_minutes=offset
+                ).exists():
+                    results.append((meeting, offset))
+            else:  # Retry call (+30 mins)
+                if (
+                    not meeting.is_post_call_completed
+                    and not CallAttempt.objects.filter(
+                        meeting=meeting,
+                        phase=CallPhase.POST_MEETING,
+                        scheduled_offset_minutes=offset,
+                    ).exists()
+                ):
+                    results.append((meeting, offset))
+
+    return results
 
 
 def get_call_attempts_for_meeting(meeting: Meeting, phase: str = None) -> list[CallAttempt]:
