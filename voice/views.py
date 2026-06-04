@@ -55,6 +55,7 @@ from .selectors import (
     get_next_upcoming_visit,
     get_recent_activity_logs,
     get_recent_post_call_summaries,
+    get_upcoming_visits_for_agent,
     get_visits_for_date,
     get_weekly_summary,
 )
@@ -1402,23 +1403,18 @@ class SalesAgentDashboardView(SalesAgentRequiredMixin, View):
     """Sales agent dashboard with timeline view."""
 
     def get(self, request):
-        from .selectors import get_upcoming_visits_for_agent
-
         agent = request.user
         timeline_data = get_agent_timeline_data(agent)
-        upcoming_visits = get_upcoming_visits_for_agent(agent, limit=10)
+        # Force evaluation here so the template's `{% if upcoming_visits %}`
+        # and `{{ upcoming_visits_count }}` share one SQL roundtrip instead of
+        # firing a separate COUNT.
+        upcoming_visits = list(get_upcoming_visits_for_agent(agent, limit=10))
         call_stats = get_agent_call_statistics(agent)
-
-        # Materialize the queryset count once; the template needs both the
-        # queryset (for iteration) and the integer (for the stat badge).
-        upcoming_visits_count = (
-            upcoming_visits.count() if hasattr(upcoming_visits, "count") else len(upcoming_visits)
-        )
 
         context = {
             "timeline_data": timeline_data,
             "upcoming_visits": upcoming_visits,
-            "upcoming_visits_count": upcoming_visits_count,
+            "upcoming_visits_count": len(upcoming_visits),
             "call_stats": call_stats,
         }
         return render(request, "voice/agent/dashboard.html", context)

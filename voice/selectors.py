@@ -400,16 +400,26 @@ def get_upcoming_visits_for_agent(agent, limit: int = 10):
     Replaces the older `get_upcoming_meetings_for_agent` selector that
     returned `Meeting` rows. The dashboard now queries `Visit` directly —
     Meeting is being retired.
+
+    Returns a list of `{"visit": Visit, "pre_call_done": bool}` dicts. The
+    boolean encapsulates "has this visit passed the pre-call stage" so the
+    template doesn't have to enumerate statuses inline. Computing this in
+    Python (rather than `WHERE status != 'PLANNED'`) lets us be explicit
+    about the success-set; a future status like CANCELLED won't read as
+    "Completed".
     """
-    return (
+    done_statuses = {
+        VisitStatus.PRE_CALL_DONE,
+        VisitStatus.IN_PROGRESS,
+        VisitStatus.POST_CALL_DONE,
+        VisitStatus.COMPLETE,
+    }
+    qs = (
         Visit.objects.filter(agent=agent, start_time__gte=timezone.now())
         .select_related("client")
         .order_by("start_time")[:limit]
     )
-
-
-# Backwards-compat alias. Callers should migrate to `get_upcoming_visits_for_agent`.
-get_upcoming_meetings_for_agent = get_upcoming_visits_for_agent
+    return [{"visit": v, "pre_call_done": v.status in done_statuses} for v in qs]
 
 
 def get_agent_timeline_data(agent, date=None):
