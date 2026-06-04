@@ -8,6 +8,7 @@ from datetime import timedelta
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
+from voice.constants import CallStatus
 from voice.models import CallAttempt
 from voice.services import fetch_call_status_from_elevenlabs, sync_call_status_from_api
 
@@ -79,7 +80,7 @@ class Command(BaseCommand):
             time_threshold = timezone.now() - timedelta(hours=hours)
 
             calls = (
-                CallAttempt.objects.filter(status="COMPLETED", transcript__isnull=True)
+                CallAttempt.objects.filter(status=CallStatus.COMPLETED, transcript__isnull=True)
                 .exclude(external_call_id__isnull=True)
                 .exclude(external_call_id="")
                 .filter(created_at__gte=time_threshold)

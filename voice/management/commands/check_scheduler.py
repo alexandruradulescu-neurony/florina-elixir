@@ -7,7 +7,7 @@ from datetime import datetime, time, timedelta
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
-from voice.constants import PRE_MEETING_OFFSETS, SCHEDULER_WINDOW
+from voice.constants import PRE_MEETING_OFFSETS, SCHEDULER_WINDOW, CallPhase
 from voice.models import CallAttempt, Meeting, User
 from voice.services import check_post_meeting_calls, check_pre_meeting_calls
 
@@ -94,7 +94,7 @@ class Command(BaseCommand):
 
             for meeting in meetings_in_window:
                 existing_attempt = CallAttempt.objects.filter(
-                    meeting=meeting, phase="PRE", scheduled_offset_minutes=offset
+                    meeting=meeting, phase=CallPhase.PRE_MEETING, scheduled_offset_minutes=offset
                 ).exists()
                 self.stdout.write(f"    - {meeting.title} at {meeting.start_time}")
                 self.stdout.write(f"      Pre-call completed: {meeting.is_pre_call_completed}")
