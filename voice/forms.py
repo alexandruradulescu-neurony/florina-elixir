@@ -112,6 +112,10 @@ class AgentCreateForm(forms.ModelForm):
 class MethodologyForm(forms.ModelForm):
     """Form for creating/editing a methodology."""
 
+    # 10 MB — generous for a long sales methodology guide while bounding the
+    # blast radius from a malicious or accidentally-huge upload.
+    MAX_PDF_SIZE = 10 * 1024 * 1024
+
     class Meta:
         model = Methodology
         fields = ["name", "description", "source_material", "ai_summary", "is_active"]
@@ -141,6 +145,50 @@ class MethodologyForm(forms.ModelForm):
                 }
             ),
         }
+
+    def clean_source_material(self):
+        """Server-side validation for the uploaded PDF.
+
+        The widget's `accept=".pdf"` is HTML-only — it does NOT prevent a
+        crafted POST from uploading any file type. Since methodology files
+        are stored under `media/methodologies/` (web-accessible), an
+        unrestricted upload would let an attacker drop arbitrary content
+        (HTML/JS for stored XSS via direct media link, executable payloads
+        for distribution, etc.). Three independent checks below:
+          1. Filename extension `.pdf` (case-insensitive).
+          2. Browser-reported `content_type` is `application/pdf`.
+          3. Size cap (defense in depth against accidental huge files).
+        Each check raises ValidationError with a Romanian-language message
+        consistent with the rest of the UI.
+        """
+        f = self.cleaned_data.get("source_material")
+        if not f:
+            # Field is optional — empty submission is fine.
+            return f
+        # `f` may be an InMemoryUploadedFile (fresh upload) or a FieldFile
+        # (existing value preserved). Only validate fresh uploads.
+        if not hasattr(f, "content_type"):
+            return f
+        name = (getattr(f, "name", "") or "").lower()
+        if not name.endswith(".pdf"):
+            raise forms.ValidationError(
+                "Doar fișiere PDF sunt acceptate (extensia trebuie să fie .pdf)."
+            )
+        content_type = (f.content_type or "").lower()
+        # Strict: ONLY application/pdf. Some browsers report
+        # "application/x-pdf" or octet-stream for PDFs — those are
+        # uncommon enough that we treat them as suspect.
+        if content_type != "application/pdf":
+            raise forms.ValidationError(
+                f"Tip de fișier invalid ({content_type or 'necunoscut'}). "
+                f"Trimite un PDF real, nu doar redenumit."
+            )
+        size = getattr(f, "size", 0) or 0
+        if size > self.MAX_PDF_SIZE:
+            raise forms.ValidationError(
+                f"Fișierul depășește limita de {self.MAX_PDF_SIZE // (1024 * 1024)} MB."
+            )
+        return f
 
 
 class GlobalSettingsForm(forms.ModelForm):

@@ -749,7 +749,14 @@ class GoogleCalendarWebhookView(View):
                     f"Rejected Google Calendar webhook: token mismatch on channel_id={channel_id}"
                 )
                 return JsonResponse({"error": "Invalid token"}, status=403)
-            if resource_id and watch.resource_id and resource_id != watch.resource_id:
+            if (
+                resource_id
+                and watch.resource_id
+                and not constant_time_compare(resource_id, watch.resource_id)
+            ):
+                # constant_time_compare avoids leaking the watch's resource_id
+                # one byte at a time through a timing side channel — same
+                # defense the channel-token check above already uses.
                 logger.warning(
                     f"Rejected Google Calendar webhook: resource_id mismatch on "
                     f"channel_id={channel_id}"
