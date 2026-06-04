@@ -21,7 +21,6 @@ from voice.constants import (
     LogLevel,
 )
 from voice.models import CallAttempt, Meeting
-from voice.selectors import get_meetings_for_post_call_check, get_meetings_for_pre_call_check
 
 from .logging import log_activity
 
@@ -248,51 +247,9 @@ def should_trigger_post_call(meeting: Meeting, offset: int) -> bool:
     return False
 
 
-def check_pre_meeting_calls() -> list[tuple[Meeting, int]]:
-    """
-    Find meetings that need pre-meeting calls triggered.
-    Uses selectors to find meetings, then applies decision logic.
-
-    Returns:
-        List of tuples (Meeting, offset_minutes) for meetings that need calls
-    """
-    meetings_to_call = []
-
-    # Get meetings from selectors
-    meetings_with_offsets = get_meetings_for_pre_call_check()
-
-    for meeting, offset in meetings_with_offsets:
-        if should_trigger_pre_call(meeting, offset):
-            meetings_to_call.append((meeting, offset))
-            log_activity(
-                meeting=meeting,
-                action=f"Pre-meeting call scheduled for offset {offset} minutes",
-                details={"offset_minutes": offset, "meeting_start": meeting.start_time.isoformat()},
-            )
-
-    return meetings_to_call
-
-
-def check_post_meeting_calls() -> list[tuple[Meeting, int]]:
-    """
-    Find meetings that need post-meeting calls triggered.
-    Uses selectors to find meetings, then applies decision logic.
-
-    Returns:
-        List of tuples (Meeting, offset_minutes) for meetings that need calls
-    """
-    meetings_to_call = []
-
-    # Get meetings from selectors
-    meetings_with_offsets = get_meetings_for_post_call_check()
-
-    for meeting, offset in meetings_with_offsets:
-        if should_trigger_post_call(meeting, offset):
-            meetings_to_call.append((meeting, offset))
-            log_activity(
-                meeting=meeting,
-                action=f"Post-meeting call scheduled for offset {offset} minutes",
-                details={"offset_minutes": offset, "meeting_end": meeting.end_time.isoformat()},
-            )
-
-    return meetings_to_call
+# `check_pre_meeting_calls` and `check_post_meeting_calls` (the legacy
+# meeting-flow scheduler entry points that aggregated selector results into
+# `(Meeting, offset)` tuples) were dropped together with `check_and_trigger_calls`
+# in `tasks.py`. Their replacements are `process_visit_pre_calls` and
+# `process_visit_post_calls` in `tasks.py`, which query the Visit table
+# directly and don't need this two-step (selector → decision) split.

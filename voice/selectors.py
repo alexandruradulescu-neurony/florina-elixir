@@ -8,9 +8,6 @@ from datetime import timedelta
 from django.utils import timezone
 
 from .constants import (
-    POST_MEETING_OFFSETS,
-    PRE_MEETING_OFFSETS,
-    SCHEDULER_WINDOW,
     CallPhase,
     CallStatus,
     VisitStatus,
@@ -66,117 +63,10 @@ def get_call_attempt_by_external_id(external_call_id: str) -> CallAttempt | None
         return None
 
 
-def get_meetings_for_pre_call_check() -> list[tuple[Meeting, int]]:
-    """
-    Find meetings that need pre-meeting calls triggered.
-
-    For pre-meeting calls with offset -60:
-    - Meeting at 16:00 should get a call at 15:00 (60 min before)
-    - We want to find meetings where: meeting.start_time + offset is within current window
-    - So: meeting.start_time should be between (now - offset - window/2) and (now - offset + window/2)
-    - Since offset is negative (-60), this becomes: (now + 60 - 5) to (now + 60 + 5)
-
-    Returns:
-        List of tuples (Meeting, offset_minutes) for meetings that need calls
-    """
-    now = timezone.now()
-    results = []
-
-    for offset in PRE_MEETING_OFFSETS:
-        # Calculate when the call should be made: meeting.start_time + offset (since offset is negative, this is before meeting)
-        # We want meetings where this call time is within the current window
-        # meeting.start_time + offset should be between (now - window/2) and (now + window/2)
-        # Rearranging: meeting.start_time should be between (now - offset - window/2) and (now - offset + window/2)
-        # Also allow some past tolerance to catch up on missed calls (extend window backward by 10 minutes)
-        window_start = (
-            now
-            - timedelta(minutes=offset)
-            - timedelta(minutes=SCHEDULER_WINDOW / 2)
-            - timedelta(minutes=10)
-        )
-        window_end = now - timedelta(minutes=offset) + timedelta(minutes=SCHEDULER_WINDOW / 2)
-
-        # Find meetings where start_time falls in this window
-        # Also ensure meeting hasn't started yet (we only do pre-meeting calls before the meeting)
-        meetings = Meeting.objects.filter(
-            start_time__gte=window_start,
-            start_time__lte=window_end,
-            start_time__gt=now,  # Meeting hasn't started yet
-            agent__is_sales_agent=True,
-        )
-
-        for meeting in meetings:
-            # Check if this offset call should be triggered
-            if offset == PRE_MEETING_OFFSETS[0]:  # First call (-60 mins)
-                # Check if call attempt already exists for this offset
-                if not CallAttempt.objects.filter(
-                    meeting=meeting, phase=CallPhase.PRE_MEETING, scheduled_offset_minutes=offset
-                ).exists():
-                    results.append((meeting, offset))
-            else:  # Retry call (-30 mins)
-                # Only trigger if pre-call is not completed and retry call doesn't exist
-                if (
-                    not meeting.is_pre_call_completed
-                    and not CallAttempt.objects.filter(
-                        meeting=meeting,
-                        phase=CallPhase.PRE_MEETING,
-                        scheduled_offset_minutes=offset,
-                    ).exists()
-                ):
-                    results.append((meeting, offset))
-
-    return results
-
-
-def get_meetings_for_post_call_check() -> list[tuple[Meeting, int]]:
-    """
-    Find meetings that need post-meeting calls triggered.
-
-    For post-meeting calls with offset +15:
-    - Meeting ends at 17:00 should get a call at 17:15 (15 min after)
-    - We want to find meetings where: meeting.end_time + offset is within current window
-    - So: meeting.end_time should be between (now - offset - window/2) and (now - offset + window/2)
-
-    Returns:
-        List of tuples (Meeting, offset_minutes) for meetings that need calls
-    """
-    now = timezone.now()
-    results = []
-
-    for offset in POST_MEETING_OFFSETS:
-        # Calculate when the call should be made: meeting.end_time + offset
-        # We want meetings where this call time is within the current window
-        # meeting.end_time + offset should be between (now - window/2) and (now + window/2)
-        # Rearranging: meeting.end_time should be between (now - offset - window/2) and (now - offset + window/2)
-        window_start = now - timedelta(minutes=offset) - timedelta(minutes=SCHEDULER_WINDOW / 2)
-        window_end = now - timedelta(minutes=offset) + timedelta(minutes=SCHEDULER_WINDOW / 2)
-
-        # Find meetings that ended in this window
-        meetings = Meeting.objects.filter(
-            end_time__gte=window_start, end_time__lte=window_end, agent__is_sales_agent=True
-        )
-
-        for meeting in meetings:
-            # Check if this offset call should be triggered
-            if offset == POST_MEETING_OFFSETS[0]:  # First call (+15 mins)
-                # Check if call attempt already exists for this offset
-                if not CallAttempt.objects.filter(
-                    meeting=meeting, phase=CallPhase.POST_MEETING, scheduled_offset_minutes=offset
-                ).exists():
-                    results.append((meeting, offset))
-            else:  # Retry call (+30 mins)
-                # Only trigger if post-call is not completed and retry call doesn't exist
-                if (
-                    not meeting.is_post_call_completed
-                    and not CallAttempt.objects.filter(
-                        meeting=meeting,
-                        phase=CallPhase.POST_MEETING,
-                        scheduled_offset_minutes=offset,
-                    ).exists()
-                ):
-                    results.append((meeting, offset))
-
-    return results
+# `get_meetings_for_pre_call_check` and `get_meetings_for_post_call_check`
+# (the legacy windowed-by-now meeting selectors used by `check_and_trigger_calls`)
+# were dropped together with their caller. The Visit-flow uses
+# `get_visits_needing_pre_call` / `get_visits_needing_post_call` below.
 
 
 def get_call_attempts_for_meeting(meeting: Meeting, phase: str = None) -> list[CallAttempt]:

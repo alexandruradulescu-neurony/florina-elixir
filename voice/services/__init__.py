@@ -98,8 +98,6 @@ from .pipedrive import (
 # Scheduler Logic
 # ============================================================================
 from .scheduler import (
-    check_post_meeting_calls,
-    check_pre_meeting_calls,
     cleanup_cancelled_meeting_calls,
     pre_program_meeting_calls,
     should_trigger_post_call,
@@ -174,6 +172,4 @@ __all__ = [
     "cleanup_cancelled_meeting_calls",
     "should_trigger_pre_call",
     "should_trigger_post_call",
-    "check_pre_meeting_calls",
-    "check_post_meeting_calls",
 ]
