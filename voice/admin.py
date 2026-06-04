@@ -3,7 +3,6 @@ Django admin configuration for the voice app.
 """
 
 from django.contrib import admin
-from django.utils.html import format_html
 
 from .models import (
     ActivityLog,
@@ -13,7 +12,6 @@ from .models import (
     GlobalSettings,
     GoogleCalendarWatch,
     GoogleOauthCredential,
-    Meeting,
     MegaPrompt,
     Methodology,
     Scenario,
@@ -78,47 +76,9 @@ class VoicePromptAdmin(admin.ModelAdmin):
         super().save_model(request, obj, form, change)
 
 
-@admin.register(Meeting)
-class MeetingAdmin(admin.ModelAdmin):
-    """Admin interface for Meeting model."""
-
-    list_display = [
-        "title",
-        "agent",
-        "customer_name",
-        "start_time",
-        "end_time",
-        "pre_call_status",
-        "post_call_status",
-        "created_at",
-    ]
-    list_filter = ["is_pre_call_completed", "is_post_call_completed", "start_time", "created_at"]
-    search_fields = ["title", "customer_name", "external_id", "agent__username"]
-    readonly_fields = ["created_at", "updated_at"]
-    date_hierarchy = "start_time"
-
-    fieldsets = (
-        ("Meeting Information", {"fields": ("agent", "external_id", "title", "customer_name")}),
-        ("Schedule", {"fields": ("start_time", "end_time")}),
-        ("Call Status", {"fields": ("is_pre_call_completed", "is_post_call_completed")}),
-        ("Timestamps", {"fields": ("created_at", "updated_at")}),
-    )
-
-    def pre_call_status(self, obj):
-        """Display pre-call status with color."""
-        if obj.is_pre_call_completed:
-            return format_html('<span style="color: green;">✓ Completed</span>')
-        return format_html('<span style="color: orange;">Pending</span>')
-
-    pre_call_status.short_description = "Pre-Call Status"
-
-    def post_call_status(self, obj):
-        """Display post-call status with color."""
-        if obj.is_post_call_completed:
-            return format_html('<span style="color: green;">✓ Completed</span>')
-        return format_html('<span style="color: orange;">Pending</span>')
-
-    post_call_status.short_description = "Post-Call Status"
+# MeetingAdmin removed — Meeting is being retired in favor of Visit.
+# A surviving inspect-tool is `/admin/voice/visit/` (VisitAdmin, registered
+# below) which carries the same fields plus client/methodology/status workflow.
 
 
 @admin.register(CallAttempt)

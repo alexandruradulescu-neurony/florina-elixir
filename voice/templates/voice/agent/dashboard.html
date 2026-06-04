@@ -55,8 +55,8 @@
         </svg>
       </div>
       <div class="stat-title">Upcoming</div>
-      <div class="stat-value text-accent">{{ upcoming_meetings_count }}</div>
-      <div class="stat-desc">Meetings scheduled</div>
+      <div class="stat-value text-accent">{{ upcoming_visits_count }}</div>
+      <div class="stat-desc">Visits scheduled</div>
     </div>
   </div>
 
@@ -99,7 +99,7 @@
               <div class="timeline-end timeline-box {% if item.type == 'pre_call' %}bg-primary text-primary-content{% elif item.type == 'meeting' %}bg-info text-info-content{% else %}bg-secondary text-secondary-content{% endif %}">
                 {% if item.type == 'pre_call' %}
                   <h3 class="font-bold">Pre-Meeting Call</h3>
-                  <p class="text-sm">{{ item.meeting.title }}</p>
+                  <p class="text-sm">{{ item.visit.title }}</p>
                   <p class="text-xs mt-1">
                     {% if item.status == 'COMPLETED' %}
                       <span class="badge badge-success gap-2">Completed</span>
@@ -118,16 +118,14 @@
                     {% endif %}
                   </p>
                 {% elif item.type == 'meeting' %}
-                  <h3 class="font-bold">{{ item.meeting.title }}</h3>
-                  <p class="text-sm">{{ item.meeting.customer_name|default:"Customer Meeting" }}</p>
+                  <h3 class="font-bold">{{ item.visit.title }}</h3>
+                  <p class="text-sm">{{ item.visit.client.name|default:"Customer Meeting" }}</p>
                   <p class="text-xs mt-1">
-                    {{ item.meeting.start_time|date:"H:i" }} - {{ item.meeting.end_time|date:"H:i" }}
+                    {{ item.visit.start_time|date:"H:i" }} - {{ item.visit.end_time|date:"H:i" }}
                   </p>
-                  <a href="{% url 'voice:meeting_detail' item.meeting.id %}"
-                     class="btn btn-sm btn-outline mt-2">View Details</a>
                 {% else %}
                   <h3 class="font-bold">Post-Meeting Debrief</h3>
-                  <p class="text-sm">{{ item.meeting.title }}</p>
+                  <p class="text-sm">{{ item.visit.title }}</p>
                   <p class="text-xs mt-1">
                     {% if item.status == 'COMPLETED' %}
                       <span class="badge badge-success gap-2">Completed</span>
@@ -147,11 +145,11 @@
     </div>
   </div>
 
-  <!-- Upcoming Meetings -->
-  {% if upcoming_meetings %}
+  <!-- Upcoming Visits -->
+  {% if upcoming_visits %}
     <div class="card w-full bg-base-100 shadow-xl mt-6">
       <div class="card-body">
-        <h2 class="card-title">Upcoming Meetings</h2>
+        <h2 class="card-title">Upcoming Visits</h2>
         <div class="overflow-x-auto">
           <table class="table table-zebra w-full">
             <thead>
@@ -160,25 +158,20 @@
                 <th>Customer</th>
                 <th>Start Time</th>
                 <th>Pre-Call</th>
-                <th>Action</th>
               </tr>
             </thead>
             <tbody>
-              {% for meeting in upcoming_meetings %}
+              {% for item in upcoming_visits %}
                 <tr>
-                  <td>{{ meeting.title }}</td>
-                  <td>{{ meeting.customer_name|default:"-" }}</td>
-                  <td>{{ meeting.start_time|date:"M d, Y H:i" }}</td>
+                  <td>{{ item.visit.title }}</td>
+                  <td>{{ item.visit.client.name|default:"-" }}</td>
+                  <td>{{ item.visit.start_time|date:"M d, Y H:i" }}</td>
                   <td>
-                    {% if meeting.is_pre_call_completed %}
+                    {% if item.pre_call_done %}
                       <span class="badge badge-success gap-2">Completed</span>
                     {% else %}
                       <span class="badge badge-warning gap-2">Pending</span>
                     {% endif %}
-                  </td>
-                  <td>
-                    <a href="{% url 'voice:meeting_detail' meeting.id %}"
-                       class="btn btn-sm btn-primary">View</a>
                   </td>
                 </tr>
               {% endfor %}
