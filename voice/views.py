@@ -1128,34 +1128,55 @@ class VisitRegenerateView(SuperuserRequiredMixin, View):
             messages.error(request, "Visit not found.")
             return redirect("voice:visit_list")
 
-        if domain == "pre":
-            run = assemble_pre_call(
-                visit,
-                triggered_by=GenerationRun.TriggeredBy.MANUAL,
-                user=request.user,
-            )
-        else:  # domain == "post"
-            # PR #7 review: pass the actual transcript so the regenerated
-            # post-call prompt is transcript-aware (the webhook path already
-            # does this; the manual regen was dropping it). Use the most
-            # recent COMPLETED post-meeting transcript for this visit, if any.
-            latest_post_attempt = (
-                CallAttempt.objects.filter(
-                    visit=visit,
-                    phase=CallPhase.POST_MEETING,
-                    status=CallStatus.COMPLETED,
+        # Wrap the assembler call so uncaught exceptions surface to a flash
+        # message instead of a generic 500. The assembler's design intent is
+        # that every failure mode produces a `GenerationRun(success=False)`
+        # with `.error` populated — but unguarded paths exist (e.g. an
+        # exception inside `_record_run` itself, an ORM-level OperationalError
+        # from a stale migration, or an `ImproperlyConfigured` from
+        # `EncryptedTextField` with a missing/rotated key). Surfacing the
+        # exception type + first 300 chars makes a prod debug session a 5-second
+        # affair instead of an SSH expedition through server logs.
+        try:
+            if domain == "pre":
+                run = assemble_pre_call(
+                    visit,
+                    triggered_by=GenerationRun.TriggeredBy.MANUAL,
+                    user=request.user,
                 )
-                .exclude(transcript="")
-                .order_by("-created_at")
-                .first()
+            else:  # domain == "post"
+                # PR #7 review: pass the actual transcript so the regenerated
+                # post-call prompt is transcript-aware (the webhook path already
+                # does this; the manual regen was dropping it). Use the most
+                # recent COMPLETED post-meeting transcript for this visit, if any.
+                latest_post_attempt = (
+                    CallAttempt.objects.filter(
+                        visit=visit,
+                        phase=CallPhase.POST_MEETING,
+                        status=CallStatus.COMPLETED,
+                    )
+                    .exclude(transcript="")
+                    .order_by("-created_at")
+                    .first()
+                )
+                transcript = (latest_post_attempt.transcript if latest_post_attempt else "") or ""
+                run = assemble_post_call(
+                    visit,
+                    transcript=transcript,
+                    triggered_by=GenerationRun.TriggeredBy.MANUAL,
+                    user=request.user,
+                )
+        except Exception as exc:
+            logger.exception(
+                "Assembler raised an unhandled exception (visit=%s domain=%s)",
+                visit_id,
+                domain,
             )
-            transcript = (latest_post_attempt.transcript if latest_post_attempt else "") or ""
-            run = assemble_post_call(
-                visit,
-                transcript=transcript,
-                triggered_by=GenerationRun.TriggeredBy.MANUAL,
-                user=request.user,
+            messages.error(
+                request,
+                f"Assembler crashed: {type(exc).__name__}: {str(exc)[:300]}",
             )
+            return redirect("voice:visit_detail", visit_id=visit_id)
 
         if run.success:
             messages.success(
