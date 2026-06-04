@@ -1668,6 +1668,11 @@ details.snippet > .full-transcript {
 .form-row input[type="tel"],
 .form-row input[type="url"],
 .form-row input[type="number"],
+.form-row input[type="date"],
+.form-row input[type="time"],
+.form-row input[type="datetime-local"],
+.form-row input[type="search"],
+.form-row input:not([type]),
 .form-row textarea,
 .form-row select {
   height: 40px;
