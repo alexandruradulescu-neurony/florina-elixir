@@ -272,7 +272,18 @@ class ActivityLog(models.Model):
         null=True,
         blank=True,
         related_name="activity_logs",
-        help_text="Associated meeting (if applicable)",
+        help_text="Associated meeting (legacy — kept until Meeting is dropped)",
+    )
+    visit = models.ForeignKey(
+        "Visit",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="activity_logs",
+        help_text=(
+            "Associated visit. New code writes here; legacy code writes to "
+            "`meeting` and a follow-up migration backfills `visit` from it."
+        ),
     )
     user = models.ForeignKey(
         User,
@@ -297,6 +308,7 @@ class ActivityLog(models.Model):
             models.Index(fields=["timestamp"]),
             models.Index(fields=["level"]),
             models.Index(fields=["meeting"]),
+            models.Index(fields=["visit"]),
             models.Index(fields=["user"]),
         ]
 
