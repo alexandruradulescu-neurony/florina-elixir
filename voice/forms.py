@@ -154,12 +154,30 @@ class MethodologyForm(forms.ModelForm):
         are stored under `media/methodologies/` (web-accessible), an
         unrestricted upload would let an attacker drop arbitrary content
         (HTML/JS for stored XSS via direct media link, executable payloads
-        for distribution, etc.). Three independent checks below:
-          1. Filename extension `.pdf` (case-insensitive).
-          2. Browser-reported `content_type` is `application/pdf`.
-          3. Size cap (defense in depth against accidental huge files).
-        Each check raises ValidationError with a Romanian-language message
-        consistent with the rest of the UI.
+        for distribution, etc.).
+
+        Four independent checks, in order of how trivially they can be
+        spoofed by a crafted POST (worst to best):
+
+          1. **Filename extension** `.pdf` (case-insensitive). Client-
+             supplied — but the static file server maps `.pdf` →
+             `application/pdf` regardless of body content, and
+             `SECURE_CONTENT_TYPE_NOSNIFF=True` blocks MIME-sniffing, so
+             keeping the extension restriction here is what actually
+             mitigates the stored-XSS-via-direct-link scenario.
+          2. **Browser-reported `content_type`** is `application/pdf`.
+             Also client-supplied; useful for the naive case (uploading
+             through the form widget) but trivially defeated by curl.
+          3. **Size cap** (defense against accidental huge uploads).
+          4. **Magic-byte header** — the file actually starts with `%PDF-`.
+             This is the only check above that **cannot be spoofed by a
+             crafted POST**: it inspects the actual file content. Real
+             PDFs start with `%PDF-1.x`; anything else means the body is
+             not a PDF regardless of what the filename or content_type
+             header claim.
+
+        After the magic-byte read, the stream pointer is reset so Django's
+        FileField storage layer still sees the full file on save.
         """
         f = self.cleaned_data.get("source_material")
         if not f:
@@ -187,6 +205,19 @@ class MethodologyForm(forms.ModelForm):
         if size > self.MAX_PDF_SIZE:
             raise forms.ValidationError(
                 f"Fișierul depășește limita de {self.MAX_PDF_SIZE // (1024 * 1024)} MB."
+            )
+        # Magic-byte check. PDF spec §7.5.2 requires the file to start
+        # with `%PDF-` followed by a major.minor version number. Reset
+        # the read pointer afterwards so Django's storage backend still
+        # sees the full file when it writes to disk.
+        try:
+            header = f.read(5)
+        finally:
+            f.seek(0)
+        if header != b"%PDF-":
+            raise forms.ValidationError(
+                "Fișierul nu pare a fi un PDF valid (antetul `%PDF-` lipsește). "
+                "Trimite un PDF real, nu un fișier doar redenumit."
             )
         return f
 
