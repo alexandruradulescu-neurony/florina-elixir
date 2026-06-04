@@ -161,10 +161,14 @@ class GoogleCalendarOAuthView(LoginRequiredMixin, View):
                 )
                 return redirect("voice:calendar_sync_status")
 
-        # Debug logging
-        logger.info(f"OAuth flow - Client ID: {client_id[:30]}... (length: {len(client_id)})")
-        logger.info(f"OAuth flow - Client Secret: {'*' * 10}... (length: {len(client_secret)})")
-        logger.info(f"OAuth flow - Redirect URI: {redirect_uri}")
+        # Debug logging.
+        # Moved to logger.debug from logger.info so prod's INFO-level handler
+        # doesn't capture partial credentials and the length-of-secret signal
+        # (a length leak enables some side-channel attacks). The Client ID
+        # prefix is dropped entirely — there is no production troubleshooting
+        # need for it, and any value in a public log is too much.
+        logger.debug("OAuth flow - Client credentials loaded")
+        logger.debug(f"OAuth flow - Redirect URI: {redirect_uri}")
 
         if not client_id or not client_secret:
             logger.error("OAuth flow - Missing credentials!")
@@ -216,6 +220,11 @@ class GoogleCalendarCallbackView(LoginRequiredMixin, View):
 
         state = request.session.get("google_oauth_state")
         if not state or state != request.GET.get("state"):
+            # Always clear the stored state on mismatch — leaving an invalid
+            # state token in the session allows an attacker to retry callback
+            # requests against the same victim session without triggering a
+            # fresh OAuth handshake. We force a clean restart of the flow.
+            request.session.pop("google_oauth_state", None)
             messages.error(request, "Invalid OAuth state. Please try again.")
             return redirect("voice:calendar_sync_status")
 
