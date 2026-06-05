@@ -169,6 +169,17 @@ class CallAttempt(models.Model):
         target = self.visit.title if self.visit_id else "unknown"
         return f"{self.get_phase_display()} call for {target} - {self.get_status_display()}"
 
+    @property
+    def agent(self):
+        """Sales-agent User that owns this call attempt, or None.
+
+        Single source of truth for "who is this call for", used by activity
+        logging. Returns None for an orphaned attempt (no visit) — callers
+        like `log_activity` accept `user=None`, so the logging path never
+        crashes on a dangling row. Replaces the former `_ca_user()` helper.
+        """
+        return self.visit.agent if self.visit_id else None
+
 
 class GoogleCalendarWatch(models.Model):
     """Tracks Google Calendar push notification watch channels."""

@@ -402,7 +402,7 @@ class ElevenLabsWebhookView(View):
             if call_attempt.status != CallStatus.COMPLETED:
                 log_activity(
                     visit=call_attempt.visit,
-                    user=call_attempt.visit.agent if call_attempt.visit_id else None,
+                    user=call_attempt.agent,
                     action=(
                         f"{call_attempt.get_phase_display()} call "
                         f"{call_attempt.get_status_display()}"

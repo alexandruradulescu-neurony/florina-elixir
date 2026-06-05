@@ -22,20 +22,6 @@ from .logging import log_activity
 logger = logging.getLogger(__name__)
 
 
-def _ca_user(call_attempt: CallAttempt):
-    """Resolve the sales-agent User for a CallAttempt.
-
-    PR Y2b: now that `Meeting` is gone, this is a thin wrapper around
-    `call_attempt.visit.agent`. Kept (rather than inlined at every call
-    site) so the orphan-CallAttempt case stays centralised — `log_activity`
-    accepts `user=None`, so a CallAttempt that has lost its Visit doesn't
-    crash the logging path.
-    """
-    if call_attempt.visit_id and call_attempt.visit:
-        return call_attempt.visit.agent
-    return None
-
-
 # ============================================================================
 # ElevenLabs API Polling Service (Fallback when webhooks fail)
 # ============================================================================
@@ -337,7 +323,7 @@ def sync_call_status_from_api(call_attempt: CallAttempt) -> bool:
 
         log_activity(
             visit=call_attempt.visit,
-            user=call_attempt.visit.agent if call_attempt.visit_id else None,
+            user=call_attempt.agent,
             action="Call status synced from API",
             details={
                 "call_id": call_attempt.external_call_id,
@@ -559,7 +545,7 @@ def trigger_agent_call(
         result["error"] = error_msg
         log_activity(
             visit=call_attempt.visit,
-            user=_ca_user(call_attempt),
+            user=call_attempt.agent,
             action="Call failed - invalid phone number",
             details={"phone_number": agent_phone, "error": error_msg},
             level=LogLevel.ERROR,
@@ -578,7 +564,7 @@ def trigger_agent_call(
         result["error"] = error_msg
         log_activity(
             visit=call_attempt.visit,
-            user=_ca_user(call_attempt),
+            user=call_attempt.agent,
             action="Call failed - missing ElevenLabs API key",
             details={"error": error_msg},
             level=LogLevel.ERROR,
@@ -592,7 +578,7 @@ def trigger_agent_call(
         result["error"] = error_msg
         log_activity(
             visit=call_attempt.visit,
-            user=_ca_user(call_attempt),
+            user=call_attempt.agent,
             action="Call failed - missing ElevenLabs Agent ID",
             details={"error": error_msg},
             level=LogLevel.ERROR,
@@ -606,7 +592,7 @@ def trigger_agent_call(
         result["error"] = error_msg
         log_activity(
             visit=call_attempt.visit,
-            user=_ca_user(call_attempt),
+            user=call_attempt.agent,
             action="Call failed - missing ElevenLabs Phone Number ID",
             details={"error": error_msg},
             level=LogLevel.ERROR,
@@ -693,7 +679,7 @@ def trigger_agent_call(
                 # Log successful call initiation
                 log_activity(
                     visit=call_attempt.visit,
-                    user=_ca_user(call_attempt),
+                    user=call_attempt.agent,
                     action="Call successfully initiated via ElevenLabs API",
                     details={
                         "call_id": call_id,
@@ -715,7 +701,7 @@ def trigger_agent_call(
                 logger.error(error_msg)
                 log_activity(
                     visit=call_attempt.visit,
-                    user=_ca_user(call_attempt),
+                    user=call_attempt.agent,
                     action="Call failed - no call_id in response",
                     details={"error": error_msg, "response": str(call_data)},
                     level=LogLevel.ERROR,
@@ -758,7 +744,7 @@ def trigger_agent_call(
 
             log_activity(
                 visit=call_attempt.visit,
-                user=_ca_user(call_attempt),
+                user=call_attempt.agent,
                 action="Call failed - ElevenLabs API error",
                 details={
                     "error": error_msg,
@@ -778,7 +764,7 @@ def trigger_agent_call(
 
         log_activity(
             visit=call_attempt.visit,
-            user=_ca_user(call_attempt),
+            user=call_attempt.agent,
             action="Call initiation failed",
             details={"error": error_msg, "phone_number": formatted_phone},
             level=LogLevel.ERROR,
