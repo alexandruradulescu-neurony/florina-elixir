@@ -341,9 +341,7 @@ def sync_google_calendar(
                 # Visit creation itself is owned by detect_visits_for_agent;
                 # we deliberately only update — never create — here so the
                 # two pipelines stay decoupled.
-                visit = Visit.objects.filter(
-                    calendar_event_id=external_id, agent=user
-                ).first()
+                visit = Visit.objects.filter(calendar_event_id=external_id, agent=user).first()
                 if visit:
                     changed = False
                     new_title = event.get("summary", visit.title)
@@ -357,9 +355,7 @@ def sync_google_calendar(
                         visit.end_time = end_time
                         changed = True
                     if changed:
-                        visit.save(
-                            update_fields=["title", "start_time", "end_time", "updated_at"]
-                        )
+                        visit.save(update_fields=["title", "start_time", "end_time", "updated_at"])
                         results["updated"] += 1
                         log_activity(
                             user=user,

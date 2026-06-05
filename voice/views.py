@@ -1593,8 +1593,7 @@ class ProgrammedCallsView(SuperuserRequiredMixin, View):
                             "summary_title": None,
                             "executed_at": None,
                             "created_at": None,
-                            "scheduled_time": visit.start_time
-                            + timedelta(minutes=pre_offset),
+                            "scheduled_time": visit.start_time + timedelta(minutes=pre_offset),
                             "is_upcoming": True,
                         },
                     )()
@@ -1639,8 +1638,7 @@ class ProgrammedCallsView(SuperuserRequiredMixin, View):
                             "summary_title": None,
                             "executed_at": None,
                             "created_at": None,
-                            "scheduled_time": visit.end_time
-                            + timedelta(minutes=post_offset),
+                            "scheduled_time": visit.end_time + timedelta(minutes=post_offset),
                             "is_upcoming": True,
                         },
                     )()
