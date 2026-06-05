@@ -143,25 +143,14 @@
                 </td>
                 <td class="py-3 px-4">
                   {% if call.visit %}
-                    {% if call.is_upcoming %}
-                      <a href="{% url 'voice:visit_detail' call.visit.id %}"
-                         class="text-amber-600 hover:text-amber-700 font-medium">
-                        {% if call.visit.client %}
-                          {{ call.visit.client.name }}
-                        {% else %}
-                          {{ call.visit.title|truncatewords:4 }}
-                        {% endif %}
-                      </a>
-                    {% else %}
-                      <a href="{% url 'voice:visit_detail' call.visit.id %}"
-                         class="text-teal-600 hover:text-teal-700 font-medium">
-                        {% if call.visit.client %}
-                          {{ call.visit.client.name }}
-                        {% else %}
-                          {{ call.visit.title|truncatewords:4 }}
-                        {% endif %}
-                      </a>
-                    {% endif %}
+                    <a href="{% url 'voice:visit_detail' call.visit.id %}"
+                       class="{% if call.is_upcoming %}text-amber-600 hover:text-amber-700{% else %}text-teal-600 hover:text-teal-700{% endif %} font-medium">
+                      {% if call.visit.client %}
+                        {{ call.visit.client.name }}
+                      {% else %}
+                        {{ call.visit.title|truncatewords:4 }}
+                      {% endif %}
+                    </a>
                   {% elif call.meeting %}
                     <span class="text-slate-700">{{ call.meeting.title|truncatewords:4 }}</span>
                   {% endif %}

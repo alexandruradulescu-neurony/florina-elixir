@@ -373,16 +373,23 @@ class CalendarSyncTriggerView(LoginRequiredMixin, View):
             user=request.user, time_min=today_start, time_max=today_end, session=request.session
         )
 
+        # PR Y2a: sync_google_calendar no longer creates rows — Visit
+        # creation lives in the visit-detection pipeline. The user-facing
+        # message now reports the actual semantics: how many visits had
+        # their time/title refreshed, and how many calendar events were
+        # seen with no matching visit yet.
+        updated = results.get("updated", 0)
+        observed = results.get("observed_unmatched", 0)
         if results["errors"]:
             messages.warning(
                 request,
-                f"Sync completed with {results['created']} created, {results['updated']} updated, "
+                f"Sync completed: {updated} visits refreshed, {observed} unmatched events, "
                 f"but {len(results['errors'])} errors occurred.",
             )
         else:
             messages.success(
                 request,
-                f"Sync completed: {results['created']} meetings created, {results['updated']} meetings updated.",
+                f"Sync completed: {updated} visits refreshed, {observed} unmatched events.",
             )
 
         return redirect("voice:calendar_sync_status")
@@ -562,6 +569,17 @@ class TestCallView(SuperuserRequiredMixin, View):
             )
 
             if result["success"]:
+                # IMPORTANT: mark the test visit terminal so the visit-flow
+                # scheduler (process_visit_post_calls) does not pick it up
+                # ~2h later and dial a real unsolicited post-call. Without
+                # this, every successful "Test Call" silently schedules an
+                # automated outbound + bogus Pipedrive lookup on the
+                # synthetic `__TEST_CALL__` client.
+                from .constants import VisitStatus
+
+                test_visit.status = VisitStatus.COMPLETE
+                test_visit.save(update_fields=["status", "updated_at"])
+
                 messages.success(
                     request,
                     f"Test call initiated! Call ID: {result.get('call_id', 'N/A')}. You should receive a call shortly.",
@@ -1491,8 +1509,17 @@ class ProgrammedCallsView(SuperuserRequiredMixin, View):
         # Get filter parameters
         status_filter = request.GET.get("status", "")
         phase_filter = request.GET.get("phase", "")
-        agent_filter = request.GET.get("agent", "")
+        agent_filter_raw = request.GET.get("agent", "")
         show_upcoming = request.GET.get("show_upcoming", "true") == "true"
+
+        # Coerce `agent` to int once. Anything non-numeric becomes a no-op
+        # filter rather than reaching the ORM and raising ValueError → 500.
+        agent_filter_id: int | None = None
+        if agent_filter_raw.isdigit():
+            agent_filter_id = int(agent_filter_raw)
+        # Keep the raw value for template echo (current selection in the
+        # dropdown) but use `agent_filter_id` for every DB filter.
+        agent_filter = agent_filter_raw
 
         # Base queryset for actual CallAttempt records. We still join `meeting`
         # because legacy rows linked via meeting may exist until the schema
@@ -1510,11 +1537,11 @@ class ProgrammedCallsView(SuperuserRequiredMixin, View):
             calls = calls.filter(status=status_filter)
         if phase_filter:
             calls = calls.filter(phase=phase_filter)
-        if agent_filter:
+        if agent_filter_id is not None:
             from django.db.models import Q
 
             calls = calls.filter(
-                Q(meeting__agent_id=agent_filter) | Q(visit__agent_id=agent_filter)
+                Q(meeting__agent_id=agent_filter_id) | Q(visit__agent_id=agent_filter_id)
             )
 
         # Order by created_at (newest first)
@@ -1559,6 +1586,12 @@ class ProgrammedCallsView(SuperuserRequiredMixin, View):
                 CallStatus.COMPLETED,
             ]
 
+            # Cap projections to a sensible window so the page can't
+            # materialise the full visit backlog on every load. 7 days is a
+            # generous operator-visibility horizon — the actual scheduler
+            # picks visits up within `pre_call_offset_minutes` of `now`.
+            UPCOMING_HORIZON = timedelta(days=7)
+
             # PRE-call candidates: planned visits whose start is still in the
             # future and which have no live pre-call attempt yet.
             if phase_filter in ("", "PRE"):
@@ -1566,6 +1599,7 @@ class ProgrammedCallsView(SuperuserRequiredMixin, View):
                     Visit.objects.filter(
                         status=VisitStatus.PLANNED,
                         start_time__gt=now,
+                        start_time__lte=now + UPCOMING_HORIZON,
                     )
                     .select_related("agent", "client")
                     .exclude(
@@ -1573,8 +1607,8 @@ class ProgrammedCallsView(SuperuserRequiredMixin, View):
                         call_attempts__status__in=ACTIVE_STATUSES,
                     )
                 )
-                if agent_filter:
-                    pre_visits_qs = pre_visits_qs.filter(agent_id=agent_filter)
+                if agent_filter_id is not None:
+                    pre_visits_qs = pre_visits_qs.filter(agent_id=agent_filter_id)
                 for visit in pre_visits_qs:
                     virtual_call = type(
                         "VirtualCall",
@@ -1600,9 +1634,11 @@ class ProgrammedCallsView(SuperuserRequiredMixin, View):
                     upcoming_calls.append(virtual_call)
 
             # POST-call candidates: visits still active (not COMPLETE) with no
-            # live post-call attempt yet. We include both future and past
-            # end_times — past ones are imminent retries, future ones are
-            # projections the operator may want to see.
+            # live post-call attempt yet. We include both recently-ended
+            # (past) and soon-to-end (future) visits, bounded symmetrically
+            # to PRE so the page can't scan the entire backlog of active
+            # visits. Without this bound, populated DBs would materialise
+            # thousands of VirtualCall objects per page load.
             if phase_filter in ("", "POST"):
                 post_visits_qs = (
                     Visit.objects.filter(
@@ -1611,6 +1647,8 @@ class ProgrammedCallsView(SuperuserRequiredMixin, View):
                             VisitStatus.PRE_CALL_DONE,
                             VisitStatus.IN_PROGRESS,
                         ],
+                        end_time__gte=now - UPCOMING_HORIZON,
+                        end_time__lte=now + UPCOMING_HORIZON,
                     )
                     .select_related("agent", "client")
                     .exclude(
@@ -1618,8 +1656,8 @@ class ProgrammedCallsView(SuperuserRequiredMixin, View):
                         call_attempts__status__in=ACTIVE_STATUSES,
                     )
                 )
-                if agent_filter:
-                    post_visits_qs = post_visits_qs.filter(agent_id=agent_filter)
+                if agent_filter_id is not None:
+                    post_visits_qs = post_visits_qs.filter(agent_id=agent_filter_id)
                 for visit in post_visits_qs:
                     virtual_call = type(
                         "VirtualCall",

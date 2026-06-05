@@ -257,19 +257,34 @@ def sync_google_calendar(
         time_max: End time for event query (default: end of today in UTC)
 
     Returns:
-        Dictionary with sync results: {'created': count, 'updated': count, 'errors': []}
+        Dictionary with sync results:
+          - `updated`: count of Visit rows whose title/start/end was refreshed
+          - `observed_unmatched`: count of calendar events seen but with no
+            matching Visit yet (visit-detection will decide later if they
+            should become a Visit)
+          - `created`: legacy key, always 0; preserved so older callers /
+            templates that read `results["created"]` still get a number
+            rather than KeyError. Use `observed_unmatched` for the actual
+            "events seen without a Visit" metric.
+          - `errors`: list of per-event failure strings
     """
     if not user.is_sales_agent:
         log_activity(
             user=user, action="Calendar sync attempted for non-sales agent", level=LogLevel.WARNING
         )
-        return {"created": 0, "updated": 0, "errors": ["User is not a sales agent"]}
+        return {
+            "created": 0,
+            "updated": 0,
+            "observed_unmatched": 0,
+            "errors": ["User is not a sales agent"],
+        }
 
     service = get_google_calendar_service(user, session=session)
     if not service:
         return {
             "created": 0,
             "updated": 0,
+            "observed_unmatched": 0,
             "errors": ["Failed to authenticate with Google Calendar"],
         }
 
@@ -283,7 +298,11 @@ def sync_google_calendar(
         if time_max is None:
             time_max = today_end
 
-    results = {"created": 0, "updated": 0, "errors": []}
+    # `created` is intentionally pinned to 0 — sync_google_calendar no longer
+    # creates rows. Kept in the result dict for backward compat with callers /
+    # templates that still read it. New "events seen but no matching Visit"
+    # count lives in `observed_unmatched`.
+    results = {"created": 0, "updated": 0, "observed_unmatched": 0, "errors": []}
 
     try:
         # Fetch events from Google Calendar
@@ -370,8 +389,10 @@ def sync_google_calendar(
                 else:
                     # Event seen but no matching Visit — visit-detection will
                     # decide on the next pass whether to create one (based
-                    # on attendee-to-Client match).
-                    results["created"] += 1
+                    # on attendee-to-Client match). Counted under
+                    # `observed_unmatched`, not `created`, since sync_google_-
+                    # calendar no longer creates any rows.
+                    results["observed_unmatched"] += 1
 
             except Exception as e:
                 error_msg = f"Error processing event {event.get('id', 'unknown')}: {str(e)}"
@@ -614,36 +635,76 @@ def handle_google_calendar_notification(user_id: int, event_ids: list = None) ->
         # Get all Visits for this user in the time range. We previously
         # tracked deletions on Meeting; PR Y2a moves this to Visit (Meeting
         # is no longer written by sync_google_calendar).
+        #
+        # IMPORTANT — destructive-operation guards:
+        #
+        # 1. Limit to status=PLANNED. `CallAttempt.visit` is on_delete=CASCADE,
+        #    so deleting a non-PLANNED visit would silently destroy completed
+        #    call recordings/transcripts/summaries. For non-PLANNED visits we
+        #    only cancel the still-pending CallAttempts and leave the row.
+        #
+        # 2. Skip TestCallView's synthetic visits (their `calendar_event_id`
+        #    starts with "test_" and will never appear in Google's event set),
+        #    otherwise every push notification would race a test-call to
+        #    completion.
+        #
+        # 3. The Google `events.list` call above is non-paginated (default cap
+        #    250). A busy agent with more than 250 events in the window would
+        #    yield false-positive deletions for events on page 2+. The PLANNED
+        #    guard makes this much less destructive but doesn't eliminate it
+        #    — pagination is a follow-up (left as a Y2b TODO).
+        from voice.constants import VisitStatus
+        from voice.selectors import _TEST_CLIENT_CRM_ID
+
         user_visits = Visit.objects.filter(
             agent=user, start_time__gte=time_min, start_time__lte=time_max
-        )
+        ).select_related("client")
 
-        # Find Visits whose calendar event no longer exists in Google
-        # Calendar — they were deleted upstream. We cancel any pending
-        # CallAttempts and remove the Visit so the operator dashboards do
-        # not keep dangling rows for events that no longer exist.
         deleted_count = 0
+        cancelled_only_count = 0
         for visit in user_visits:
-            if visit.calendar_event_id and visit.calendar_event_id not in current_event_ids:
-                cancelled_calls = CallAttempt.objects.filter(
-                    visit=visit, status=CallStatus.SCHEDULED
-                ).update(status=CallStatus.FAILED)
+            if not visit.calendar_event_id:
+                continue
+            if visit.calendar_event_id in current_event_ids:
+                continue
+            # Defence-in-depth: never touch test-call visits via this loop.
+            if visit.client and visit.client.crm_id == _TEST_CLIENT_CRM_ID:
+                continue
 
+            cancelled_calls = CallAttempt.objects.filter(
+                visit=visit, status=CallStatus.SCHEDULED
+            ).update(status=CallStatus.FAILED)
+
+            if visit.status != VisitStatus.PLANNED:
+                # Visit already has real call outcomes — preserve history.
                 log_activity(
                     user=user,
-                    action="Visit deleted (calendar event removed)",
+                    action="Visit kept after calendar event removed (had history)",
                     details={
                         "visit_id": visit.id,
                         "calendar_event_id": visit.calendar_event_id,
-                        "cancelled_calls": cancelled_calls,
+                        "visit_status": visit.status,
+                        "cancelled_pending_calls": cancelled_calls,
                     },
                     level=LogLevel.WARNING,
                 )
+                cancelled_only_count += 1
+                continue
 
-                # CASCADE handles CallAttempts; ActivityLog rows link via
-                # visit FK and are intentionally retained for audit.
-                visit.delete()
-                deleted_count += 1
+            log_activity(
+                user=user,
+                action="Visit deleted (calendar event removed, no history)",
+                details={
+                    "visit_id": visit.id,
+                    "calendar_event_id": visit.calendar_event_id,
+                    "cancelled_calls": cancelled_calls,
+                },
+                level=LogLevel.WARNING,
+            )
+            # CASCADE handles CallAttempts; ActivityLog rows link via
+            # visit FK and are intentionally retained for audit.
+            visit.delete()
+            deleted_count += 1
 
         # Re-run sync to refresh Visit times/titles for the remaining events.
         # (Visit *creation* is owned by detect_visits_for_agent in the
@@ -652,6 +713,7 @@ def handle_google_calendar_notification(user_id: int, event_ids: list = None) ->
             user, time_min=time_min, time_max=time_max, session=None
         )
         sync_results["deleted"] = deleted_count
+        sync_results["cancelled_only"] = cancelled_only_count
 
         log_activity(
             user=user, action="Google Calendar push notification processed", details=sync_results
