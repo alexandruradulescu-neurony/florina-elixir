@@ -66,9 +66,9 @@ urlpatterns = [
     path("manager/agents/add/", views.AgentCreateView.as_view(), name="agent_add"),
     path("manager/logs/", views.AuditLogExplorerView.as_view(), name="audit_logs"),
     path("manager/calls/", views.ProgrammedCallsView.as_view(), name="programmed_calls"),
-    path(
-        "manager/calls/trigger/", views.ManualCallTriggerView.as_view(), name="manual_call_trigger"
-    ),
+    # `manager/calls/trigger/` route + ManualCallTriggerView dropped. The
+    # `Regenerate` action on the visit detail page replaces it for the
+    # operator-initiated re-dial use case.
     # Methodologies
     path("manager/methodologies/", views.MethodologyListView.as_view(), name="methodology_list"),
     path(

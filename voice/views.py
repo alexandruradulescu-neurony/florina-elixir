@@ -1684,87 +1684,10 @@ class ProgrammedCallsView(SuperuserRequiredMixin, View):
         return render(request, "voice/manager/programmed_calls.html", context)
 
 
-class ManualCallTriggerView(SuperuserRequiredMixin, View):
-    """Manually trigger a call for a meeting."""
-
-    def post(self, request):
-        from .constants import POST_MEETING_OFFSETS, PRE_MEETING_OFFSETS
-        from .tasks import trigger_post_meeting_call, trigger_pre_meeting_call
-
-        meeting_id = request.POST.get("meeting_id")
-        phase = request.POST.get("phase")  # 'PRE' or 'POST'
-        offset_minutes = request.POST.get("offset_minutes")
-
-        if not meeting_id or not phase or not offset_minutes:
-            messages.error(request, "Missing required parameters")
-            return redirect("voice:programmed_calls")
-
-        try:
-            meeting = Meeting.objects.get(id=meeting_id)
-            offset = int(offset_minutes)
-            now = timezone.now()
-
-            # Validation based on phase
-            if phase == "PRE":
-                # Pre-meeting: only allow if current time is before meeting start
-                if now >= meeting.start_time:
-                    messages.error(
-                        request,
-                        f"Cannot trigger pre-meeting call: Meeting has already started (started at {meeting.start_time.strftime('%Y-%m-%d %H:%M')})",
-                    )
-                    return redirect("voice:programmed_calls")
-
-                # Validate offset is in allowed pre-meeting offsets
-                if offset not in PRE_MEETING_OFFSETS:
-                    messages.error(
-                        request,
-                        f"Invalid pre-meeting offset: {offset}. Allowed: {PRE_MEETING_OFFSETS}",
-                    )
-                    return redirect("voice:programmed_calls")
-
-                # Trigger pre-meeting call
-                result = trigger_pre_meeting_call(meeting_id, offset)
-
-            elif phase == "POST":
-                # Post-meeting: only allow if current time is after meeting end
-                if now < meeting.end_time:
-                    messages.error(
-                        request,
-                        f"Cannot trigger post-meeting call: Meeting has not ended yet (ends at {meeting.end_time.strftime('%Y-%m-%d %H:%M')})",
-                    )
-                    return redirect("voice:programmed_calls")
-
-                # Validate offset is in allowed post-meeting offsets
-                if offset not in POST_MEETING_OFFSETS:
-                    messages.error(
-                        request,
-                        f"Invalid post-meeting offset: {offset}. Allowed: {POST_MEETING_OFFSETS}",
-                    )
-                    return redirect("voice:programmed_calls")
-
-                # Trigger post-meeting call
-                result = trigger_post_meeting_call(meeting_id, offset)
-            else:
-                messages.error(request, f"Invalid phase: {phase}")
-                return redirect("voice:programmed_calls")
-
-            if result.get("success"):
-                messages.success(
-                    request, f"Call triggered successfully! Call ID: {result.get('call_id', 'N/A')}"
-                )
-            else:
-                error_msg = result.get("error", "Unknown error")
-                messages.error(request, f"Failed to trigger call: {error_msg}")
-
-        except Meeting.DoesNotExist:
-            messages.error(request, "Meeting not found")
-        except ValueError:
-            messages.error(request, "Invalid offset value")
-        except Exception as e:
-            logger.error(f"Error in manual call trigger: {e}", exc_info=True)
-            messages.error(request, f"Error triggering call: {str(e)}")
-
-        return redirect("voice:programmed_calls")
+# ManualCallTriggerView removed alongside `trigger_pre_meeting_call` /
+# `trigger_post_meeting_call`. Operator-initiated re-dials now go through the
+# `Regenerate` action on the visit detail page (which re-runs the assembler
+# and schedules a fresh CallAttempt via the Visit pipeline).
 
 
 # ============================================================================
