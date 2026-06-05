@@ -148,6 +148,8 @@
             {% else %}
               <span class="dot empty" title="Gol"></span>
             {% endif %}
+            <span class="ic {% if visit.pre_call_prompt_locked %}ic-lock{% else %}ic-lock-open{% endif %} ic-12 lock-ind{% if visit.pre_call_prompt_locked %} is-on{% endif %}"
+                  title="{% if visit.pre_call_prompt_locked %}Blocat{% else %}Deblocat{% endif %}"></span>
           </button>
           <button type="button"
                   class="prompt-btn"
@@ -159,6 +161,8 @@
             {% else %}
               <span class="dot empty" title="Gol"></span>
             {% endif %}
+            <span class="ic {% if visit.pre_call_first_message_locked %}ic-lock{% else %}ic-lock-open{% endif %} ic-12 lock-ind{% if visit.pre_call_first_message_locked %} is-on{% endif %}"
+                  title="{% if visit.pre_call_first_message_locked %}Blocat{% else %}Deblocat{% endif %}"></span>
           </button>
         </div>
       </div>
@@ -204,6 +208,8 @@
             {% else %}
               <span class="dot empty" title="Gol"></span>
             {% endif %}
+            <span class="ic {% if visit.post_call_prompt_locked %}ic-lock{% else %}ic-lock-open{% endif %} ic-12 lock-ind{% if visit.post_call_prompt_locked %} is-on{% endif %}"
+                  title="{% if visit.post_call_prompt_locked %}Blocat{% else %}Deblocat{% endif %}"></span>
           </button>
           <button type="button"
                   class="prompt-btn"
@@ -215,6 +221,8 @@
             {% else %}
               <span class="dot empty" title="Gol"></span>
             {% endif %}
+            <span class="ic {% if visit.post_call_first_message_locked %}ic-lock{% else %}ic-lock-open{% endif %} ic-12 lock-ind{% if visit.post_call_first_message_locked %} is-on{% endif %}"
+                  title="{% if visit.post_call_first_message_locked %}Blocat{% else %}Deblocat{% endif %}"></span>
           </button>
         </div>
       </div>
@@ -517,7 +525,10 @@
             </button>
           </form>
         </div>
-        <p class="savehint" style="margin-top:8px;">Locked fields (🔒) are preserved on regen.</p>
+        <p class="savehint" style="margin-top:8px;">
+          <span class="ic ic-lock ic-12" style="vertical-align:-2px;"></span>
+          Câmpurile blocate sunt păstrate la regenerare.
+        </p>
       </div>
 
       {# Profil client — only real data, no fake CRM placeholders #}
@@ -588,16 +599,22 @@
       <h3>Prompt pre-call</h3>
       <form method="post"
             action="{% url 'voice:visit_lock_toggle' visit.id 'pre_prompt' %}"
-            class="inline-flex ml-auto mr-2">
+            class="lock-form">
         {% csrf_token %}
         <button type="submit"
-                class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md border {% if visit.pre_call_prompt_locked %}bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100{% else %}bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100{% endif %}"
-                title="{% if visit.pre_call_prompt_locked %}Locked — assembler will skip this field on regen. Click to unlock.{% else %}Unlocked — assembler may overwrite on regen. Click to lock.{% endif %}">
-          {% if visit.pre_call_prompt_locked %}
-            🔒 locked
-          {% else %}
-            🔓 unlocked
-          {% endif %}
+                class="lock-switch{% if visit.pre_call_prompt_locked %} is-on{% endif %}"
+                role="switch"
+                aria-checked="{% if visit.pre_call_prompt_locked %}true{% else %}false{% endif %}"
+                title="{% if visit.pre_call_prompt_locked %}Blocat — asamblorul nu suprascrie acest câmp la regenerare. Apasă pentru a debloca.{% else %}Deblocat — asamblorul poate suprascrie câmpul la regenerare. Apasă pentru a bloca.{% endif %}">
+          <span class="ic {% if visit.pre_call_prompt_locked %}ic-lock{% else %}ic-lock-open{% endif %} ic-14"></span>
+          <span class="lbl">
+            {% if visit.pre_call_prompt_locked %}
+              Blocat
+            {% else %}
+              Deblocat
+            {% endif %}
+          </span>
+          <span class="track"><span class="knob"></span></span>
         </button>
       </form>
       <button type="button"
@@ -625,16 +642,22 @@
       <h3>Primul mesaj pre-call</h3>
       <form method="post"
             action="{% url 'voice:visit_lock_toggle' visit.id 'pre_first' %}"
-            class="inline-flex ml-auto mr-2">
+            class="lock-form">
         {% csrf_token %}
         <button type="submit"
-                class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md border {% if visit.pre_call_first_message_locked %}bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100{% else %}bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100{% endif %}"
-                title="{% if visit.pre_call_first_message_locked %}Locked — assembler will skip this field on regen. Click to unlock.{% else %}Unlocked — assembler may overwrite on regen. Click to lock.{% endif %}">
-          {% if visit.pre_call_first_message_locked %}
-            🔒 locked
-          {% else %}
-            🔓 unlocked
-          {% endif %}
+                class="lock-switch{% if visit.pre_call_first_message_locked %} is-on{% endif %}"
+                role="switch"
+                aria-checked="{% if visit.pre_call_first_message_locked %}true{% else %}false{% endif %}"
+                title="{% if visit.pre_call_first_message_locked %}Blocat — asamblorul nu suprascrie acest câmp la regenerare. Apasă pentru a debloca.{% else %}Deblocat — asamblorul poate suprascrie câmpul la regenerare. Apasă pentru a bloca.{% endif %}">
+          <span class="ic {% if visit.pre_call_first_message_locked %}ic-lock{% else %}ic-lock-open{% endif %} ic-14"></span>
+          <span class="lbl">
+            {% if visit.pre_call_first_message_locked %}
+              Blocat
+            {% else %}
+              Deblocat
+            {% endif %}
+          </span>
+          <span class="track"><span class="knob"></span></span>
         </button>
       </form>
       <button type="button"
@@ -662,16 +685,22 @@
       <h3>Prompt post-call</h3>
       <form method="post"
             action="{% url 'voice:visit_lock_toggle' visit.id 'post_prompt' %}"
-            class="inline-flex ml-auto mr-2">
+            class="lock-form">
         {% csrf_token %}
         <button type="submit"
-                class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md border {% if visit.post_call_prompt_locked %}bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100{% else %}bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100{% endif %}"
-                title="{% if visit.post_call_prompt_locked %}Locked — assembler will skip this field on regen. Click to unlock.{% else %}Unlocked — assembler may overwrite on regen. Click to lock.{% endif %}">
-          {% if visit.post_call_prompt_locked %}
-            🔒 locked
-          {% else %}
-            🔓 unlocked
-          {% endif %}
+                class="lock-switch{% if visit.post_call_prompt_locked %} is-on{% endif %}"
+                role="switch"
+                aria-checked="{% if visit.post_call_prompt_locked %}true{% else %}false{% endif %}"
+                title="{% if visit.post_call_prompt_locked %}Blocat — asamblorul nu suprascrie acest câmp la regenerare. Apasă pentru a debloca.{% else %}Deblocat — asamblorul poate suprascrie câmpul la regenerare. Apasă pentru a bloca.{% endif %}">
+          <span class="ic {% if visit.post_call_prompt_locked %}ic-lock{% else %}ic-lock-open{% endif %} ic-14"></span>
+          <span class="lbl">
+            {% if visit.post_call_prompt_locked %}
+              Blocat
+            {% else %}
+              Deblocat
+            {% endif %}
+          </span>
+          <span class="track"><span class="knob"></span></span>
         </button>
       </form>
       <button type="button"
@@ -699,16 +728,22 @@
       <h3>Primul mesaj post-call</h3>
       <form method="post"
             action="{% url 'voice:visit_lock_toggle' visit.id 'post_first' %}"
-            class="inline-flex ml-auto mr-2">
+            class="lock-form">
         {% csrf_token %}
         <button type="submit"
-                class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md border {% if visit.post_call_first_message_locked %}bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100{% else %}bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100{% endif %}"
-                title="{% if visit.post_call_first_message_locked %}Locked — assembler will skip this field on regen. Click to unlock.{% else %}Unlocked — assembler may overwrite on regen. Click to lock.{% endif %}">
-          {% if visit.post_call_first_message_locked %}
-            🔒 locked
-          {% else %}
-            🔓 unlocked
-          {% endif %}
+                class="lock-switch{% if visit.post_call_first_message_locked %} is-on{% endif %}"
+                role="switch"
+                aria-checked="{% if visit.post_call_first_message_locked %}true{% else %}false{% endif %}"
+                title="{% if visit.post_call_first_message_locked %}Blocat — asamblorul nu suprascrie acest câmp la regenerare. Apasă pentru a debloca.{% else %}Deblocat — asamblorul poate suprascrie câmpul la regenerare. Apasă pentru a bloca.{% endif %}">
+          <span class="ic {% if visit.post_call_first_message_locked %}ic-lock{% else %}ic-lock-open{% endif %} ic-14"></span>
+          <span class="lbl">
+            {% if visit.post_call_first_message_locked %}
+              Blocat
+            {% else %}
+              Deblocat
+            {% endif %}
+          </span>
+          <span class="track"><span class="knob"></span></span>
         </button>
       </form>
       <button type="button"
