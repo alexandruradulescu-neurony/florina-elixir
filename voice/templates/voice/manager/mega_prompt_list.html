@@ -16,9 +16,9 @@
   <div class="stats">
     {% for domain in domains %}
       {% if domain.active %}
-        {% include "voice/partials/stat_card.html" with label=domain.label value=domain.active.version|stringformat:"v%s" tone="green" secondary="active" %}
+        {% include "voice/partials/stat_card.html" with label=domain.label value="Active" tone="green" %}
       {% else %}
-        {% include "voice/partials/stat_card.html" with label=domain.label value="—" %}
+        {% include "voice/partials/stat_card.html" with label=domain.label value="None" %}
       {% endif %}
     {% endfor %}
   </div>
@@ -85,7 +85,7 @@
   {# ─── Reference ─── #}
   <div class="card" style="margin-top:24px;">
     <h3>How mega-prompts work</h3>
-    <p class="helptext">
+    <p style="color:var(--fg-muted); font-size:13px; line-height:1.5">
       Mega-prompts are the meta-instructions sent to Claude by the Auto Prompt Assembler.
       Each domain (Pre-call, Post-call, Lessons distill) has exactly one active version at a time.
       Editing always creates a new version; old versions are kept forever, so activating an older

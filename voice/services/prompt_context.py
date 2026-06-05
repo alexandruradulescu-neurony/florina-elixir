@@ -59,6 +59,7 @@ _FENCED_KEYS = frozenset(
         "client_summary",
         "client_lessons_learned",
         "interaction_history",
+        "deal_history",
         "client_past_visits",
         "agent_recent_visits",
         "pre_call_brief",

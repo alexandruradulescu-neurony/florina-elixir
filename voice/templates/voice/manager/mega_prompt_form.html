@@ -23,8 +23,7 @@
   {% if is_edit and original %}
     <div class="sub">
       {% include "voice/partials/status_pill.html" with variant="cyan" label=original.get_domain_display %}
-      &nbsp;
-      {% include "voice/partials/status_pill.html" with variant="cream" label=original.version|stringformat:"v%s" %}
+      &nbsp;v{{ original.version }}
       {% if original.is_active %}
         &nbsp;
         {% include "voice/partials/status_pill.html" with variant="green" label="Active" %}
@@ -106,7 +105,7 @@
       </div>
       <div class="card">
         <h3>How versioning works</h3>
-        <p class="helptext">
+        <p style="color:var(--fg-muted); font-size:13px; line-height:1.5">
           {% if is_edit %}
             Edits never change the original row — they create a new version that starts inactive.
             Past generation runs keep pointing at the version that produced them.
