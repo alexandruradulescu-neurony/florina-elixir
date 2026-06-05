@@ -386,114 +386,36 @@ class ElevenLabsWebhookView(View):
                             visit.id,
                         )
 
-            # Update meeting completion status if call was successful
-            if call_attempt.status == CallStatus.COMPLETED:
-                meeting = call_attempt.meeting
-                if meeting:
-                    if call_attempt.phase == CallPhase.PRE_MEETING:
-                        meeting.is_pre_call_completed = True
-                    elif call_attempt.phase == CallPhase.POST_MEETING:
-                        meeting.is_post_call_completed = True
-                    meeting.save()
-
-                    # Log successful call completion
-                    log_activity(
-                        meeting=meeting,
-                        user=meeting.agent,
-                        action=f"{call_attempt.get_phase_display()} call completed",
-                        details={
-                            "call_id": call_id,
-                            "has_transcript": bool(transcript_text),
-                            "has_recording": bool(recording_url),
-                            "webhook_type": webhook_type,
-                            "transcript_length": len(transcript_text) if transcript_text else 0,
-                        },
-                    )
-
-                    # Trigger Pipedrive sync if post-meeting call
-                    if call_attempt.phase == CallPhase.POST_MEETING:
-                        try:
-                            from .services import sync_note_to_pipedrive
-
-                            # Use summary if available, fallback to transcript
-                            note_text = (
-                                call_attempt.summary if call_attempt.summary else transcript_text
-                            )
-                            if note_text:
-                                sync_note_to_pipedrive(
-                                    deal_id=None,  # Will be determined from meeting (now uses domain-based search)
-                                    text=note_text,
-                                    meeting=meeting,
-                                )
-                        except Exception as e:
-                            logger.error(f"Failed to sync to Pipedrive: {e}", exc_info=True)
-                            log_activity(
-                                meeting=meeting,
-                                action="Pipedrive sync failed after call completion",
-                                details={"error": str(e)},
-                                level=LogLevel.ERROR,
-                            )
-                # If meeting is None, this is a visit-linked call (new flow).
-                # Transcript/summary/recording_url are already saved on call_attempt above.
-            else:
-                # Handle pre-meeting call failure: create -30 call if -60 failed.
-                # This only applies to meeting-linked calls; skip for visit-linked.
-                if (
-                    call_attempt.meeting
-                    and call_attempt.phase == CallPhase.PRE_MEETING
-                    and call_attempt.status in [CallStatus.NO_ANSWER, CallStatus.FAILED]
-                    and call_attempt.scheduled_offset_minutes == -60
-                ):  # -60 minutes
-                    # Check if -30 call doesn't exist yet
-                    from datetime import timedelta
-
-                    from django.utils import timezone
-
-                    from .constants import PRE_MEETING_OFFSETS
-
-                    existing_30 = CallAttempt.objects.filter(
-                        meeting=call_attempt.meeting,
-                        phase=CallPhase.PRE_MEETING,
-                        scheduled_offset_minutes=PRE_MEETING_OFFSETS[1],  # -30 minutes
-                    ).exists()
-
-                    if not existing_30 and call_attempt.meeting.start_time > timezone.now():
-                        # Create -30 minute call attempt
-                        scheduled_time = call_attempt.meeting.start_time + timedelta(
-                            minutes=PRE_MEETING_OFFSETS[1]
-                        )
-                        CallAttempt.objects.create(
-                            meeting=call_attempt.meeting,
-                            phase=CallPhase.PRE_MEETING,
-                            scheduled_offset_minutes=PRE_MEETING_OFFSETS[1],
-                            scheduled_time=scheduled_time,
-                            status=CallStatus.SCHEDULED,
-                        )
-                        log_activity(
-                            meeting=call_attempt.meeting,
-                            user=call_attempt.meeting.agent,
-                            action="Created -30 minute retry call after -60 call failed",
-                            details={
-                                "failed_call_id": call_attempt.id,
-                                "failed_status": call_attempt.status,
-                            },
-                        )
-
-                # Log non-completed status — guard against missing meeting
-                if call_attempt.meeting:
-                    log_activity(
-                        meeting=call_attempt.meeting,
-                        user=call_attempt.meeting.agent,
-                        action=f"{call_attempt.get_phase_display()} call {call_attempt.get_status_display()}",
-                        details={
-                            "call_id": call_id,
-                            "status": status,
-                            "webhook_type": webhook_type,
-                        },
-                        level=LogLevel.WARNING
-                        if call_attempt.status == CallStatus.NO_ANSWER
-                        else LogLevel.ERROR,
-                    )
+            # PR Y2b: the Meeting-flow webhook bookkeeping (is_pre/post_call_-
+            # completed flags, Meeting-typed Pipedrive sync, -60→-30 retry
+            # cloning, Meeting-anchored ActivityLog rows) was removed along
+            # with the Meeting model. Visit-flow handles every equivalent:
+            #   * Visit status moves to PRE_CALL_DONE / POST_CALL_DONE in
+            #     `process_visit_*_calls` after a successful trigger and is
+            #     reasserted here via the visit-linked path higher up in this
+            #     handler.
+            #   * Pipedrive sync runs from `voice/tasks.py` post-call task
+            #     via the CRM provider abstraction (`visit.crm_deal_id`).
+            #   * Retry caps are governed by `MAX_CALL_ATTEMPTS_PER_PHASE`
+            #     in `process_visit_pre_calls` rather than a hard-coded
+            #     -60 → -30 clone.
+            if call_attempt.status != CallStatus.COMPLETED:
+                log_activity(
+                    visit=call_attempt.visit,
+                    user=call_attempt.agent,
+                    action=(
+                        f"{call_attempt.get_phase_display()} call "
+                        f"{call_attempt.get_status_display()}"
+                    ),
+                    details={
+                        "call_id": call_id,
+                        "status": status,
+                        "webhook_type": webhook_type,
+                    },
+                    level=LogLevel.WARNING
+                    if call_attempt.status == CallStatus.NO_ANSWER
+                    else LogLevel.ERROR,
+                )
 
             return JsonResponse({"status": "success", "call_attempt_id": call_attempt.id})
 

@@ -8,14 +8,11 @@ from datetime import timedelta
 from django.utils import timezone
 
 from .constants import (
-    POST_MEETING_OFFSETS,
-    PRE_MEETING_OFFSETS,
-    SCHEDULER_WINDOW,
     CallPhase,
     CallStatus,
     VisitStatus,
 )
-from .models import CallAttempt, Client, Meeting, Methodology, Visit, VoicePrompt
+from .models import CallAttempt, Client, Methodology, Visit, VoicePrompt
 
 
 def get_active_prompt(phase: str) -> VoicePrompt | None:
@@ -31,22 +28,6 @@ def get_active_prompt(phase: str) -> VoicePrompt | None:
     try:
         return VoicePrompt.objects.get(prompt_type=phase, is_active=True)
     except VoicePrompt.DoesNotExist:
-        return None
-
-
-def get_meeting_by_external_id(external_id: str) -> Meeting | None:
-    """
-    Find a meeting by its external ID (from Google Calendar or Pipedrive).
-
-    Args:
-        external_id: External identifier from Google/Pipedrive
-
-    Returns:
-        Meeting instance or None if not found
-    """
-    try:
-        return Meeting.objects.get(external_id=external_id)
-    except Meeting.DoesNotExist:
         return None
 
 
@@ -66,114 +47,11 @@ def get_call_attempt_by_external_id(external_call_id: str) -> CallAttempt | None
         return None
 
 
-def get_meetings_for_pre_call_check() -> list[tuple[Meeting, int]]:
-    """Find meetings that need pre-meeting calls triggered.
-
-    NOTE: This is the legacy windowed selector used by the dropped
-    `check_and_trigger_calls` task. It still has TWO live callers that
-    will be migrated in a follow-up PR (Y1b):
-      * `ProgrammedCallsView.get()` for the superuser-dashboard
-        "programmed calls" page.
-      * `check_scheduler` diagnostic management command.
-
-    The Visit-flow scheduler (`process_visit_pre_calls`) does not use
-    this — it queries the Visit table directly via
-    `get_visits_needing_pre_call`. When the two callers above are
-    migrated, drop this function.
-
-    For pre-meeting calls with offset -60:
-    - Meeting at 16:00 should get a call at 15:00 (60 min before)
-    - We want to find meetings where: meeting.start_time + offset is within current window
-    - So: meeting.start_time should be between (now - offset - window/2) and (now - offset + window/2)
-    - Since offset is negative (-60), this becomes: (now + 60 - 5) to (now + 60 + 5)
-
-    Returns:
-        List of tuples (Meeting, offset_minutes) for meetings that need calls
-    """
-    now = timezone.now()
-    results = []
-
-    for offset in PRE_MEETING_OFFSETS:
-        # Allow some past tolerance to catch up on missed calls (extend window backward by 10 min).
-        window_start = (
-            now
-            - timedelta(minutes=offset)
-            - timedelta(minutes=SCHEDULER_WINDOW / 2)
-            - timedelta(minutes=10)
-        )
-        window_end = now - timedelta(minutes=offset) + timedelta(minutes=SCHEDULER_WINDOW / 2)
-
-        meetings = Meeting.objects.filter(
-            start_time__gte=window_start,
-            start_time__lte=window_end,
-            start_time__gt=now,
-            agent__is_sales_agent=True,
-        )
-
-        for meeting in meetings:
-            if offset == PRE_MEETING_OFFSETS[0]:  # First call (-60 mins)
-                if not CallAttempt.objects.filter(
-                    meeting=meeting, phase=CallPhase.PRE_MEETING, scheduled_offset_minutes=offset
-                ).exists():
-                    results.append((meeting, offset))
-            else:  # Retry call (-30 mins)
-                if (
-                    not meeting.is_pre_call_completed
-                    and not CallAttempt.objects.filter(
-                        meeting=meeting,
-                        phase=CallPhase.PRE_MEETING,
-                        scheduled_offset_minutes=offset,
-                    ).exists()
-                ):
-                    results.append((meeting, offset))
-
-    return results
-
-
-def get_meetings_for_post_call_check() -> list[tuple[Meeting, int]]:
-    """Find meetings that need post-meeting calls triggered. Same live-caller
-    notes as `get_meetings_for_pre_call_check` — kept until Y1b migrates
-    `ProgrammedCallsView` and `check_scheduler` off it.
-
-    For post-meeting calls with offset +15:
-    - Meeting ends at 17:00 should get a call at 17:15 (15 min after)
-
-    Returns:
-        List of tuples (Meeting, offset_minutes) for meetings that need calls
-    """
-    now = timezone.now()
-    results = []
-
-    for offset in POST_MEETING_OFFSETS:
-        window_start = now - timedelta(minutes=offset) - timedelta(minutes=SCHEDULER_WINDOW / 2)
-        window_end = now - timedelta(minutes=offset) + timedelta(minutes=SCHEDULER_WINDOW / 2)
-
-        meetings = Meeting.objects.filter(
-            end_time__gte=window_start, end_time__lte=window_end, agent__is_sales_agent=True
-        )
-
-        for meeting in meetings:
-            if offset == POST_MEETING_OFFSETS[0]:  # First call (+15 mins)
-                if not CallAttempt.objects.filter(
-                    meeting=meeting, phase=CallPhase.POST_MEETING, scheduled_offset_minutes=offset
-                ).exists():
-                    results.append((meeting, offset))
-            else:  # Retry call (+30 mins)
-                if (
-                    not meeting.is_post_call_completed
-                    and not CallAttempt.objects.filter(
-                        meeting=meeting,
-                        phase=CallPhase.POST_MEETING,
-                        scheduled_offset_minutes=offset,
-                    ).exists()
-                ):
-                    results.append((meeting, offset))
-
-    return results
-
-
-# `get_call_attempts_for_meeting` removed — its only caller was the dropped
-# MeetingDetailView. Visit-scoped equivalents live elsewhere in this file.
+# PR Y2b: `get_meeting_by_external_id`, `get_meetings_for_pre_call_check`,
+# `get_meetings_for_post_call_check`, and `get_call_attempts_for_meeting` were
+# removed along with the Meeting model. Visit-equivalent selectors
+# (`get_visits_needing_pre_call`, `get_visits_needing_post_call`,
+# `get_agent_visits`) live below.
 
 
 def get_sales_agents() -> list:
@@ -203,130 +81,12 @@ def get_recent_activity_logs(limit: int = 100):
     return ActivityLog.objects.all()[:limit]
 
 
-def get_system_statistics():
-    """
-    Get system-wide statistics for superuser dashboard.
-
-    Returns:
-        Dictionary with system statistics
-    """
-
-    from .constants import LogLevel
-    from .models import ActivityLog, CallAttempt, Meeting, User
-
-    today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
-    today_end = timezone.now().replace(hour=23, minute=59, second=59, microsecond=999999)
-
-    calls_today = CallAttempt.objects.filter(created_at__gte=today_start, created_at__lte=today_end)
-    completed_calls_today = calls_today.filter(status=CallStatus.COMPLETED)
-
-    total_calls = calls_today.count()
-    completed_count = completed_calls_today.count()
-    success_rate = (completed_count / total_calls * 100) if total_calls > 0 else 0
-
-    return {
-        "total_users": User.objects.count(),
-        "sales_agents": User.objects.filter(is_sales_agent=True).count(),
-        "total_meetings": Meeting.objects.count(),
-        "upcoming_meetings": Meeting.objects.filter(start_time__gte=timezone.now()).count(),
-        "calls_today": total_calls,
-        "completed_calls_today": completed_count,
-        "success_rate": round(success_rate, 1),
-        "total_logs": ActivityLog.objects.count(),
-        "error_logs": ActivityLog.objects.filter(level=LogLevel.ERROR).count(),
-    }
-
-
-def get_recent_calls(limit: int = 20):
-    """
-    Get recent call attempts across all agents.
-
-    Args:
-        limit: Maximum number of calls to return
-
-    Returns:
-        List of CallAttempt instances
-    """
-    return list(
-        CallAttempt.objects.select_related("meeting", "meeting__agent").order_by("-created_at")[
-            :limit
-        ]
-    )
-
-
-def get_failed_calls_today():
-    """
-    Get meetings where agents missed both pre-meeting call attempts today.
-
-    Returns:
-        List of dictionaries with meeting and agent info
-    """
-    from .models import Meeting
-
-    today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
-    today_end = timezone.now().replace(hour=23, minute=59, second=59, microsecond=999999)
-
-    # Find meetings that started today
-    # Use prefetch_related to avoid N+1 queries
-    today_meetings = Meeting.objects.filter(
-        start_time__gte=today_start,
-        start_time__lte=today_end,
-        agent__is_sales_agent=True,
-        is_pre_call_completed=False,
-    ).prefetch_related("call_attempts")
-
-    failed_meetings = []
-    for meeting in today_meetings:
-        # Check if both pre-meeting calls failed
-        # Use prefetched call_attempts to avoid additional queries
-        pre_calls = meeting.call_attempts.filter(
-            phase=CallPhase.PRE_MEETING, created_at__gte=today_start, created_at__lte=today_end
-        )
-
-        # Check if both -60 and -30 calls exist and both failed
-        call_60 = pre_calls.filter(scheduled_offset_minutes=-60).first()
-        call_30 = pre_calls.filter(scheduled_offset_minutes=-30).first()
-
-        if (
-            call_60
-            and call_30
-            and call_60.status in [CallStatus.NO_ANSWER, CallStatus.FAILED]
-            and call_30.status in [CallStatus.NO_ANSWER, CallStatus.FAILED]
-        ):
-            failed_meetings.append(
-                {
-                    "meeting": meeting,
-                    "agent": meeting.agent,
-                    "call_60_status": call_60.status,
-                    "call_30_status": call_30.status,
-                }
-            )
-
-    return failed_meetings
-
-
-def get_all_meetings(limit: int = 50, filters: dict = None):
-    """
-    Get all meetings with optional filters.
-
-    Args:
-        limit: Maximum number of meetings to return
-        filters: Optional dictionary with filter criteria
-
-    Returns:
-        QuerySet of Meeting instances
-    """
-    queryset = Meeting.objects.select_related("agent").order_by("-start_time")
-
-    if filters:
-        if "agent_id" in filters:
-            queryset = queryset.filter(agent_id=filters["agent_id"])
-        if "start_date" in filters:
-            queryset = queryset.filter(start_time__gte=filters["start_date"])
-        if "end_date" in filters:
-            queryset = queryset.filter(start_time__lte=filters["end_date"])
-
-    return queryset[:limit]
+# PR Y2b: `get_system_statistics`, `get_recent_calls`, `get_failed_calls_-
+# today`, `get_all_meetings`, and `get_agent_meetings` were removed along
+# with the Meeting model. None of them had any live callers — the manager
+# dashboard now uses `get_dashboard_visit_summary` / `get_agent_readiness`
+# / `get_dashboard_action_items` against Visit. If you need agent-scoped
+# visits, use `get_agent_visits` defined below.
 
 
 def get_activity_logs_filtered(level: str = None, user_id: int = None, limit: int = 100):
@@ -343,7 +103,7 @@ def get_activity_logs_filtered(level: str = None, user_id: int = None, limit: in
     """
     from .models import ActivityLog
 
-    queryset = ActivityLog.objects.select_related("user", "meeting").order_by("-timestamp")
+    queryset = ActivityLog.objects.select_related("user", "visit").order_by("-timestamp")
 
     if level:
         queryset = queryset.filter(level=level)
@@ -351,20 +111,6 @@ def get_activity_logs_filtered(level: str = None, user_id: int = None, limit: in
         queryset = queryset.filter(user_id=user_id)
 
     return queryset[:limit]
-
-
-def get_agent_meetings(agent, limit: int = 20):
-    """
-    Get meetings for a specific agent.
-
-    Args:
-        agent: User instance (sales agent)
-        limit: Maximum number of meetings to return
-
-    Returns:
-        QuerySet of Meeting instances
-    """
-    return Meeting.objects.filter(agent=agent).order_by("-start_time")[:limit]
 
 
 def get_agent_call_statistics(agent):
@@ -377,7 +123,7 @@ def get_agent_call_statistics(agent):
     Returns:
         Dictionary with call statistics
     """
-    agent_calls = CallAttempt.objects.filter(meeting__agent=agent)
+    agent_calls = CallAttempt.objects.filter(visit__agent=agent)
     total = agent_calls.count()
     completed = agent_calls.filter(status=CallStatus.COMPLETED).count()
     failed = agent_calls.filter(status=CallStatus.FAILED).count()
@@ -872,15 +618,12 @@ def get_dashboard_action_items(target_date=None):
     failed_calls = CallAttempt.objects.filter(
         created_at__date=target_date,
         status__in=[CallStatus.FAILED, CallStatus.NO_ANSWER],
-    ).select_related("visit", "visit__agent", "visit__client", "meeting", "meeting__agent")
+    ).select_related("visit", "visit__agent", "visit__client")
 
     for call in failed_calls[:5]:
         if call.visit:
             agent_name = call.visit.agent.get_full_name() or call.visit.agent.username
             context = call.visit.client.name if call.visit.client else call.visit.title
-        elif call.meeting:
-            agent_name = call.meeting.agent.username
-            context = call.meeting.title
         else:
             continue
         items.append(

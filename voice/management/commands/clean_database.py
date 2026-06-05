@@ -1,6 +1,6 @@
 """
 Django management command to clean the database.
-Removes all logs, calls, meetings, and calendar watches while preserving users and configuration.
+Removes all logs, calls, visits, and calendar watches while preserving users and configuration.
 """
 
 from django.core.management.base import BaseCommand
@@ -11,14 +11,17 @@ from voice.models import (
     CallAttempt,
     GoogleCalendarWatch,
     GoogleOauthCredential,
-    Meeting,
     User,
+    Visit,
     VoicePrompt,
 )
 
 
 class Command(BaseCommand):
-    help = "Clean database: remove all logs, calls, meetings, and calendar watches. Preserves users and configuration."
+    help = (
+        "Clean database: remove all logs, calls, visits, and calendar watches. "
+        "Preserves users and configuration."
+    )
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -34,7 +37,7 @@ class Command(BaseCommand):
                     "\nWARNING: This will delete:"
                     "\n  - All ActivityLog entries"
                     "\n  - All CallAttempt entries"
-                    "\n  - All Meeting entries"
+                    "\n  - All Visit entries"
                     "\n  - All GoogleCalendarWatch entries"
                     "\n  - All GoogleOauthCredential entries (OAuth tokens)"
                     "\n\nThis will NOT delete:"
@@ -52,7 +55,7 @@ class Command(BaseCommand):
             # Count before deletion
             activity_logs_count = ActivityLog.objects.count()
             call_attempts_count = CallAttempt.objects.count()
-            meetings_count = Meeting.objects.count()
+            visits_count = Visit.objects.count()
             calendar_watches_count = GoogleCalendarWatch.objects.count()
             oauth_credentials_count = GoogleOauthCredential.objects.count()
 
@@ -69,9 +72,9 @@ class Command(BaseCommand):
                 self.style.SUCCESS(f"  Deleted {call_attempts_count} CallAttempt entries")
             )
 
-            self.stdout.write("Deleting Meeting entries...")
-            Meeting.objects.all().delete()
-            self.stdout.write(self.style.SUCCESS(f"  Deleted {meetings_count} Meeting entries"))
+            self.stdout.write("Deleting Visit entries...")
+            Visit.objects.all().delete()
+            self.stdout.write(self.style.SUCCESS(f"  Deleted {visits_count} Visit entries"))
 
             self.stdout.write("Deleting GoogleCalendarWatch entries...")
             GoogleCalendarWatch.objects.all().delete()
@@ -99,6 +102,6 @@ class Command(BaseCommand):
                     f"\n\nPreserved:"
                     f"\n  - {users_count} User accounts"
                     f"\n  - {prompts_count} VoicePrompt entries (configuration)"
-                    f"\n\nNote: Users will need to re-authenticate with Google Calendar to sync meetings."
+                    f"\n\nNote: Users will need to re-authenticate with Google Calendar to sync visits."
                 )
             )

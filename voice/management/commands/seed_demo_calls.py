@@ -200,7 +200,6 @@ class Command(BaseCommand):
             # Pre-call (COMPLETED)
             pre = CallAttempt.objects.create(
                 visit=visit,
-                meeting=None,
                 phase=CallPhase.PRE_MEETING,
                 scheduled_offset_minutes=0,
                 scheduled_time=now - timedelta(hours=2),
@@ -214,7 +213,6 @@ class Command(BaseCommand):
             # Post-call (COMPLETED) with full analysis
             post = CallAttempt.objects.create(
                 visit=visit,
-                meeting=None,
                 phase=CallPhase.POST_MEETING,
                 scheduled_offset_minutes=0,
                 scheduled_time=now - timedelta(minutes=20),

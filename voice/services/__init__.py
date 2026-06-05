@@ -5,12 +5,20 @@ This package contains business logic services for the voice app,
 organized into focused modules:
 
 - logging: Activity logging service
-- pipedrive: Pipedrive CRM integration
+- pipedrive: Pipedrive CRM integration (domain-search helpers)
 - elevenlabs: ElevenLabs voice AI integration
 - google_calendar: Google Calendar OAuth and sync
-- scheduler: Call scheduling and pre-programming logic
+- visit_pipeline: Visit detection from calendar events
+- assembler: PRE / POST mega-prompt assembly
+- llm / lessons / client_sync: AI helpers
 
 All functions are re-exported here for backward compatibility.
+
+PR Y2b: the `scheduler` module and its legacy Meeting-flow helpers
+(`pre_program_meeting_calls`, `cleanup_cancelled_meeting_calls`,
+`should_trigger_*`, `check_*_meeting_calls`) were removed along with the
+Meeting model. The Visit-flow scheduler lives in `voice/tasks.py`
+(`process_visit_pre_calls` / `process_visit_post_calls`).
 """
 
 # ============================================================================
@@ -82,26 +90,10 @@ from .logging import log_activity
 # Pipedrive Integration
 # ============================================================================
 from .pipedrive import (
-    create_or_update_deal,
     extract_domain_from_email,
-    extract_domains_from_meeting,
     find_pipedrive_organization_by_domain,
     get_pipedrive_api_client,
-    get_pipedrive_deal_by_meeting,
     get_pipedrive_deals_for_organization,
-    sync_note_to_pipedrive,
-)
-
-# ============================================================================
-# Scheduler Logic
-# ============================================================================
-from .scheduler import (
-    check_post_meeting_calls,
-    check_pre_meeting_calls,
-    cleanup_cancelled_meeting_calls,
-    pre_program_meeting_calls,
-    should_trigger_post_call,
-    should_trigger_pre_call,
 )
 
 # ============================================================================
@@ -121,13 +113,9 @@ __all__ = [
     "log_activity",
     # Pipedrive
     "extract_domain_from_email",
-    "extract_domains_from_meeting",
     "get_pipedrive_api_client",
-    "get_pipedrive_deal_by_meeting",
     "find_pipedrive_organization_by_domain",
     "get_pipedrive_deals_for_organization",
-    "create_or_update_deal",
-    "sync_note_to_pipedrive",
     # ElevenLabs
     "fetch_call_status_from_elevenlabs",
     "sync_call_status_from_api",
@@ -165,11 +153,4 @@ __all__ = [
     "assemble_pre_call",
     "assemble_post_call",
     "distill_lessons",
-    # Scheduler
-    "pre_program_meeting_calls",
-    "cleanup_cancelled_meeting_calls",
-    "should_trigger_pre_call",
-    "should_trigger_post_call",
-    "check_pre_meeting_calls",
-    "check_post_meeting_calls",
 ]

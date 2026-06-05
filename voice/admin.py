@@ -86,7 +86,7 @@ class CallAttemptAdmin(admin.ModelAdmin):
     """Admin interface for CallAttempt model."""
 
     list_display = [
-        "meeting",
+        "visit",
         "phase",
         "scheduled_offset_minutes",
         "status",
@@ -95,14 +95,14 @@ class CallAttemptAdmin(admin.ModelAdmin):
         "created_at",
     ]
     list_filter = ["phase", "status", "created_at", "executed_at"]
-    search_fields = ["meeting__title", "external_call_id", "meeting__agent__username"]
+    search_fields = ["visit__title", "external_call_id", "visit__agent__username"]
     readonly_fields = ["created_at", "updated_at"]
     date_hierarchy = "created_at"
 
     fieldsets = (
         (
             "Call Information",
-            {"fields": ("meeting", "visit", "phase", "scheduled_offset_minutes", "status")},
+            {"fields": ("visit", "phase", "scheduled_offset_minutes", "status")},
         ),
         ("External Integration", {"fields": ("external_call_id", "recording_url")}),
         ("Call Results", {"fields": ("transcript", "summary", "summary_title", "executed_at")}),
@@ -114,14 +114,14 @@ class CallAttemptAdmin(admin.ModelAdmin):
 class ActivityLogAdmin(admin.ModelAdmin):
     """Admin interface for ActivityLog model."""
 
-    list_display = ["action", "level", "meeting", "user", "timestamp"]
+    list_display = ["action", "level", "visit", "user", "timestamp"]
     list_filter = ["level", "timestamp"]
-    search_fields = ["action", "meeting__title", "user__username"]
+    search_fields = ["action", "visit__title", "user__username"]
     readonly_fields = ["timestamp"]
     date_hierarchy = "timestamp"
 
     fieldsets = (
-        ("Log Information", {"fields": ("action", "level", "meeting", "user")}),
+        ("Log Information", {"fields": ("action", "level", "visit", "user")}),
         ("Details", {"fields": ("details",)}),
         ("Timestamp", {"fields": ("timestamp",)}),
     )

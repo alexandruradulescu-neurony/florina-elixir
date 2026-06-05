@@ -121,7 +121,7 @@ class Command(BaseCommand):
         """Fetch transcript for a specific call attempt."""
         if verbose:
             self.stdout.write(f"Call ID: {call.id}")
-            self.stdout.write(f"Meeting: {call.meeting.title if call.meeting else 'N/A'}")
+            self.stdout.write(f"Visit: {call.visit.title if call.visit else 'N/A'}")
             self.stdout.write(f"External Call ID: {call.external_call_id or 'None'}")
             self.stdout.write(f"Current Status: {call.status}")
             self.stdout.write(f"Has Transcript: {bool(call.transcript)}")

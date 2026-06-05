@@ -9,41 +9,17 @@ Handles all interactions with ElevenLabs API including:
 
 import json
 import logging
-from datetime import timedelta
 from typing import Any
 
 from django.utils import timezone
 
-from voice.constants import PRE_MEETING_OFFSETS, CallPhase, CallStatus, LogLevel
+from voice.constants import CallPhase, CallStatus, LogLevel
 from voice.models import CallAttempt
 from voice.utils import format_phone_number
 
 from .logging import log_activity
-from .pipedrive import sync_note_to_pipedrive
 
 logger = logging.getLogger(__name__)
-
-
-def _ca_user(call_attempt: CallAttempt):
-    """Resolve the sales-agent User for a CallAttempt regardless of source path.
-
-    The codebase is mid-migration from the legacy `Meeting` model to the newer
-    `Visit` model. `CallAttempt` carries nullable FKs to BOTH: the new
-    `process_visit_pre_calls` / `process_visit_post_calls` pipelines create
-    rows with `visit` set and `meeting=None`; legacy `check_and_trigger_calls`
-    paths set `meeting` and leave `visit=None`.
-
-    Every caller that historically did `call_attempt.meeting.agent` will
-    AttributeError on Visit-based rows. Use this helper instead — it tries the
-    Visit path first (the documented new entry point) and falls back to the
-    Meeting path for legacy rows. Returns None only when the CallAttempt is
-    orphaned (data integrity bug); `log_activity` accepts `user=None`.
-    """
-    if call_attempt.visit_id and call_attempt.visit:
-        return call_attempt.visit.agent
-    if call_attempt.meeting_id and call_attempt.meeting:
-        return call_attempt.meeting.agent
-    return None
 
 
 # ============================================================================
@@ -333,91 +309,21 @@ def sync_call_status_from_api(call_attempt: CallAttempt) -> bool:
     if updated:
         call_attempt.save()
 
-        # Update meeting if completed.
-        # NOTE: `call_attempt.meeting` is None for the Visit-based pipeline
-        # (process_visit_pre_calls / process_visit_post_calls). The Visit-flow
-        # equivalents of these meeting-level updates happen elsewhere:
+        # PR Y2b: the Meeting-flow `meeting.is_pre/post_call_completed`
+        # bookkeeping + Meeting-typed Pipedrive sync + -30 retry path
+        # were removed. Visit-flow handles the equivalents:
         #   * `visit.status` is moved to PRE_CALL_DONE / POST_CALL_DONE in
-        #     process_visit_*_calls right after a successful trigger, and again
-        #     in the webhook handler.
-        #   * Pipedrive sync for Visit-flow goes via the post-call analysis
-        #     path that reads `visit.client` directly (not `meeting`).
-        # So we skip both blocks when meeting is None — they are no-ops, not
-        # bugs, for the new pipeline.
-        if call_attempt.status == CallStatus.COMPLETED and call_attempt.meeting:
-            meeting = call_attempt.meeting
-            if call_attempt.phase == CallPhase.PRE_MEETING:
-                meeting.is_pre_call_completed = True
-            elif call_attempt.phase == CallPhase.POST_MEETING:
-                meeting.is_post_call_completed = True
-            meeting.save()
-
-            # Trigger Pipedrive sync for post-meeting calls
-            if call_attempt.phase == CallPhase.POST_MEETING:
-                # Use summary if available, fallback to transcript
-                note_text = (
-                    call_attempt.summary if call_attempt.summary else call_attempt.transcript
-                )
-                if note_text:
-                    try:
-                        sync_note_to_pipedrive(
-                            deal_id=None,  # Will be determined from meeting (now uses domain-based search)
-                            text=note_text,
-                            meeting=meeting,
-                        )
-                    except Exception as e:
-                        logger.error(
-                            f"Failed to sync to Pipedrive after API sync: {e}", exc_info=True
-                        )
-                        log_activity(
-                            meeting=meeting,
-                            action="Pipedrive sync failed after API sync",
-                            details={"error": str(e)},
-                            level=LogLevel.ERROR,
-                        )
-
-        # Handle pre-meeting call failure: create -30 call if -60 failed.
-        # This retry strategy is Meeting-flow specific. The Visit flow uses
-        # `MAX_CALL_ATTEMPTS_PER_PHASE` caps managed in process_visit_pre_calls,
-        # so skip this whole block when meeting is None.
-        if (
-            call_attempt.meeting
-            and call_attempt.phase == CallPhase.PRE_MEETING
-            and call_attempt.status in [CallStatus.NO_ANSWER, CallStatus.FAILED]
-            and call_attempt.scheduled_offset_minutes == PRE_MEETING_OFFSETS[0]
-        ):  # -60 minutes
-            # Check if -30 call doesn't exist yet
-            existing_30 = CallAttempt.objects.filter(
-                meeting=call_attempt.meeting,
-                phase=CallPhase.PRE_MEETING,
-                scheduled_offset_minutes=PRE_MEETING_OFFSETS[1],  # -30 minutes
-            ).exists()
-
-            if not existing_30 and call_attempt.meeting.start_time > timezone.now():
-                # Create -30 minute call attempt
-                scheduled_time = call_attempt.meeting.start_time + timedelta(
-                    minutes=PRE_MEETING_OFFSETS[1]
-                )
-                CallAttempt.objects.create(
-                    meeting=call_attempt.meeting,
-                    phase=CallPhase.PRE_MEETING,
-                    scheduled_offset_minutes=PRE_MEETING_OFFSETS[1],
-                    scheduled_time=scheduled_time,
-                    status=CallStatus.SCHEDULED,
-                )
-                log_activity(
-                    meeting=call_attempt.meeting,
-                    user=_ca_user(call_attempt),
-                    action="Created -30 minute retry call after -60 call failed",
-                    details={
-                        "failed_call_id": call_attempt.id,
-                        "failed_status": call_attempt.status,
-                    },
-                )
+        #     process_visit_*_calls right after a successful trigger, and
+        #     again in the webhook handler.
+        #   * Pipedrive sync for Visit-flow runs in the post-call task
+        #     (voice/tasks.py) via `crm.post_note_to_deal(visit.crm_deal_id,
+        #     ...)` — independent of this fallback API-polling path.
+        #   * Pre-call retry caps are enforced via MAX_CALL_ATTEMPTS_PER_PHASE
+        #     in process_visit_pre_calls.
 
         log_activity(
-            meeting=call_attempt.meeting,
-            user=_ca_user(call_attempt),
+            visit=call_attempt.visit,
+            user=call_attempt.agent,
             action="Call status synced from API",
             details={
                 "call_id": call_attempt.external_call_id,
@@ -552,32 +458,35 @@ def format_prompt_for_visit(template: str, visit, phase: str = "pre") -> str:
     return out
 
 
-def format_prompt_with_context(prompt_template: str, meeting) -> str:
+def format_prompt_with_context(prompt_template: str, visit) -> str:
     """
-    Inject meeting details into the prompt template.
+    Inject visit details into a legacy VoicePrompt template.
+
+    Only used by the dashboard "Test Call" path (`TestCallView`). Visit-flow
+    dials read the pre-rendered prompt directly from `visit.pre/post_call_*`
+    fields produced by the assembler.
 
     Args:
-        prompt_template: Prompt template with placeholders
-        meeting: Meeting instance with context data
+        prompt_template: Prompt template with `{token}` placeholders
+        visit: Visit instance (the historical Meeting parameter was renamed
+            but kept duck-typed — `customer_name`, `title`, `start_time`,
+            `end_time`, `agent` are the read surface).
 
     Returns:
-        Formatted prompt with meeting details injected
+        Formatted prompt with visit details injected.
     """
-    # Replace placeholders in the prompt template
     formatted_prompt = prompt_template
 
-    # Available context variables
     context = {
-        "{customer_name}": meeting.customer_name or "the customer",
-        "{meeting_title}": meeting.title,
-        "{meeting_start_time}": meeting.start_time.strftime("%B %d, %Y at %I:%M %p"),
-        "{meeting_end_time}": meeting.end_time.strftime("%B %d, %Y at %I:%M %p"),
-        "{agent_name}": meeting.agent.get_full_name() or meeting.agent.username,
-        "{meeting_date}": meeting.start_time.strftime("%B %d, %Y"),
-        "{meeting_time}": meeting.start_time.strftime("%I:%M %p"),
+        "{customer_name}": visit.customer_name or "the customer",
+        "{meeting_title}": visit.title,
+        "{meeting_start_time}": visit.start_time.strftime("%B %d, %Y at %I:%M %p"),
+        "{meeting_end_time}": visit.end_time.strftime("%B %d, %Y at %I:%M %p"),
+        "{agent_name}": visit.agent.get_full_name() or visit.agent.username,
+        "{meeting_date}": visit.start_time.strftime("%B %d, %Y"),
+        "{meeting_time}": visit.start_time.strftime("%I:%M %p"),
     }
 
-    # Replace all placeholders
     for placeholder, value in context.items():
         if placeholder in formatted_prompt:
             formatted_prompt = formatted_prompt.replace(placeholder, str(value))
@@ -585,20 +494,13 @@ def format_prompt_with_context(prompt_template: str, meeting) -> str:
     return formatted_prompt
 
 
-def format_first_message_with_context(first_message_template: str, meeting) -> str:
+def format_first_message_with_context(first_message_template: str, visit) -> str:
     """
-    Inject meeting details into the first message template.
-    Uses the same context variables as format_prompt_with_context.
-
-    Args:
-        first_message_template: First message template with placeholders
-        meeting: Meeting instance with context data
-
-    Returns:
-        Formatted first message with meeting details injected
+    Inject visit details into the first-message template. Reuses
+    `format_prompt_with_context`'s token set. Same caveats apply (legacy
+    test-call path only).
     """
-    # Reuse the same formatting logic as system prompt
-    return format_prompt_with_context(first_message_template, meeting)
+    return format_prompt_with_context(first_message_template, visit)
 
 
 def trigger_agent_call(
@@ -642,8 +544,8 @@ def trigger_agent_call(
         error_msg = f"Invalid phone number format: {agent_phone}"
         result["error"] = error_msg
         log_activity(
-            meeting=call_attempt.meeting,
-            user=_ca_user(call_attempt),
+            visit=call_attempt.visit,
+            user=call_attempt.agent,
             action="Call failed - invalid phone number",
             details={"phone_number": agent_phone, "error": error_msg},
             level=LogLevel.ERROR,
@@ -661,8 +563,8 @@ def trigger_agent_call(
         error_msg = "Missing ElevenLabs API key"
         result["error"] = error_msg
         log_activity(
-            meeting=call_attempt.meeting,
-            user=_ca_user(call_attempt),
+            visit=call_attempt.visit,
+            user=call_attempt.agent,
             action="Call failed - missing ElevenLabs API key",
             details={"error": error_msg},
             level=LogLevel.ERROR,
@@ -675,8 +577,8 @@ def trigger_agent_call(
         error_msg = "Missing ElevenLabs Agent ID"
         result["error"] = error_msg
         log_activity(
-            meeting=call_attempt.meeting,
-            user=_ca_user(call_attempt),
+            visit=call_attempt.visit,
+            user=call_attempt.agent,
             action="Call failed - missing ElevenLabs Agent ID",
             details={"error": error_msg},
             level=LogLevel.ERROR,
@@ -689,8 +591,8 @@ def trigger_agent_call(
         error_msg = "Missing ElevenLabs Phone Number ID"
         result["error"] = error_msg
         log_activity(
-            meeting=call_attempt.meeting,
-            user=_ca_user(call_attempt),
+            visit=call_attempt.visit,
+            user=call_attempt.agent,
             action="Call failed - missing ElevenLabs Phone Number ID",
             details={"error": error_msg},
             level=LogLevel.ERROR,
@@ -776,8 +678,8 @@ def trigger_agent_call(
 
                 # Log successful call initiation
                 log_activity(
-                    meeting=call_attempt.meeting,
-                    user=_ca_user(call_attempt),
+                    visit=call_attempt.visit,
+                    user=call_attempt.agent,
                     action="Call successfully initiated via ElevenLabs API",
                     details={
                         "call_id": call_id,
@@ -798,8 +700,8 @@ def trigger_agent_call(
                 result["error"] = error_msg
                 logger.error(error_msg)
                 log_activity(
-                    meeting=call_attempt.meeting,
-                    user=_ca_user(call_attempt),
+                    visit=call_attempt.visit,
+                    user=call_attempt.agent,
                     action="Call failed - no call_id in response",
                     details={"error": error_msg, "response": str(call_data)},
                     level=LogLevel.ERROR,
@@ -841,8 +743,8 @@ def trigger_agent_call(
             logger.error(f"ElevenLabs API call failed: {error_msg}")
 
             log_activity(
-                meeting=call_attempt.meeting,
-                user=_ca_user(call_attempt),
+                visit=call_attempt.visit,
+                user=call_attempt.agent,
                 action="Call failed - ElevenLabs API error",
                 details={
                     "error": error_msg,
@@ -861,8 +763,8 @@ def trigger_agent_call(
         logger.error(error_msg, exc_info=True)
 
         log_activity(
-            meeting=call_attempt.meeting,
-            user=_ca_user(call_attempt),
+            visit=call_attempt.visit,
+            user=call_attempt.agent,
             action="Call initiation failed",
             details={"error": error_msg, "phone_number": formatted_phone},
             level=LogLevel.ERROR,
@@ -889,14 +791,12 @@ def trigger_visit_call(visit, phase: str) -> dict[str, Any]:
       or visit.post_call_prompt.
     - Picks the agent's phone from visit.agent.phone_number.
     - Uses settings.ELEVENLABS_AGENT_ID as the shared EL agent.
-    - Creates a CallAttempt(visit=visit, meeting=None, phase=..., ...).
+    - Creates a CallAttempt(visit=visit, phase=..., ...).
 
     Returns: {'success': bool, 'call_id': str|None, 'error': str|None}.
     """
     import requests
     from decouple import config
-
-    from voice.constants import CallPhase
 
     result = {"success": False, "call_id": None, "error": None}
 
@@ -951,10 +851,9 @@ def trigger_visit_call(visit, phase: str) -> dict[str, Any]:
         result["error"] = f"Missing env vars: {', '.join(missing)}"
         return result
 
-    # Create CallAttempt row (visit-linked, no meeting)
+    # Create CallAttempt row (visit-linked).
     call_attempt = CallAttempt.objects.create(
         visit=visit,
-        meeting=None,
         phase=call_phase,
         scheduled_offset_minutes=0,
         scheduled_time=timezone.now(),
