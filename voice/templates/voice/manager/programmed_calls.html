@@ -216,52 +216,8 @@
                   {% endif %}
                 </td>
                 <td class="py-3 px-4 text-right">
-                  {% if call.meeting.id and not call.is_upcoming and call.status == 'FAILED' and call.can_retry %}
-                    <form method="post"
-                          action="{% url 'voice:manual_call_trigger' %}"
-                          class="inline">
-                      {% csrf_token %}
-                      <input type="hidden" name="meeting_id" value="{{ call.meeting.id }}">
-                      <input type="hidden" name="phase" value="{{ call.phase }}">
-                      <input type="hidden"
-                             name="offset_minutes"
-                             value="{{ call.scheduled_offset_minutes }}">
-                      <button type="submit"
-                              class="px-2 py-1 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 text-[10px] font-medium transition-colors">
-                        Retry
-                      </button>
-                    </form>
-                  {% elif call.meeting.id and call.can_trigger and call.is_upcoming %}
-                    <form method="post"
-                          action="{% url 'voice:manual_call_trigger' %}"
-                          class="inline">
-                      {% csrf_token %}
-                      <input type="hidden" name="meeting_id" value="{{ call.meeting.id }}">
-                      <input type="hidden" name="phase" value="{{ call.phase }}">
-                      <input type="hidden"
-                             name="offset_minutes"
-                             value="{{ call.scheduled_offset_minutes }}">
-                      <button type="submit"
-                              class="px-2 py-1 rounded-lg bg-teal-50 hover:bg-teal-100 text-teal-600 text-[10px] font-medium transition-colors">
-                        Trigger
-                      </button>
-                    </form>
-                  {% elif call.meeting.id and call.can_trigger and call.status == 'SCHEDULED' %}
-                    <form method="post"
-                          action="{% url 'voice:manual_call_trigger' %}"
-                          class="inline">
-                      {% csrf_token %}
-                      <input type="hidden" name="meeting_id" value="{{ call.meeting.id }}">
-                      <input type="hidden" name="phase" value="{{ call.phase }}">
-                      <input type="hidden"
-                             name="offset_minutes"
-                             value="{{ call.scheduled_offset_minutes }}">
-                      <button type="submit"
-                              class="px-2 py-1 rounded-lg bg-teal-50 hover:bg-teal-100 text-teal-600 text-[10px] font-medium transition-colors">
-                        Trigger
-                      </button>
-                    </form>
-                  {% endif %}
+                  {# Manual-trigger buttons removed alongside ManualCallTriggerView. #}
+                  {# Use the Regenerate button on the visit detail page to re-queue a call. #}
                 </td>
               </tr>
             {% endfor %}
