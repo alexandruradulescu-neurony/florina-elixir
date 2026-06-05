@@ -602,19 +602,18 @@
             class="lock-form">
         {% csrf_token %}
         <button type="submit"
-                class="lock-switch{% if visit.pre_call_prompt_locked %} is-on{% endif %}"
+                class="lock-toggle{% if visit.pre_call_prompt_locked %} is-on{% endif %}"
                 role="switch"
                 aria-checked="{% if visit.pre_call_prompt_locked %}true{% else %}false{% endif %}"
                 title="{% if visit.pre_call_prompt_locked %}Blocat — asamblorul nu suprascrie acest câmp la regenerare. Apasă pentru a debloca.{% else %}Deblocat — asamblorul poate suprascrie câmpul la regenerare. Apasă pentru a bloca.{% endif %}">
-          <span class="ic {% if visit.pre_call_prompt_locked %}ic-lock{% else %}ic-lock-open{% endif %} ic-14"></span>
-          <span class="lbl">
+          <span class="lt-label">
             {% if visit.pre_call_prompt_locked %}
               Blocat
             {% else %}
               Deblocat
             {% endif %}
           </span>
-          <span class="track"><span class="knob"></span></span>
+          <span class="lt-track"><span class="lt-knob"></span></span>
         </button>
       </form>
       <button type="button"
@@ -645,19 +644,18 @@
             class="lock-form">
         {% csrf_token %}
         <button type="submit"
-                class="lock-switch{% if visit.pre_call_first_message_locked %} is-on{% endif %}"
+                class="lock-toggle{% if visit.pre_call_first_message_locked %} is-on{% endif %}"
                 role="switch"
                 aria-checked="{% if visit.pre_call_first_message_locked %}true{% else %}false{% endif %}"
                 title="{% if visit.pre_call_first_message_locked %}Blocat — asamblorul nu suprascrie acest câmp la regenerare. Apasă pentru a debloca.{% else %}Deblocat — asamblorul poate suprascrie câmpul la regenerare. Apasă pentru a bloca.{% endif %}">
-          <span class="ic {% if visit.pre_call_first_message_locked %}ic-lock{% else %}ic-lock-open{% endif %} ic-14"></span>
-          <span class="lbl">
+          <span class="lt-label">
             {% if visit.pre_call_first_message_locked %}
               Blocat
             {% else %}
               Deblocat
             {% endif %}
           </span>
-          <span class="track"><span class="knob"></span></span>
+          <span class="lt-track"><span class="lt-knob"></span></span>
         </button>
       </form>
       <button type="button"
@@ -688,19 +686,18 @@
             class="lock-form">
         {% csrf_token %}
         <button type="submit"
-                class="lock-switch{% if visit.post_call_prompt_locked %} is-on{% endif %}"
+                class="lock-toggle{% if visit.post_call_prompt_locked %} is-on{% endif %}"
                 role="switch"
                 aria-checked="{% if visit.post_call_prompt_locked %}true{% else %}false{% endif %}"
                 title="{% if visit.post_call_prompt_locked %}Blocat — asamblorul nu suprascrie acest câmp la regenerare. Apasă pentru a debloca.{% else %}Deblocat — asamblorul poate suprascrie câmpul la regenerare. Apasă pentru a bloca.{% endif %}">
-          <span class="ic {% if visit.post_call_prompt_locked %}ic-lock{% else %}ic-lock-open{% endif %} ic-14"></span>
-          <span class="lbl">
+          <span class="lt-label">
             {% if visit.post_call_prompt_locked %}
               Blocat
             {% else %}
               Deblocat
             {% endif %}
           </span>
-          <span class="track"><span class="knob"></span></span>
+          <span class="lt-track"><span class="lt-knob"></span></span>
         </button>
       </form>
       <button type="button"
@@ -731,19 +728,18 @@
             class="lock-form">
         {% csrf_token %}
         <button type="submit"
-                class="lock-switch{% if visit.post_call_first_message_locked %} is-on{% endif %}"
+                class="lock-toggle{% if visit.post_call_first_message_locked %} is-on{% endif %}"
                 role="switch"
                 aria-checked="{% if visit.post_call_first_message_locked %}true{% else %}false{% endif %}"
                 title="{% if visit.post_call_first_message_locked %}Blocat — asamblorul nu suprascrie acest câmp la regenerare. Apasă pentru a debloca.{% else %}Deblocat — asamblorul poate suprascrie câmpul la regenerare. Apasă pentru a bloca.{% endif %}">
-          <span class="ic {% if visit.post_call_first_message_locked %}ic-lock{% else %}ic-lock-open{% endif %} ic-14"></span>
-          <span class="lbl">
+          <span class="lt-label">
             {% if visit.post_call_first_message_locked %}
               Blocat
             {% else %}
               Deblocat
             {% endif %}
           </span>
-          <span class="track"><span class="knob"></span></span>
+          <span class="lt-track"><span class="lt-knob"></span></span>
         </button>
       </form>
       <button type="button"
