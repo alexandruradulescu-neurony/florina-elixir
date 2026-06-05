@@ -52,7 +52,6 @@ from .elevenlabs import (
 # ============================================================================
 from .google_calendar import (
     SCOPES,
-    create_meeting_from_event,
     get_google_calendar_service,
     get_google_credentials,
     handle_google_calendar_notification,
@@ -60,7 +59,6 @@ from .google_calendar import (
     setup_google_calendar_watch,
     stop_google_calendar_watch,
     sync_google_calendar,
-    update_meeting_from_event,
 )
 
 # ============================================================================
@@ -141,8 +139,6 @@ __all__ = [
     "get_google_credentials",
     "refresh_google_credentials",
     "get_google_calendar_service",
-    "create_meeting_from_event",
-    "update_meeting_from_event",
     "sync_google_calendar",
     "setup_google_calendar_watch",
     "stop_google_calendar_watch",

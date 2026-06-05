@@ -654,6 +654,12 @@ def get_visits_for_range(start_date, end_date, agent=None):
     return qs.order_by("start_time")
 
 
+# Synthetic client used by TestCallView to stand up dial-only Visits without
+# polluting the CRM. Excluded from every scheduler selector below so a stray
+# test visit can never trigger an automated outbound call or CRM enrichment.
+_TEST_CLIENT_CRM_ID = "__TEST_CALL__"
+
+
 def get_visits_needing_pre_call():
     """
     Get planned visits where pre-call hasn't happened yet
@@ -667,11 +673,15 @@ def get_visits_needing_pre_call():
     now = timezone.now()
     cutoff = now + timedelta(minutes=offset + 5)  # small buffer
 
-    return Visit.objects.filter(
-        status=VisitStatus.PLANNED,
-        start_time__lte=cutoff,
-        start_time__gt=now,
-    ).select_related("agent", "client", "methodology")
+    return (
+        Visit.objects.filter(
+            status=VisitStatus.PLANNED,
+            start_time__lte=cutoff,
+            start_time__gt=now,
+        )
+        .exclude(client__crm_id=_TEST_CLIENT_CRM_ID)
+        .select_related("agent", "client", "methodology")
+    )
 
 
 def get_visits_needing_post_call():
@@ -685,10 +695,14 @@ def get_visits_needing_post_call():
 
     now = timezone.now()
 
-    return Visit.objects.filter(
-        status__in=[VisitStatus.PLANNED, VisitStatus.PRE_CALL_DONE, VisitStatus.IN_PROGRESS],
-        end_time__lte=now - timedelta(minutes=offset),
-    ).select_related("agent", "client", "methodology")
+    return (
+        Visit.objects.filter(
+            status__in=[VisitStatus.PLANNED, VisitStatus.PRE_CALL_DONE, VisitStatus.IN_PROGRESS],
+            end_time__lte=now - timedelta(minutes=offset),
+        )
+        .exclude(client__crm_id=_TEST_CLIENT_CRM_ID)
+        .select_related("agent", "client", "methodology")
+    )
 
 
 def get_agent_visits(agent, limit=20):
