@@ -36,7 +36,6 @@ from .models import (
     CallAttempt,
     Client,
     GlobalSettings,
-    Meeting,
     Methodology,
     User,
     Visit,
@@ -390,15 +389,23 @@ class CalendarSyncTriggerView(LoginRequiredMixin, View):
 
 
 class CalendarSyncStatusView(LoginRequiredMixin, View):
-    """Display calendar sync status and recent meetings."""
+    """Display calendar sync status and recent visits."""
 
     def get(self, request):
         """Show sync status dashboard."""
         # Check if user has Google credentials
         has_credentials = "google_credentials" in request.session
 
-        # Get user's meetings
-        meetings = Meeting.objects.filter(agent=request.user).order_by("-start_time")[:20]
+        # Get user's recent visits (was Meeting before; Visit is now the only
+        # entity persisted by the calendar sync pipeline). Template still uses
+        # `meetings` as the context key so we don't have to update HTML in this
+        # PR — the visit fields (`title`, `start_time`, `end_time`) are a
+        # superset of what the template previously consumed from Meeting.
+        meetings = (
+            Visit.objects.filter(agent=request.user)
+            .select_related("client")
+            .order_by("-start_time")[:20]
+        )
 
         # Get recent activity logs
         recent_logs = get_recent_activity_logs(limit=10)
@@ -464,7 +471,7 @@ class TestCallView(SuperuserRequiredMixin, View):
         from django.utils import timezone
 
         from .constants import CallPhase, CallStatus
-        from .models import CallAttempt, Meeting
+        from .models import CallAttempt, Client, Visit
         from .selectors import get_active_prompt
         from .services import trigger_agent_call
 
@@ -500,37 +507,46 @@ class TestCallView(SuperuserRequiredMixin, View):
                 )
                 return redirect("voice:superuser_dashboard")
 
-            # Create a temporary test meeting
-            test_meeting = Meeting.objects.create(
+            # Test-call infra: lazily provision a synthetic "Test" Client so we
+            # can stand up a Visit without polluting the real CRM. crm_id is
+            # unique and namespaced so it never collides with Pipedrive IDs.
+            test_client, _ = Client.objects.get_or_create(
+                crm_id="__TEST_CALL__",
+                defaults={"name": "Test Customer"},
+            )
+
+            # Create a temporary test visit (replaces the legacy test Meeting).
+            test_visit = Visit.objects.create(
                 agent=request.user,
-                external_id=f"test_{timezone.now().timestamp()}",
+                client=test_client,
+                calendar_event_id=f"test_{timezone.now().timestamp()}",
                 title="Test Call",
-                customer_name="Test Customer",
                 start_time=timezone.now() + timedelta(hours=1),
                 end_time=timezone.now() + timedelta(hours=2),
             )
 
-            # Create call attempt
+            # Create call attempt linked to the test visit.
             call_attempt = CallAttempt.objects.create(
-                meeting=test_meeting,
+                visit=test_visit,
                 phase=CallPhase.PRE_MEETING,
                 scheduled_offset_minutes=-60,  # Standard pre-meeting offset
                 status=CallStatus.SCHEDULED,
             )
 
-            # Format prompt with meeting context
-            formatted_prompt = format_prompt_with_context(prompt.system_prompt, test_meeting)
+            # Format prompt with visit context (Visit exposes `customer_name`
+            # as a property so the legacy formatter is duck-compatible).
+            formatted_prompt = format_prompt_with_context(prompt.system_prompt, test_visit)
 
             # Format first_message if available
             formatted_first_message = None
             if prompt.first_message:
                 formatted_first_message = format_first_message_with_context(
-                    prompt.first_message, test_meeting
+                    prompt.first_message, test_visit
                 )
 
             # Prepare context data
             context_data = {
-                "meeting_id": test_meeting.id,
+                "visit_id": test_visit.id,
                 "offset_minutes": -60,
                 "call_attempt_id": call_attempt.id,
                 "is_test_call": True,
@@ -553,8 +569,8 @@ class TestCallView(SuperuserRequiredMixin, View):
             else:
                 error_msg = result.get("error", "Unknown error")
                 messages.error(request, f"Failed to initiate test call: {error_msg}")
-                # Clean up test meeting if call failed
-                test_meeting.delete()
+                # Clean up test visit if call failed (cascades to CallAttempt).
+                test_visit.delete()
 
         except Exception as e:
             logger.error(f"Error initiating test call: {e}", exc_info=True)
@@ -1470,8 +1486,7 @@ class ProgrammedCallsView(SuperuserRequiredMixin, View):
     """View all programmed/scheduled calls for superuser."""
 
     def get(self, request):
-        from .selectors import get_meetings_for_post_call_check, get_meetings_for_pre_call_check
-        from .services import should_trigger_post_call, should_trigger_pre_call
+        from .constants import CallPhase, CallStatus, VisitStatus
 
         # Get filter parameters
         status_filter = request.GET.get("status", "")
@@ -1479,7 +1494,9 @@ class ProgrammedCallsView(SuperuserRequiredMixin, View):
         agent_filter = request.GET.get("agent", "")
         show_upcoming = request.GET.get("show_upcoming", "true") == "true"
 
-        # Base queryset for actual CallAttempt records
+        # Base queryset for actual CallAttempt records. We still join `meeting`
+        # because legacy rows linked via meeting may exist until the schema
+        # drop in PR Y2b — once those go, the meeting join can be removed.
         calls = CallAttempt.objects.select_related(
             "meeting",
             "meeting__agent",
@@ -1523,28 +1540,51 @@ class ProgrammedCallsView(SuperuserRequiredMixin, View):
             else:
                 call.scheduled_time = end + timedelta(minutes=call.scheduled_offset_minutes)
 
-        # Get upcoming scheduled calls (not yet triggered)
+        # Get upcoming scheduled calls (not yet triggered). Visit-flow is the
+        # only producer now — the legacy `get_meetings_for_*_check` selectors
+        # were removed in PR Y1b. We project the next pre/post call time for
+        # each Visit that doesn't yet have a SCHEDULED/INITIATED/IN_PROGRESS/
+        # COMPLETED CallAttempt in that phase.
         upcoming_calls = []
         if show_upcoming:
-            # Get meetings that need pre-meeting calls
-            pre_meetings = get_meetings_for_pre_call_check()
-            for meeting, offset in pre_meetings:
-                if should_trigger_pre_call(meeting, offset):
-                    # Apply filters
-                    if agent_filter and str(meeting.agent_id) != agent_filter:
-                        continue
-                    if phase_filter and phase_filter != "PRE":
-                        continue
+            now = timezone.now()
+            settings = GlobalSettings.load()
+            pre_offset = settings.pre_call_offset_minutes  # typically negative (e.g. -60)
+            post_offset = settings.post_call_offset_minutes  # typically positive (e.g. 15)
 
-                    # Create a virtual call object
+            ACTIVE_STATUSES = [
+                CallStatus.SCHEDULED,
+                CallStatus.INITIATED,
+                CallStatus.IN_PROGRESS,
+                CallStatus.COMPLETED,
+            ]
+
+            # PRE-call candidates: planned visits whose start is still in the
+            # future and which have no live pre-call attempt yet.
+            if phase_filter in ("", "PRE"):
+                pre_visits_qs = (
+                    Visit.objects.filter(
+                        status=VisitStatus.PLANNED,
+                        start_time__gt=now,
+                    )
+                    .select_related("agent", "client")
+                    .exclude(
+                        call_attempts__phase=CallPhase.PRE_MEETING,
+                        call_attempts__status__in=ACTIVE_STATUSES,
+                    )
+                )
+                if agent_filter:
+                    pre_visits_qs = pre_visits_qs.filter(agent_id=agent_filter)
+                for visit in pre_visits_qs:
                     virtual_call = type(
                         "VirtualCall",
                         (),
                         {
                             "id": None,
-                            "meeting": meeting,
+                            "meeting": None,
+                            "visit": visit,
                             "phase": "PRE",
-                            "scheduled_offset_minutes": offset,
+                            "scheduled_offset_minutes": pre_offset,
                             "status": "SCHEDULED",
                             "external_call_id": None,
                             "recording_url": None,
@@ -1553,31 +1593,44 @@ class ProgrammedCallsView(SuperuserRequiredMixin, View):
                             "summary_title": None,
                             "executed_at": None,
                             "created_at": None,
-                            "scheduled_time": meeting.start_time + timedelta(minutes=offset),
+                            "scheduled_time": visit.start_time
+                            + timedelta(minutes=pre_offset),
                             "is_upcoming": True,
                         },
                     )()
                     upcoming_calls.append(virtual_call)
 
-            # Get meetings that need post-meeting calls
-            post_meetings = get_meetings_for_post_call_check()
-            for meeting, offset in post_meetings:
-                if should_trigger_post_call(meeting, offset):
-                    # Apply filters
-                    if agent_filter and str(meeting.agent_id) != agent_filter:
-                        continue
-                    if phase_filter and phase_filter != "POST":
-                        continue
-
-                    # Create a virtual call object
+            # POST-call candidates: visits still active (not COMPLETE) with no
+            # live post-call attempt yet. We include both future and past
+            # end_times — past ones are imminent retries, future ones are
+            # projections the operator may want to see.
+            if phase_filter in ("", "POST"):
+                post_visits_qs = (
+                    Visit.objects.filter(
+                        status__in=[
+                            VisitStatus.PLANNED,
+                            VisitStatus.PRE_CALL_DONE,
+                            VisitStatus.IN_PROGRESS,
+                        ],
+                    )
+                    .select_related("agent", "client")
+                    .exclude(
+                        call_attempts__phase=CallPhase.POST_MEETING,
+                        call_attempts__status__in=ACTIVE_STATUSES,
+                    )
+                )
+                if agent_filter:
+                    post_visits_qs = post_visits_qs.filter(agent_id=agent_filter)
+                for visit in post_visits_qs:
                     virtual_call = type(
                         "VirtualCall",
                         (),
                         {
                             "id": None,
-                            "meeting": meeting,
+                            "meeting": None,
+                            "visit": visit,
                             "phase": "POST",
-                            "scheduled_offset_minutes": offset,
+                            "scheduled_offset_minutes": post_offset,
                             "status": "SCHEDULED",
                             "external_call_id": None,
                             "recording_url": None,
@@ -1586,7 +1639,8 @@ class ProgrammedCallsView(SuperuserRequiredMixin, View):
                             "summary_title": None,
                             "executed_at": None,
                             "created_at": None,
-                            "scheduled_time": meeting.end_time + timedelta(minutes=offset),
+                            "scheduled_time": visit.end_time
+                            + timedelta(minutes=post_offset),
                             "is_upcoming": True,
                         },
                     )()
@@ -1603,11 +1657,8 @@ class ProgrammedCallsView(SuperuserRequiredMixin, View):
 
         # Add helper flags for template rendering
         for call in all_calls:
-            # Resolve start/end from visit or meeting
-            if hasattr(call, "is_upcoming") and call.is_upcoming:
-                _start = call.meeting.start_time
-                _end = call.meeting.end_time
-            elif hasattr(call, "visit") and call.visit:
+            # Resolve start/end from visit (upcoming or actual) or meeting (legacy).
+            if hasattr(call, "visit") and call.visit:
                 _start = call.visit.start_time
                 _end = call.visit.end_time
             elif hasattr(call, "meeting") and call.meeting:

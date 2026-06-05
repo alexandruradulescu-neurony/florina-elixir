@@ -88,21 +88,21 @@
               </tr>
             </thead>
             <tbody>
-              {% for meeting in meetings %}
+              {% for visit in meetings %}
                 <tr>
-                  <td>{{ meeting.title }}</td>
-                  <td>{{ meeting.customer_name|default:"-" }}</td>
-                  <td>{{ meeting.start_time|date:"M d, Y H:i" }}</td>
-                  <td>{{ meeting.end_time|date:"M d, Y H:i" }}</td>
+                  <td>{{ visit.title }}</td>
+                  <td>{{ visit.client.name|default:"-" }}</td>
+                  <td>{{ visit.start_time|date:"M d, Y H:i" }}</td>
+                  <td>{{ visit.end_time|date:"M d, Y H:i" }}</td>
                   <td>
-                    {% if meeting.is_pre_call_completed %}
+                    {% if visit.status != 'PLANNED' %}
                       <span class="badge badge-success">✓</span>
                     {% else %}
                       <span class="badge badge-warning">Pending</span>
                     {% endif %}
                   </td>
                   <td>
-                    {% if meeting.is_post_call_completed %}
+                    {% if visit.status == 'POST_CALL_DONE' or visit.status == 'COMPLETE' %}
                       <span class="badge badge-success">✓</span>
                     {% else %}
                       <span class="badge badge-warning">Pending</span>

@@ -123,14 +123,9 @@
                   {% endif %}
                 </td>
                 <td class="py-3 px-4">
-                  {% if call.is_upcoming %}
-                    <div class="flex items-center gap-2">
-                      <div class="w-6 h-6 rounded-full bg-slate-800 flex items-center justify-center text-white text-[9px] font-bold">
-                        {{ call.meeting.agent.username|first|upper }}
-                      </div>
-                      <span class="font-medium text-slate-700">{{ call.meeting.agent.get_full_name|default:call.meeting.agent.username }}</span>
-                    </div>
-                  {% elif call.visit %}
+                  {# Upcoming virtual calls now carry `visit` (not `meeting`) — the
+                     visit branch handles both real and projected rows uniformly. #}
+                  {% if call.visit %}
                     <div class="flex items-center gap-2">
                       <div class="w-6 h-6 rounded-full bg-slate-800 flex items-center justify-center text-white text-[9px] font-bold">
                         {{ call.visit.agent.username|first|upper }}
@@ -147,17 +142,26 @@
                   {% endif %}
                 </td>
                 <td class="py-3 px-4">
-                  {% if call.is_upcoming %}
-                    <span class="text-slate-700">{{ call.meeting.title|truncatewords:4 }}</span>
-                  {% elif call.visit %}
-                    <a href="{% url 'voice:visit_detail' call.visit.id %}"
-                       class="text-teal-600 hover:text-teal-700 font-medium">
-                      {% if call.visit.client %}
-                        {{ call.visit.client.name }}
-                      {% else %}
-                        {{ call.visit.title|truncatewords:4 }}
-                      {% endif %}
-                    </a>
+                  {% if call.visit %}
+                    {% if call.is_upcoming %}
+                      <a href="{% url 'voice:visit_detail' call.visit.id %}"
+                         class="text-amber-600 hover:text-amber-700 font-medium">
+                        {% if call.visit.client %}
+                          {{ call.visit.client.name }}
+                        {% else %}
+                          {{ call.visit.title|truncatewords:4 }}
+                        {% endif %}
+                      </a>
+                    {% else %}
+                      <a href="{% url 'voice:visit_detail' call.visit.id %}"
+                         class="text-teal-600 hover:text-teal-700 font-medium">
+                        {% if call.visit.client %}
+                          {{ call.visit.client.name }}
+                        {% else %}
+                          {{ call.visit.title|truncatewords:4 }}
+                        {% endif %}
+                      </a>
+                    {% endif %}
                   {% elif call.meeting %}
                     <span class="text-slate-700">{{ call.meeting.title|truncatewords:4 }}</span>
                   {% endif %}

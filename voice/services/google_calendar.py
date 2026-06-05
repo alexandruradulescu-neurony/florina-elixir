@@ -18,7 +18,7 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
 from voice.constants import CallStatus, LogLevel
-from voice.models import CallAttempt, GoogleCalendarWatch, GoogleOauthCredential, Meeting, User
+from voice.models import CallAttempt, GoogleCalendarWatch, GoogleOauthCredential, User, Visit
 from voice.utils import convert_to_utc
 
 from .logging import log_activity
@@ -224,125 +224,32 @@ def get_google_calendar_service(user: User, session=None):
 # ============================================================================
 
 
-def create_meeting_from_event(event: dict, user: User) -> Meeting:
-    """
-    Create a Meeting instance from a Google Calendar event.
-
-    Args:
-        event: Google Calendar event dictionary
-        user: User (sales agent) associated with the meeting
-
-    Returns:
-        Created Meeting instance
-    """
-    external_id = event.get("id")
-    title = event.get("summary", "Untitled Meeting")
-
-    # Extract customer name from event description
-    customer_name = ""
-    description = event.get("description", "")
-
-    # Try to extract customer name from description
-    if description:
-        # Simple extraction - you may want more sophisticated parsing
-        customer_name = description[:255]  # Truncate if too long
-
-    # Parse start and end times
-    start_time_str = event.get("start", {}).get("dateTime") or event.get("start", {}).get("date")
-    end_time_str = event.get("end", {}).get("dateTime") or event.get("end", {}).get("date")
-
-    if start_time_str:
-        start_time = datetime.fromisoformat(start_time_str.replace("Z", "+00:00"))
-        if start_time.tzinfo is None:
-            start_time = timezone.make_aware(start_time)
-    else:
-        start_time = timezone.now()
-
-    if end_time_str:
-        end_time = datetime.fromisoformat(end_time_str.replace("Z", "+00:00"))
-        if end_time.tzinfo is None:
-            end_time = timezone.make_aware(end_time)
-    else:
-        end_time = start_time + timedelta(hours=1)  # Default 1 hour meeting
-
-    meeting = Meeting.objects.create(
-        agent=user,
-        external_id=external_id,
-        title=title,
-        customer_name=customer_name,
-        start_time=start_time,
-        end_time=end_time,
-    )
-
-    log_activity(
-        meeting=meeting,
-        user=user,
-        action="Meeting created from Google Calendar",
-        details={
-            "external_id": external_id,
-            "title": title,
-            "start_time": start_time.isoformat(),
-            "end_time": end_time.isoformat(),
-        },
-    )
-
-    return meeting
-
-
-def update_meeting_from_event(meeting: Meeting, event: dict) -> Meeting:
-    """
-    Update an existing Meeting instance from a Google Calendar event.
-
-    Args:
-        meeting: Existing Meeting instance
-        event: Google Calendar event dictionary
-
-    Returns:
-        Updated Meeting instance
-    """
-    title = event.get("summary", meeting.title)
-    description = event.get("description", "")
-
-    # Parse start and end times
-    start_time_str = event.get("start", {}).get("dateTime") or event.get("start", {}).get("date")
-    end_time_str = event.get("end", {}).get("dateTime") or event.get("end", {}).get("date")
-
-    if start_time_str:
-        start_time = datetime.fromisoformat(start_time_str.replace("Z", "+00:00"))
-        if start_time.tzinfo is None:
-            start_time = timezone.make_aware(start_time)
-        meeting.start_time = start_time
-
-    if end_time_str:
-        end_time = datetime.fromisoformat(end_time_str.replace("Z", "+00:00"))
-        if end_time.tzinfo is None:
-            end_time = timezone.make_aware(end_time)
-        meeting.end_time = end_time
-
-    meeting.title = title
-    if description:
-        meeting.customer_name = description[:255]
-
-    meeting.save()
-
-    log_activity(
-        meeting=meeting,
-        action="Meeting updated from Google Calendar",
-        details={
-            "title": title,
-            "start_time": meeting.start_time.isoformat(),
-            "end_time": meeting.end_time.isoformat(),
-        },
-    )
-
-    return meeting
+# `create_meeting_from_event` and `update_meeting_from_event` were dropped
+# alongside the Meeting→Visit migration (PR Y2a). Both were orphan exports —
+# the surviving sync logic lives in `sync_google_calendar` below, and Visit
+# rows are now produced by `detect_visits_task` (voice/services/visit_pipeline.py).
 
 
 def sync_google_calendar(
     user: User, time_min: datetime | None = None, time_max: datetime | None = None, session=None
 ) -> dict[str, Any]:
     """
-    Sync meetings from Google Calendar for a user.
+    Sync calendar events from Google Calendar for a user.
+
+    PR Y2a: Meeting writes have been removed from this function. The Visit
+    pipeline (`detect_visits_task` → `process_visit_pre_calls/post_calls`) is
+    now the single source of truth for persisting calendar events; this
+    function still fetches events to:
+      * validate Google auth (surfaces re-auth needs on the manual sync button)
+      * power activity logs / sync timestamps
+      * detect deleted events so we can cancel any pending CallAttempts and
+        delete the corresponding Visit rows
+
+    The `created` / `updated` counters now reflect calendar events observed
+    in the time window — not database rows — because the actual Visit
+    upserts happen in `detect_visits_for_agent`. We deliberately keep the
+    shape `{created, updated, errors}` for backward compatibility with the
+    template / management command callers.
 
     Args:
         user: User instance (sales agent)
@@ -352,15 +259,6 @@ def sync_google_calendar(
     Returns:
         Dictionary with sync results: {'created': count, 'updated': count, 'errors': []}
     """
-    # `pre_program_meeting_calls` is no longer called from this sync.
-    # Its CallAttempt(meeting=..., status=SCHEDULED) rows were dialed by the
-    # legacy `check_and_trigger_calls` task, which has been retired. The Visit
-    # pipeline (`detect_visits_task` → `process_visit_pre_calls`) is now the
-    # single source of truth for outbound calls — it works directly from the
-    # Visit table and does not look at meeting-linked CallAttempts. Leaving
-    # the calls in here would silently generate orphan SCHEDULED rows every
-    # sync cycle.
-
     if not user.is_sales_agent:
         log_activity(
             user=user, action="Calendar sync attempted for non-sales agent", level=LogLevel.WARNING
@@ -403,13 +301,19 @@ def sync_google_calendar(
 
         events = events_result.get("items", [])
 
+        # PR Y2a: stop persisting Meeting rows here. We still iterate the
+        # event list so we can: (a) surface per-event parse errors in the
+        # sync results, and (b) update Visit rows for events we have a
+        # matching Visit for (Visit upsert from the visit-detection pipeline
+        # is what actually creates them — see detect_visits_for_agent).
         for event in events:
             try:
                 external_id = event.get("id")
                 if not external_id:
                     continue
 
-                # Parse datetime with explicit UTC conversion
+                # Parse datetime with explicit UTC conversion. Bad timestamps
+                # are surfaced via the per-event exception handler below.
                 start_time_str = event.get("start", {}).get("dateTime") or event.get(
                     "start", {}
                 ).get("date")
@@ -417,12 +321,10 @@ def sync_google_calendar(
                     "date"
                 )
 
-                # Explicit UTC conversion
                 if start_time_str:
                     start_time = datetime.fromisoformat(start_time_str.replace("Z", "+00:00"))
                     if start_time.tzinfo is None:
                         start_time = timezone.make_aware(start_time)
-                    # Ensure UTC
                     start_time = convert_to_utc(start_time)
                 else:
                     start_time = timezone.now()
@@ -431,71 +333,49 @@ def sync_google_calendar(
                     end_time = datetime.fromisoformat(end_time_str.replace("Z", "+00:00"))
                     if end_time.tzinfo is None:
                         end_time = timezone.make_aware(end_time)
-                    # Ensure UTC
                     end_time = convert_to_utc(end_time)
                 else:
                     end_time = start_time + timedelta(hours=1)
 
-                # Extract customer name
-                customer_name = ""
-                description = event.get("description", "")
-                if description:
-                    customer_name = description[:255]
-
-                # Extract attendees
-                attendees = [
-                    att.get("email") for att in event.get("attendees", []) if att.get("email")
-                ]
-
-                # Atomic upsert using update_or_create
-                meeting, created = Meeting.objects.update_or_create(
-                    external_id=external_id,
-                    defaults={
-                        "agent": user,
-                        "title": event.get("summary", "Untitled Meeting"),
-                        "customer_name": customer_name,
-                        "attendees": attendees,
-                        "start_time": start_time,
-                        "end_time": end_time,
-                    },
-                )
-
-                if created:
-                    results["created"] += 1
-                    log_activity(
-                        meeting=meeting,
-                        user=user,
-                        action="Meeting created from Google Calendar",
-                        details={
-                            "external_id": external_id,
-                            "title": meeting.title,
-                            "start_time": start_time.isoformat(),
-                            "end_time": end_time.isoformat(),
-                        },
-                    )
-                    # (Pre-programmed meeting CallAttempts removed — see top of function.)
+                # Reflect time/title changes on the matching Visit, if any.
+                # Visit creation itself is owned by detect_visits_for_agent;
+                # we deliberately only update — never create — here so the
+                # two pipelines stay decoupled.
+                visit = Visit.objects.filter(
+                    calendar_event_id=external_id, agent=user
+                ).first()
+                if visit:
+                    changed = False
+                    new_title = event.get("summary", visit.title)
+                    if visit.title != new_title:
+                        visit.title = new_title
+                        changed = True
+                    if visit.start_time != start_time:
+                        visit.start_time = start_time
+                        changed = True
+                    if visit.end_time != end_time:
+                        visit.end_time = end_time
+                        changed = True
+                    if changed:
+                        visit.save(
+                            update_fields=["title", "start_time", "end_time", "updated_at"]
+                        )
+                        results["updated"] += 1
+                        log_activity(
+                            user=user,
+                            action="Visit updated from Google Calendar",
+                            details={
+                                "visit_id": visit.id,
+                                "title": visit.title,
+                                "start_time": start_time.isoformat(),
+                                "end_time": end_time.isoformat(),
+                            },
+                        )
                 else:
-                    # Check if meeting times changed
-                    time_changed = meeting.start_time != start_time or meeting.end_time != end_time
-
-                    results["updated"] += 1
-                    log_activity(
-                        meeting=meeting,
-                        user=user,
-                        action="Meeting updated from Google Calendar",
-                        details={
-                            "title": meeting.title,
-                            "start_time": start_time.isoformat(),
-                            "end_time": end_time.isoformat(),
-                            "time_changed": time_changed,
-                        },
-                    )
-
-                    # (Pre-programmed meeting CallAttempts removed — see top of function.)
-                    # Time-change re-programming used to live here; the visit
-                    # pipeline re-evaluates visits on its own schedule.
-                    _ = time_changed  # noqa: F841 — kept as a marker for the
-                    # next PR that migrates Meeting → Visit fully.
+                    # Event seen but no matching Visit — visit-detection will
+                    # decide on the next pass whether to create one (based
+                    # on attendee-to-Client match).
+                    results["created"] += 1
 
             except Exception as e:
                 error_msg = f"Error processing event {event.get('id', 'unknown')}: {str(e)}"
@@ -735,37 +615,43 @@ def handle_google_calendar_notification(user_id: int, event_ids: list = None) ->
             event.get("id") for event in events_result.get("items", []) if event.get("id")
         }
 
-        # Get all meetings for this user in the time range
-        user_meetings = Meeting.objects.filter(
+        # Get all Visits for this user in the time range. We previously
+        # tracked deletions on Meeting; PR Y2a moves this to Visit (Meeting
+        # is no longer written by sync_google_calendar).
+        user_visits = Visit.objects.filter(
             agent=user, start_time__gte=time_min, start_time__lte=time_max
         )
 
-        # Find meetings that no longer exist in Google Calendar (deleted)
+        # Find Visits whose calendar event no longer exists in Google
+        # Calendar — they were deleted upstream. We cancel any pending
+        # CallAttempts and remove the Visit so the operator dashboards do
+        # not keep dangling rows for events that no longer exist.
         deleted_count = 0
-        for meeting in user_meetings:
-            if meeting.external_id and meeting.external_id not in current_event_ids:
-                # Meeting was deleted from Google Calendar
-                # Cancel all scheduled calls
+        for visit in user_visits:
+            if visit.calendar_event_id and visit.calendar_event_id not in current_event_ids:
                 cancelled_calls = CallAttempt.objects.filter(
-                    meeting=meeting, status=CallStatus.SCHEDULED
+                    visit=visit, status=CallStatus.SCHEDULED
                 ).update(status=CallStatus.FAILED)
 
                 log_activity(
-                    meeting=meeting,
                     user=user,
-                    action="Meeting deleted from Google Calendar",
+                    action="Visit deleted (calendar event removed)",
                     details={
-                        "external_id": meeting.external_id,
+                        "visit_id": visit.id,
+                        "calendar_event_id": visit.calendar_event_id,
                         "cancelled_calls": cancelled_calls,
                     },
                     level=LogLevel.WARNING,
                 )
 
-                # Delete the meeting (cascade will handle CallAttempts)
-                meeting.delete()
+                # CASCADE handles CallAttempts; ActivityLog rows link via
+                # visit FK and are intentionally retained for audit.
+                visit.delete()
                 deleted_count += 1
 
-        # Sync current events (this will create/update meetings)
+        # Re-run sync to refresh Visit times/titles for the remaining events.
+        # (Visit *creation* is owned by detect_visits_for_agent in the
+        # background pipeline; sync_google_calendar only updates here.)
         sync_results = sync_google_calendar(
             user, time_min=time_min, time_max=time_max, session=None
         )

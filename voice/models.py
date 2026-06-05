@@ -519,6 +519,17 @@ class Visit(models.Model):
     def __str__(self):
         return f"{self.title} - {self.agent.username} @ {self.client.name} ({self.start_time})"
 
+    @property
+    def customer_name(self) -> str:
+        """Duck-type compatibility shim for legacy Meeting.customer_name consumers.
+
+        Visit always has a Client FK (vs Meeting which stored customer_name as
+        a denormalised string). Exposing it under the old attribute name lets
+        `format_prompt_with_context` and other generic helpers operate on
+        Visit instances without branching on type.
+        """
+        return self.client.name if self.client_id else ""
+
     def get_effective_methodology(self):
         """Return methodology: visit override > agent default > system default."""
         if self.methodology:
