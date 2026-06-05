@@ -1521,12 +1521,9 @@ class ProgrammedCallsView(SuperuserRequiredMixin, View):
         # dropdown) but use `agent_filter_id` for every DB filter.
         agent_filter = agent_filter_raw
 
-        # Base queryset for actual CallAttempt records. We still join `meeting`
-        # because legacy rows linked via meeting may exist until the schema
-        # drop in PR Y2b — once those go, the meeting join can be removed.
+        # Base queryset for actual CallAttempt records. Visit is the only
+        # call target now (Meeting + its FK were dropped in PR Y2b).
         calls = CallAttempt.objects.select_related(
-            "meeting",
-            "meeting__agent",
             "visit",
             "visit__agent",
             "visit__client",
@@ -1538,30 +1535,19 @@ class ProgrammedCallsView(SuperuserRequiredMixin, View):
         if phase_filter:
             calls = calls.filter(phase=phase_filter)
         if agent_filter_id is not None:
-            from django.db.models import Q
-
-            calls = calls.filter(
-                Q(meeting__agent_id=agent_filter_id) | Q(visit__agent_id=agent_filter_id)
-            )
+            calls = calls.filter(visit__agent_id=agent_filter_id)
 
         # Order by created_at (newest first)
         calls = calls.order_by("-created_at")
 
         # Calculate scheduled call time for actual calls
         for call in calls:
-            # Resolve times from visit or meeting
-            if call.visit:
-                start = call.visit.start_time
-                end = call.visit.end_time
-                call._agent = call.visit.agent
-                call._title = call.visit.title
-            elif call.meeting:
-                start = call.meeting.start_time
-                end = call.meeting.end_time
-                call._agent = call.meeting.agent
-                call._title = call.meeting.title
-            else:
+            if not call.visit:
                 continue
+            start = call.visit.start_time
+            end = call.visit.end_time
+            call._agent = call.visit.agent
+            call._title = call.visit.title
             if call.phase == "PRE":
                 call.scheduled_time = start + timedelta(minutes=call.scheduled_offset_minutes)
             else:
@@ -1615,7 +1601,6 @@ class ProgrammedCallsView(SuperuserRequiredMixin, View):
                         (),
                         {
                             "id": None,
-                            "meeting": None,
                             "visit": visit,
                             "phase": "PRE",
                             "scheduled_offset_minutes": pre_offset,
@@ -1664,7 +1649,6 @@ class ProgrammedCallsView(SuperuserRequiredMixin, View):
                         (),
                         {
                             "id": None,
-                            "meeting": None,
                             "visit": visit,
                             "phase": "POST",
                             "scheduled_offset_minutes": post_offset,
@@ -1693,13 +1677,10 @@ class ProgrammedCallsView(SuperuserRequiredMixin, View):
 
         # Add helper flags for template rendering
         for call in all_calls:
-            # Resolve start/end from visit (upcoming or actual) or meeting (legacy).
+            # Resolve start/end from the visit (only call target now).
             if hasattr(call, "visit") and call.visit:
                 _start = call.visit.start_time
                 _end = call.visit.end_time
-            elif hasattr(call, "meeting") and call.meeting:
-                _start = call.meeting.start_time
-                _end = call.meeting.end_time
             else:
                 call.can_retry = False
                 call.can_trigger = False

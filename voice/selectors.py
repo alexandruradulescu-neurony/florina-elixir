@@ -618,15 +618,12 @@ def get_dashboard_action_items(target_date=None):
     failed_calls = CallAttempt.objects.filter(
         created_at__date=target_date,
         status__in=[CallStatus.FAILED, CallStatus.NO_ANSWER],
-    ).select_related("visit", "visit__agent", "visit__client", "meeting", "meeting__agent")
+    ).select_related("visit", "visit__agent", "visit__client")
 
     for call in failed_calls[:5]:
         if call.visit:
             agent_name = call.visit.agent.get_full_name() or call.visit.agent.username
             context = call.visit.client.name if call.visit.client else call.visit.title
-        elif call.meeting:
-            agent_name = call.meeting.agent.username
-            context = call.meeting.title
         else:
             continue
         items.append(
