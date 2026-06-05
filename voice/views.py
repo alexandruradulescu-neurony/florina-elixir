@@ -1083,7 +1083,7 @@ class VisitLockToggleView(SuperuserRequiredMixin, View):
         )
         messages.success(
             request,
-            f"{'🔒 Locked' if new_state else '🔓 Unlocked'} {attr.replace('_', ' ')}.",
+            f"{'Locked' if new_state else 'Unlocked'} {attr.replace('_', ' ')}.",
         )
         return redirect("voice:visit_detail", visit_id=visit_id)
 
