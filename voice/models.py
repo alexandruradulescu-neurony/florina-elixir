@@ -77,64 +77,12 @@ class VoicePrompt(models.Model):
         return f"{self.name} ({self.get_prompt_type_display()})"
 
 
-class Meeting(models.Model):
-    """The Trigger Event - represents a meeting from Google Calendar or Pipedrive."""
-
-    agent = models.ForeignKey(
-        User,
-        on_delete=models.CASCADE,
-        related_name="meetings",
-        help_text="Sales agent associated with this meeting",
-    )
-    external_id = models.CharField(
-        max_length=100, unique=True, help_text="External ID from Google Calendar or Pipedrive"
-    )
-    title = models.CharField(max_length=255, help_text="Meeting title")
-    customer_name = models.CharField(
-        max_length=255, blank=True, help_text="Name of the customer/client"
-    )
-    attendees = models.JSONField(
-        default=list, blank=True, help_text="List of attendee emails from Google Calendar"
-    )
-    start_time = models.DateTimeField(help_text="Meeting start time")
-    end_time = models.DateTimeField(help_text="Meeting end time")
-
-    # State tracking to prevent duplicate successful calls
-    is_pre_call_completed = models.BooleanField(
-        default=False, help_text="True if pre-meeting call was successfully completed"
-    )
-    is_post_call_completed = models.BooleanField(
-        default=False, help_text="True if post-meeting call was successfully completed"
-    )
-
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        verbose_name = _("Meeting")
-        verbose_name_plural = _("Meetings")
-        ordering = ["-start_time"]
-        indexes = [
-            models.Index(fields=["start_time"]),
-            models.Index(fields=["end_time"]),
-            models.Index(fields=["external_id"]),
-        ]
-
-    def __str__(self):
-        return f"{self.title} - {self.agent.username} ({self.start_time})"
-
-
 class CallAttempt(models.Model):
     """Individual Call Records - tracks each call attempt."""
 
-    meeting = models.ForeignKey(
-        Meeting,
-        on_delete=models.CASCADE,
-        related_name="call_attempts",
-        null=True,
-        blank=True,
-        help_text="Meeting this call is associated with (legacy)",
-    )
+    # PR Y2b: the legacy `meeting` FK was dropped along with the Meeting
+    # model. All CallAttempts now link via `visit`.
+
     visit = models.ForeignKey(
         "Visit",
         on_delete=models.CASCADE,
@@ -203,27 +151,22 @@ class CallAttempt(models.Model):
         verbose_name_plural = _("Call Attempts")
         ordering = ["-created_at"]
         indexes = [
-            models.Index(fields=["meeting", "phase"]),
+            # PR Y2b: the legacy `(meeting, phase)` index was dropped along
+            # with the Meeting FK. Visit is now the only call-target index.
             models.Index(fields=["status"]),
             models.Index(fields=["external_call_id"]),
             models.Index(
                 fields=["scheduled_time", "status"], name="voice_calla_schedul_status_idx"
             ),
-            # Hot paths discovered in code review: tasks.py loops
-            # `CallAttempt.objects.filter(visit=...)` per visit (PR Y1a
-            # retained `_phase_dial_count` which reads on `visit`), and
-            # admin views display call attempts scoped by visit.
+            # Hot paths: tasks.py loops `CallAttempt.objects.filter(visit=...)`
+            # per visit (`_phase_dial_count`), and admin views display call
+            # attempts scoped by visit.
             models.Index(fields=["visit"], name="voice_calla_visit_idx"),
             models.Index(fields=["visit", "phase"], name="voice_calla_visit_phase_idx"),
         ]
 
     def __str__(self):
-        if self.visit:
-            target = self.visit.title
-        elif self.meeting:
-            target = self.meeting.title
-        else:
-            target = "unknown"
+        target = self.visit.title if self.visit_id else "unknown"
         return f"{self.get_phase_display()} call for {target} - {self.get_status_display()}"
 
 
@@ -272,24 +215,15 @@ class GoogleCalendarWatch(models.Model):
 class ActivityLog(models.Model):
     """Immutable Audit Log - tracks all system actions."""
 
-    meeting = models.ForeignKey(
-        Meeting,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="activity_logs",
-        help_text="Associated meeting (legacy — kept until Meeting is dropped)",
-    )
+    # PR Y2b: the legacy `meeting` FK was dropped along with the Meeting
+    # model. Visit is now the only audit anchor.
     visit = models.ForeignKey(
         "Visit",
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
         related_name="activity_logs",
-        help_text=(
-            "Associated visit. New code writes here; legacy code writes to "
-            "`meeting` and a follow-up migration backfills `visit` from it."
-        ),
+        help_text="Associated visit (nullable for user-level / global events)",
     )
     user = models.ForeignKey(
         User,
@@ -313,7 +247,6 @@ class ActivityLog(models.Model):
         indexes = [
             models.Index(fields=["timestamp"]),
             models.Index(fields=["level"]),
-            models.Index(fields=["meeting"]),
             models.Index(fields=["visit"]),
             models.Index(fields=["user"]),
         ]
@@ -521,12 +454,12 @@ class Visit(models.Model):
 
     @property
     def customer_name(self) -> str:
-        """Duck-type compatibility shim for legacy Meeting.customer_name consumers.
+        """Convenience accessor exposing `client.name` as `customer_name`.
 
-        Visit always has a Client FK (vs Meeting which stored customer_name as
-        a denormalised string). Exposing it under the old attribute name lets
-        `format_prompt_with_context` and other generic helpers operate on
-        Visit instances without branching on type.
+        Used by the dashboard test-call's `format_prompt_with_context` helper
+        which reads `{customer_name}` from its token map. Returns "" when the
+        visit somehow has no client (data-integrity case; Client is required
+        in normal flows).
         """
         return self.client.name if self.client_id else ""
 

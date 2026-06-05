@@ -10,10 +10,8 @@ from django.utils import timezone
 
 from .constants import CallPhase, CallStatus, LogLevel
 from .models import CallAttempt, User
-from .selectors import get_active_prompt, get_sales_agents
+from .selectors import get_sales_agents
 from .services import (
-    format_first_message_with_context,
-    format_prompt_with_context,
     log_activity,
     sync_call_status_from_api,
     trigger_agent_call,
@@ -22,28 +20,18 @@ from .services import (
 logger = logging.getLogger(__name__)
 
 
-def _phase_dial_count(*, visit=None, meeting=None, phase: str) -> int:
-    """Total dial attempts for a (visit OR meeting, phase) target.
+def _phase_dial_count(*, visit, phase: str) -> int:
+    """Total dial attempts for a (visit, phase) target.
 
-    Each `CallAttempt` row represents at least 1 dial; the new `retry_count`
-    field (PR 6 follow-up) tracks how many TIMES that row was re-dialed by
-    `retry_failed_call`. Total dials = sum of (1 + retry_count) across rows.
-
-    This replaces the earlier row-count-only check, which was inert against
-    the retry loop in `check_and_trigger_calls`: `retry_failed_call` reuses
-    the row instead of creating a new one, so row count stayed at 1 and the
-    cap never fired — the runaway-50-calls bug the PR was supposed to stop.
+    Each `CallAttempt` row represents at least 1 dial; the `retry_count`
+    field tracks how many times that row was re-dialed by `retry_failed_call`.
+    Total dials = sum of (1 + retry_count) across rows.
     """
     from django.db.models import Sum
 
-    qs = CallAttempt.objects.filter(phase=phase)
-    if visit is not None:
-        qs = qs.filter(visit=visit)
-    elif meeting is not None:
-        qs = qs.filter(meeting=meeting)
-    else:
+    if visit is None:
         return 0
-    # `Sum(1 + retry_count)` via annotated F-expression to do it in a single query.
+    qs = CallAttempt.objects.filter(visit=visit, phase=phase)
     total = qs.aggregate(total=Sum("retry_count"))["total"] or 0
     return total + qs.count()
 
@@ -51,59 +39,35 @@ def _phase_dial_count(*, visit=None, meeting=None, phase: str) -> int:
 def _resolve_prompt_for_call(call_attempt):
     """Return ``(prompt_text, first_message_text)`` for an outbound dial.
 
-    PR 6 — fixes prod bug where automatic dials bypassed the Auto Prompt
-    Assembler's output and rang the agent with EL's default greeting.
+    Resolves the prompt from the Visit's assembler output. Returns
+    ``(None, None)`` when no usable prompt source exists — the caller must
+    mark the CallAttempt as FAILED rather than dialing without an override
+    (EL would otherwise fall back to its default greeting, the original
+    PR 6 bug symptom).
 
-    Resolution order:
-      1. If the CallAttempt is linked to a Visit (new pipeline) AND that
-         Visit has the appropriate `pre_call_prompt` / `post_call_prompt`
-         populated by the assembler → use it directly (and its sibling
-         `*_first_message`). This is the correct path for every
-         visit-pipeline dial.
-      2. Otherwise (or if the visit's prompt field is empty), fall back
-         to the legacy `VoicePrompt` model via `get_active_prompt(phase)`.
-         The legacy `VoicePrompt` table is deprecated and typically empty
-         on prod, so this fallback usually means "no prompt available".
-
-    Returns `(None, None)` when no usable prompt source exists — the
-    caller must mark the CallAttempt as FAILED rather than dialing
-    without an override (which would let EL fall back to its default
-    agent greeting, the original bug symptom).
+    PR Y2b: the legacy `VoicePrompt` + Meeting-typed `format_prompt_with_-
+    context` fallback was removed alongside the Meeting model. Every
+    live CallAttempt is visit-linked and must have its prompt assembled
+    via `assemble_pre_call` / `assemble_post_call` before dialing.
     """
     visit = getattr(call_attempt, "visit", None)
-    if visit is not None:
-        if call_attempt.phase == CallPhase.PRE_MEETING:
-            body = (visit.pre_call_prompt or "").strip()
-            first = (visit.pre_call_first_message or "").strip()
-        else:
-            body = (visit.post_call_prompt or "").strip()
-            first = (visit.post_call_first_message or "").strip()
-        if body:
-            return body, (first or None)
+    if visit is None:
+        return None, None
+    if call_attempt.phase == CallPhase.PRE_MEETING:
+        body = (visit.pre_call_prompt or "").strip()
+        first = (visit.pre_call_first_message or "").strip()
+    else:
+        body = (visit.post_call_prompt or "").strip()
+        first = (visit.post_call_first_message or "").strip()
+    if not body:
         logger.warning(
-            "CallAttempt %s links to visit %s but the assembled %s prompt is empty; "
-            "falling back to legacy VoicePrompt.",
+            "CallAttempt %s links to visit %s but the assembled %s prompt is empty.",
             call_attempt.id,
             visit.id,
             "pre-call" if call_attempt.phase == CallPhase.PRE_MEETING else "post-call",
         )
-
-    # Legacy meeting-only fallback
-    prompt = get_active_prompt(call_attempt.phase)
-    if not prompt or not prompt.system_prompt or not prompt.system_prompt.strip():
         return None, None
-    meeting = getattr(call_attempt, "meeting", None)
-    if meeting:
-        formatted = format_prompt_with_context(prompt.system_prompt, meeting)
-        first_msg = (
-            format_first_message_with_context(prompt.first_message, meeting)
-            if prompt.first_message
-            else None
-        )
-    else:
-        formatted = prompt.system_prompt
-        first_msg = prompt.first_message or None
-    return formatted, first_msg
+    return body, (first or None)
 
 
 def sync_google_calendar_for_user(user_id: int):

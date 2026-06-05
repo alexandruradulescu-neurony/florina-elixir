@@ -72,7 +72,7 @@ class Command(BaseCommand):
     def _debug_call(self, call):
         """Debug a single call attempt."""
         self.stdout.write(f"Call ID: {call.id}")
-        self.stdout.write(f"Meeting: {call.meeting.title if call.meeting else 'N/A'}")
+        self.stdout.write(f"Visit: {call.visit.title if call.visit else 'N/A'}")
         self.stdout.write(f"Phase: {call.get_phase_display()}")
         self.stdout.write(f"Status: {call.status} ({call.get_status_display()})")
         self.stdout.write(f"External Call ID: {call.external_call_id or 'None'}")
@@ -98,7 +98,7 @@ class Command(BaseCommand):
 
         # Check for related activity logs
         related_logs = ActivityLog.objects.filter(
-            meeting=call.meeting, action__icontains="call"
+            visit=call.visit, action__icontains="call"
         ).order_by("-timestamp")[:3]
 
         if related_logs:

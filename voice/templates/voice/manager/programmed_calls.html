@@ -123,21 +123,12 @@
                   {% endif %}
                 </td>
                 <td class="py-3 px-4">
-                  {# Upcoming virtual calls now carry `visit` (not `meeting`) — the
-                     visit branch handles both real and projected rows uniformly. #}
                   {% if call.visit %}
                     <div class="flex items-center gap-2">
                       <div class="w-6 h-6 rounded-full bg-slate-800 flex items-center justify-center text-white text-[9px] font-bold">
                         {{ call.visit.agent.username|first|upper }}
                       </div>
                       <span class="font-medium text-slate-700">{{ call.visit.agent.get_full_name|default:call.visit.agent.username }}</span>
-                    </div>
-                  {% elif call.meeting %}
-                    <div class="flex items-center gap-2">
-                      <div class="w-6 h-6 rounded-full bg-slate-800 flex items-center justify-center text-white text-[9px] font-bold">
-                        {{ call.meeting.agent.username|first|upper }}
-                      </div>
-                      <span class="font-medium text-slate-700">{{ call.meeting.agent.get_full_name|default:call.meeting.agent.username }}</span>
                     </div>
                   {% endif %}
                 </td>
@@ -151,8 +142,6 @@
                         {{ call.visit.title|truncatewords:4 }}
                       {% endif %}
                     </a>
-                  {% elif call.meeting %}
-                    <span class="text-slate-700">{{ call.meeting.title|truncatewords:4 }}</span>
                   {% endif %}
                 </td>
                 <td class="py-3 px-4">

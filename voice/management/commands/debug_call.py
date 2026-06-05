@@ -37,15 +37,15 @@ class Command(BaseCommand):
         self.stdout.write(f"  Created: {call.created_at}")
         self.stdout.write(f"  Executed: {call.executed_at or 'Not executed'}")
 
-        self.stdout.write("\nMeeting Details:")
-        self.stdout.write(f"  Title: {call.meeting.title}")
-        self.stdout.write(f"  Agent: {call.meeting.agent.username}")
-        self.stdout.write(f"  Agent Phone: {call.meeting.agent.phone_number}")
+        self.stdout.write("\nVisit Details:")
+        self.stdout.write(f"  Title: {call.visit.title}")
+        self.stdout.write(f"  Agent: {call.visit.agent.username}")
+        self.stdout.write(f"  Agent Phone: {call.visit.agent.phone_number}")
 
         # Check phone number format
-        formatted_phone = format_phone_number(call.meeting.agent.phone_number)
+        formatted_phone = format_phone_number(call.visit.agent.phone_number)
         self.stdout.write("\nPhone Number Validation:")
-        self.stdout.write(f"  Original: {call.meeting.agent.phone_number}")
+        self.stdout.write(f"  Original: {call.visit.agent.phone_number}")
         self.stdout.write(f"  Formatted: {formatted_phone or 'INVALID'}")
         if not formatted_phone:
             self.stdout.write(self.style.ERROR("  [X] Phone number format is invalid!"))
@@ -68,7 +68,7 @@ class Command(BaseCommand):
         # Check activity logs
         self.stdout.write("\nActivity Logs (related to this call):")
         logs = ActivityLog.objects.filter(
-            meeting=call.meeting, timestamp__gte=call.created_at - timezone.timedelta(minutes=5)
+            visit=call.visit, timestamp__gte=call.created_at - timezone.timedelta(minutes=5)
         ).order_by("timestamp")
 
         if logs.exists():
