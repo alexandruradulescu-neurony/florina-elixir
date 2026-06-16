@@ -88,7 +88,7 @@ def _call_claude_with_usage(
     try:
         client = _get_client()
         response = client.messages.create(
-            model=config("LLM_MODEL", default="claude-sonnet-4-20250514"),
+            model=config("LLM_MODEL", default="claude-sonnet-4-6"),
             max_tokens=max_tokens,
             system=system_prompt,
             messages=[{"role": "user", "content": user_message}],
@@ -453,7 +453,7 @@ def chat_with_data(messages: list, data_context: str) -> str | None:
     try:
         client = _get_client()
         response = client.messages.create(
-            model=config("LLM_MODEL", default="claude-sonnet-4-20250514"),
+            model=config("LLM_MODEL", default="claude-sonnet-4-6"),
             max_tokens=2048,
             system=system_prompt,
             messages=messages,
