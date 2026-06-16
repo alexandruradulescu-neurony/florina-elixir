@@ -20,4 +20,8 @@ jobs:
         run: uv python install 3.12
 
       - name: Lint Django templates
-        run: uvx djlint voice/templates --check
+        # Pin djlint: unpinned `uvx djlint` pulls the latest release at run time,
+        # so a new djlint version can change formatting rules and fail CI on
+        # untouched templates. 1.39.x reformats 5 existing templates that 1.38.0
+        # accepts; bump this deliberately alongside a reformat, not implicitly.
+        run: uvx djlint@1.38.0 voice/templates --check
