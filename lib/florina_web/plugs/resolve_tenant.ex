@@ -17,8 +17,7 @@ defmodule FlorinaWeb.Plugs.ResolveTenant do
          %Tenants.Tenant{active: true} = tenant <- Tenants.get_by_slug(slug),
          {:ok, pid} <- ConnectionManager.ensure_started(tenant.slug) do
       Florina.TenantRepo.put_dynamic_repo(pid)
-      conn = assign(conn, :tenant, tenant)
-      if Map.has_key?(conn.private, :plug_session), do: put_session(conn, :tenant_slug, tenant.slug), else: conn
+      assign(conn, :tenant, tenant)
     else
       _ ->
         conn
