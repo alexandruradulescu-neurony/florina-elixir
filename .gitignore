@@ -1,53 +1,58 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
+# The directory Mix will write compiled artifacts to.
+/_build/
 
-# Virtual Environment
-venv/
-env/
-ENV/
-.venv
+# If you run "mix test --cover", coverage assets end up here.
+/cover/
 
-# Django
-*.log
-local_settings.py
-db.sqlite3
-db.sqlite3-journal
-/media
-/staticfiles
+# The directory Mix downloads your dependencies sources to.
+/deps/
 
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
+# Where 3rd-party dependencies like ExDoc output generated docs.
+/doc/
 
-# OS
-.DS_Store
-Thumbs.db
+# Ignore .fetch files in case you like to edit your project deps locally.
+/.fetch
 
-# Environment variables
+# If the VM crashes, it generates a dump, let's ignore it too.
+erl_crash.dump
+
+# Also ignore archive artifacts (built via "mix archive.build").
+*.ez
+
+# Temporary files, for example, from tests.
+/tmp/
+
+# Ignore package tarball (built via "mix hex.build").
+florina-*.tar
+
+# Ignore assets that are produced by build tools.
+/priv/static/assets/
+
+# Ignore digested assets cache.
+/priv/static/cache_manifest.json
+
+# In case you use Node.js/npm, you want to ignore these.
+npm-debug.log
+/assets/node_modules/
+
+# ---------------------------------------------------------------------------
+# Project-local — kept on this machine only, never committed
+# ---------------------------------------------------------------------------
+
+# Secrets / credentials (voice API keys carried over from the Django app)
 .env
-.env.local
 
-# Local-only tests — never commit
-voice/_tests_local/
+# Project rule: tests stay local, never committed to GitHub
+/test/
+
+# Claude Code & superpowers tooling state
+.claude/
+.superpowers/
+
+# Legacy data preserved locally from the old Django app (not part of this app)
+/prompts_export/
+/backups/
+
+# macOS
+.DS_Store
+
