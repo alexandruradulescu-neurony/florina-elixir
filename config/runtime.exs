@@ -20,6 +20,10 @@ if System.get_env("PHX_SERVER") do
   config :florina, FlorinaWeb.Endpoint, server: true
 end
 
+if secret = System.get_env("ELEVENLABS_WEBHOOK_SECRET") do
+  config :florina, :elevenlabs_webhook_secret, secret
+end
+
 config :florina, FlorinaWeb.Endpoint,
   http: [port: String.to_integer(System.get_env("PORT", "4000"))]
 
