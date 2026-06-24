@@ -55,3 +55,15 @@ SECRET_KEY_BASE=$(mix phx.gen.secret) PHX_SERVER=true \
   DATABASE_URL=ecto://alex@localhost/florina_dev \
   _build/prod/rel/florina/bin/server
 ```
+
+## Multi-tenant database foundation (local)
+
+Phoenix can route each customer to their own physically separate database.
+
+- Tenant is resolved from the **subdomain** (`acme.localhost`, `globex.localhost`).
+- The control-plane database (the main app DB) holds a `tenants` registry.
+- Set up two local demo tenants: `mix florina.tenants.setup`
+- See it work: visit `http://acme.localhost:4000/whoami` vs `http://globex.localhost:4000/whoami`.
+
+Not yet wired to `/calls` or `/chat`, and not yet connected to production databases —
+those are later slices.
