@@ -20,6 +20,12 @@ defmodule FlorinaWeb.Router do
     get "/", PageController, :home
   end
 
+  # Liveness probe for deploy checks and uptime monitors. Intentionally no
+  # pipeline, so probes are cheap and unaffected by session/CSRF handling.
+  scope "/", FlorinaWeb do
+    get "/healthz", HealthController, :index
+  end
+
   # Other scopes may use custom stacks.
   # scope "/api", FlorinaWeb do
   #   pipe_through :api
