@@ -1,7 +1,16 @@
 defmodule Florina.Calls do
   @moduledoc "Context for the call real-time edge."
+  import Ecto.Query, only: [order_by: 2, limit: 2]
   alias Florina.Repo
   alias Florina.Calls.CallAttempt
+
+  @doc "Recent calls, most-recently-updated first."
+  def list_recent(max \\ 50) do
+    CallAttempt
+    |> order_by(desc: :updated_at)
+    |> limit(^max)
+    |> Repo.all()
+  end
 
   def get_by_external_id(nil), do: nil
 

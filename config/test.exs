@@ -44,3 +44,5 @@ config :phoenix,
 config :florina, Oban, testing: :manual
 
 config :florina, :elevenlabs_webhook_secret, "wsec_test"
+
+config :florina, :dashboard_auth, username: "admin", password: "test-pass"

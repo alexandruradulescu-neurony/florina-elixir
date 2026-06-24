@@ -18,6 +18,15 @@ defmodule FlorinaWeb.Router do
     plug :accepts, ["json"]
   end
 
+  pipeline :dashboard_auth do
+    plug :basic_auth_dashboard
+  end
+
+  defp basic_auth_dashboard(conn, _opts) do
+    creds = Application.fetch_env!(:florina, :dashboard_auth)
+    Plug.BasicAuth.basic_auth(conn, username: creds[:username], password: creds[:password])
+  end
+
   scope "/webhooks", FlorinaWeb.Webhook do
     pipe_through :webhook
     post "/elevenlabs", ElevenLabsController, :create
@@ -27,6 +36,11 @@ defmodule FlorinaWeb.Router do
     pipe_through :browser
 
     get "/", PageController, :home
+  end
+
+  scope "/", FlorinaWeb do
+    pipe_through [:browser, :dashboard_auth]
+    live "/calls", CallsLive
   end
 
   # Liveness probe for deploy checks and uptime monitors. Intentionally no

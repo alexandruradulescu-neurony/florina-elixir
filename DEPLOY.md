@@ -24,6 +24,8 @@ the multitenancy slice planned separately.
    | `PHX_HOST` | your public domain, e.g. `florina-production.up.railway.app` |
    | `PHX_SERVER` | `true` |
    | `ELEVENLABS_WEBHOOK_SECRET` | the `wsec_…` value (from the team `.env`) |
+   | `DASHBOARD_PASS` | password for the `/calls` live dashboard — **required**: the app refuses to boot in prod without it |
+   | `DASHBOARD_USER` | username for the `/calls` dashboard (optional; defaults to `admin`) |
 
    `PORT` is injected by Railway automatically — do not set it.
 
