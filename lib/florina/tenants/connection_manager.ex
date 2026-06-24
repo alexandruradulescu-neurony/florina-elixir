@@ -42,15 +42,11 @@ defmodule Florina.Tenants.ConnectionManager do
     end
   end
 
-  # Reuse the control-plane DB's host/credentials; override only the database
-  # name (from the registry). name: nil starts an unnamed, dynamic instance.
+  # Reuse the control-plane DB's connection (local fields OR a production :url),
+  # overriding only the database name (from the registry).
   defp connection_opts(tenant) do
-    Application.get_env(:florina, Florina.Repo)
-    |> Keyword.take([:username, :password, :hostname, :port])
-    |> Keyword.merge(
-      name: nil,
-      database: tenant.database,
-      pool_size: Application.get_env(:florina, :tenant_pool_size, 2)
-    )
+    base = Application.get_env(:florina, Florina.Repo)
+    pool_size = Application.get_env(:florina, :tenant_pool_size, 2)
+    Florina.Tenants.ConnectionOpts.build(base, tenant.database, pool_size)
   end
 end
