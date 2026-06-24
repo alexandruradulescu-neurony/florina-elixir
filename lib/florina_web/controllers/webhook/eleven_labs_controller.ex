@@ -25,9 +25,16 @@ defmodule FlorinaWeb.Webhook.ElevenLabsController do
 
   defp handle(conn, params) do
     case Calls.apply_elevenlabs_webhook(params) do
-      {:ok, _ca} -> json(conn, %{status: "ok"})
+      {:ok, _ca} ->
+        json(conn, %{status: "ok"})
+
       # 200 on not-found so the provider does not keep retrying a call we don't track
-      {:error, :not_found} -> conn |> put_status(200) |> json(%{status: "ignored"})
+      {:error, :not_found} ->
+        conn |> put_status(200) |> json(%{status: "ignored"})
+
+      {:error, reason} ->
+        Logger.error("ElevenLabs webhook processing failed: #{inspect(reason)}")
+        conn |> put_status(500) |> json(%{error: "processing failed"})
     end
   end
 end
