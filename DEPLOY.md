@@ -26,6 +26,7 @@ the multitenancy slice planned separately.
    | `ELEVENLABS_WEBHOOK_SECRET` | the `wsec_…` value (from the team `.env`) |
    | `DASHBOARD_PASS` | password for the `/calls` live dashboard — **required**: the app refuses to boot in prod without it |
    | `DASHBOARD_USER` | username for the `/calls` dashboard (optional; defaults to `admin`) |
+   | `ANTHROPIC_API_KEY` | for the live agent chat (`/chat`); without it the app still boots but `/chat` shows an error |
 
    `PORT` is injected by Railway automatically — do not set it.
 
