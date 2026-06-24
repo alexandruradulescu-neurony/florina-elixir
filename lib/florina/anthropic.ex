@@ -19,7 +19,13 @@ defmodule Florina.Anthropic do
   def stream_chat(messages, opts \\ []) do
     on_delta = Keyword.get(opts, :on_delta, fn _ -> :ok end)
     api_key = Application.fetch_env!(:florina, :anthropic_api_key)
-    model = Keyword.get(opts, :model, Application.get_env(:florina, :anthropic_model, "claude-sonnet-4-6"))
+
+    model =
+      Keyword.get(
+        opts,
+        :model,
+        Application.get_env(:florina, :anthropic_model, "claude-sonnet-4-6")
+      )
 
     body =
       %{
