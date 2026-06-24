@@ -38,6 +38,11 @@ defmodule FlorinaWeb.Router do
     get "/", PageController, :home
   end
 
+  scope "/", FlorinaWeb do
+    pipe_through [:browser, :dashboard_auth]
+    live "/calls", CallsLive
+  end
+
   # Liveness probe for deploy checks and uptime monitors. Intentionally no
   # pipeline, so probes are cheap and unaffected by session/CSRF handling.
   scope "/", FlorinaWeb do
