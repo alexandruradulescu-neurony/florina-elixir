@@ -1,123 +1,86 @@
-# Slice — Onboarding the Second Customer (end-to-end map)
+# Slice — Onboarding the Second Customer (Phoenix, self-contained)
 
 **Date:** 2026-06-25
 **Status:** Draft for review
-**Repo:** `florina-elixir` (the Elixir port) — plus documented dependencies on the live
-Django app and production ops.
+**Repo:** `florina-elixir` (the Elixir port)
 **Relationship:** Builds on the
-[multi-tenant database foundation](2026-06-24-multitenancy-foundation-elixir-slice-design.md)
-and consumes the [Track 1 database-per-tenant contract](2026-06-24-multitenancy-database-per-tenant-design.md).
-Strangler-fig: **Django stays the brain** (owns each customer's data + schema); **Phoenix is
-the realtime edge** that connects to those same per-customer databases.
+[multi-tenant database foundation](2026-06-24-multitenancy-foundation-elixir-slice-design.md).
+The live Django app and the [Track 1 Django design](2026-06-24-multitenancy-database-per-tenant-design.md)
+are **reference only** — we read them to understand the product's behaviour; Phoenix does
+**not** integrate with, connect to, or depend on Django at runtime.
 
 ---
 
 ## Summary (plain English)
 
-Take the live system from one customer to two, with each customer's data in its own database.
-The key realisation: **most of the work is one-time engineering** that enables *every* future
-customer; after that, onboarding a customer is a **short, repeatable runbook**, and several of
-its steps live on the Django + Railway side, not in this Phoenix sandbox.
+Make the Phoenix app serve multiple customers, each with their own database — **entirely
+within Phoenix**. Phoenix creates, owns, migrates, and connects to each customer's database
+itself, all on its existing Railway Postgres. There is no Django at runtime and no
+cross-server access.
 
-## Decisions made (in brainstorming)
+## Decisions
 
-1. **Database topology:** **separate database per customer on a single shared Postgres
-   instance** (not a separate Postgres server per customer). Cheapest/simplest; fits a "their
-   data in its own database" contract. Per-customer connections therefore reuse the same
-   server + credentials and only swap the database name.
-2. **Data access:** Phoenix connects **directly** to each customer's shared database. Django
-   creates and owns the schema and data (calls, clients, visits, …). Going through a Django
-   API instead is cleaner long-term but slower; recorded as future work, not chosen now.
+1. **Topology:** separate database per customer on Phoenix's **existing Railway Postgres
+   instance** (same server + credentials; only the database name changes per customer).
+2. **Ownership:** Phoenix owns the per-tenant schema and data end to end. No Django
+   integration; no second server.
 
-## Bucket A — One-time engineering (Phoenix; build once)
+## Bucket A — One-time engineering (build once, enables every customer)
 
-This is the real work and it is what a build plan will cover.
+- **A1 · Production connection wiring.** Today the connection manager only builds tenant
+  connections from *local-style* settings (empty in prod, which uses a single `DATABASE_URL`).
+  Add a production path: derive the base connection (host, user, password, port) from
+  `DATABASE_URL` and override only the database name per tenant. Local dev unchanged.
+- **A2 · Make a real feature multi-tenant (the calls flow).**
+  - Move the per-tenant call table (`voice_callattempt`) into the **tenant** migration path
+    (`priv/tenant_repo/migrations`) so every provisioned customer database gets it. The
+    control-plane database keeps only the `tenants` registry + Oban.
+  - **Write path:** route the ElevenLabs webhook by **subdomain** (reuse the `ResolveTenant`
+    plug) so an incoming call is written into the right customer's database.
+  - **Read path:** resolve + pin the tenant on the `/calls` LiveView via the `on_mount` hook
+    (the one deferred from the foundation), and read from the tenant connection.
+  - **Reset the per-request pin** (the stale-pin gotcha) and **re-pin inside spawned `Task`s**
+    (the chat streamer is the known case).
+- **A3 · Existing customer → tenant #1.** Provision tenant #1, bring the current call data
+  across into its database, register it, and give it a subdomain. Existing behaviour preserved.
 
-- **A1 · Production per-tenant connection wiring.** Today the connection manager can only
-  build a tenant connection from *local-style* discrete settings, which are empty in prod
-  (prod uses a single `DATABASE_URL`). Add a production path: derive the base connection
-  (host, user, password, port) from `DATABASE_URL`, and per tenant override only the database
-  name. Local dev keeps its current behaviour.
-- **A2 · Wire real consumers to the resolved tenant.** Make a real screen actually use
-  tenancy, starting with `/calls`:
-  - Build the **LiveView `on_mount` tenant hook** deferred from the foundation (resolve +
-    pin at mount, from the socket's host).
-  - **Reset the per-request connection pin** (the stale-pin gotcha recorded in the foundation
-    spec) so a reused web-server process can never serve a previous request's tenant.
-  - **Re-pin inside spawned `Task`s** (the chat's streaming task is the known case).
-  - Point `Florina.Calls`' reads/writes at the **tenant connection** instead of the fixed
-    `Florina.Repo`.
-- **A3 · Bring the existing customer on as "tenant #1".** Their current database simply
-  *becomes* tenant #1's database (per Track 1). Register it, give it a subdomain. Their
-  experience is unchanged, but all access now flows through tenant routing — this also retires
-  the current single-database "island".
-
-## Bucket B — Per-customer runbook (repeatable)
+## Bucket B — Per-customer runbook (repeatable, Phoenix-only)
 
 | # | Step | Owner |
 |---|---|---|
-| 1 | **Create their database** — one `CREATE DATABASE` on the shared Postgres instance | You / ops |
-| 2 | **Load schema + data** — run the Django migrations + seed into that database | The live **Django app** (not this sandbox) |
-| 3 | **Register the tenant in Phoenix** — one registry row (subdomain → database name) | Phoenix (small; existing provisioning command, adapted) |
-| 4 | **Point their subdomain** at the app — DNS + Railway routing | You / ops |
-| 5 | **Verify isolation, then go live** — fail-closed + leakage checks against the new tenant | Me (Phoenix) |
+| 1 | **Provision the customer** — one command: create database → migrate Phoenix schema → register. Phoenix's existing `Provisioner` already does this. | Phoenix (me) |
+| 2 | **Point their subdomain** at the app — Railway / DNS | You / ops |
+| 3 | **Verify isolation, then go live** — fail-closed + leakage checks | Me |
+
+There is **no Django step**. The only non-code step is pointing the subdomain.
+
+## Retire the throwaway scaffolding
+
+The foundation's `tenant_markers` table and `/whoami` page were proof-of-life scaffolding.
+A2 replaces them with the real per-tenant schema; remove both as part of A2.
 
 ## Sequencing
 
-1. **Build Bucket A once** (A1 → A2 → A3), verified locally and then deployed.
-2. **Run Bucket B** for customer #2 (and every customer after).
-
-## Provisioning adaptation (important)
-
-The foundation's `Provisioner` creates a database **and runs Phoenix's own tenant migrations**
-(the throwaway `tenant_markers` table). For a **real** customer in the shared model the database
-and schema belong to **Django**, so Phoenix must **not** create or migrate that schema.
-Phoenix's provisioning for a real tenant becomes: **register only** (and migrate only any tables
-Phoenix itself owns in that database, if any). The throwaway `tenant_markers` table and the
-`/whoami` page are retired as part of A2.
-
-## Dependencies / to confirm (infrastructure)
-
-These are real-world facts to nail down before/while building — they depend on how the live
-Django app is hosted, which is outside this sandbox:
-
-- **Which Postgres instance holds the customer databases, and that Phoenix can reach it.** The
-  shared per-customer databases must live on a Postgres server Phoenix can connect to (network
-  access + credentials). If the live Django database is not the same Postgres that Phoenix's
-  `DATABASE_URL` points at, Phoenix needs credentialed access to that server.
-- **How each tenant's connection is provided in prod.** Recommended: derive from the base
-  `DATABASE_URL` (same instance + credentials, swap database name). If a tenant ever needs
-  *different* credentials, store a per-tenant URL as a secret referenced by the registry row.
-- **The Phoenix control-plane database** (the `tenants` registry + Oban) stays on Phoenix's
-  current database and must be distinct from the per-customer databases.
-
-## What stays OUT of this sandbox
-
-- All live **Django repo** work — creating/migrating the customer's schema, Django-side config
-  (`neurony/florina`, the live app). This spec documents what it must do; I will not touch it.
-- Real production **ops** — DNS changes, Railway changes, running live migrations. Documented;
-  run by you.
+A1 → A2 → A3 (build once, then deploy) → run Bucket B per customer.
 
 ## Security / testing (local-only, per project rule)
 
-- Reuse the foundation's **leakage** and **fail-closed** tests, and extend them to the wired
-  `/calls` path: a connection resolved as tenant A returns only tenant A's calls, never tenant
-  B's. Cover the stale-pin reset (a second request on a reused process must not inherit tenant
-  A's pin) and task re-pin.
-- **Per-customer go-live check (Bucket B step 5):** verify isolation against the new tenant
-  (ideally on staging data) *before* pointing the subdomain.
+Reuse the foundation's **leakage** and **fail-closed** tests and extend them to the wired
+calls flow: a webhook or page resolved as tenant A only ever touches tenant A's database.
+Cover the **stale-pin reset** (a second request on a reused process must not inherit tenant
+A's pin) and the **task re-pin**. Per-customer go-live: verify isolation before pointing the
+subdomain.
 
-## Risks
+## Open decisions (confirm during planning)
 
-- **Cross-tenant leak via a stale pin** if A2's reset is missed — mitigated by the reset +
-  tests; this is the highest-priority correctness item.
-- **Phoenix reaching the customer databases** (network/credentials/permissions) — the main
-  infrastructure dependency above.
-- **Cutover of the existing customer (A3)** — verify customer #1 still works exactly as before
-  after they become tenant #1.
+1. **Webhook tenant routing:** by subdomain (recommended — reuses the plug; needs ElevenLabs
+   configured with a per-tenant subdomain URL) vs. a tenant id carried in the call metadata.
+2. **Tenant #1 existing data:** migrate existing calls into tenant #1's database, vs. start
+   tenant #1 fresh.
 
 ## Out of scope
 
-- Separate-Postgres-instance-per-customer topology (deliberately not chosen now).
-- Self-service signup; per-database backups/monitoring tooling.
-- Data-grounded chat (a separate slice); going through a Django API instead of direct DB access.
+- Separate Postgres instance per customer; self-service signup; per-database
+  backups/monitoring tooling.
+- Data-grounded chat (a separate slice).
+- **Any Django runtime integration** — reference only; explicitly not a dependency.
