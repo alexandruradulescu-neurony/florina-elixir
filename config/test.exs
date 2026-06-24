@@ -46,3 +46,6 @@ config :florina, Oban, testing: :manual
 config :florina, :elevenlabs_webhook_secret, "wsec_test"
 
 config :florina, :dashboard_auth, username: "admin", password: "test-pass"
+
+config :florina, :anthropic_client, Florina.Anthropic.Stub
+config :florina, :anthropic_api_key, "test-key"

@@ -41,6 +41,7 @@ defmodule FlorinaWeb.Router do
   scope "/", FlorinaWeb do
     pipe_through [:browser, :dashboard_auth]
     live "/calls", CallsLive
+    live "/chat", ChatLive
   end
 
   # Liveness probe for deploy checks and uptime monitors. Intentionally no
