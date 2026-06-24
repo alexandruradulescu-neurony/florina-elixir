@@ -13,12 +13,15 @@ defmodule FlorinaWeb.ChatLive do
     client = Application.get_env(:florina, :anthropic_client, Florina.Anthropic)
 
     Task.start(fn ->
-      client.stream_chat(Enum.map(history, &Map.take(&1, [:role, :content])),
-        on_delta: fn delta -> send(lv, {:delta, delta}) end
-      )
-      |> case do
-        :ok -> send(lv, :done)
-        {:error, reason} -> send(lv, {:error, reason})
+      try do
+        case client.stream_chat(Enum.map(history, &Map.take(&1, [:role, :content])),
+               on_delta: fn delta -> send(lv, {:delta, delta}) end
+             ) do
+          :ok -> send(lv, :done)
+          {:error, reason} -> send(lv, {:error, reason})
+        end
+      rescue
+        e -> send(lv, {:error, e})
       end
     end)
 
@@ -62,6 +65,7 @@ defmodule FlorinaWeb.ChatLive do
         placeholder="Ask the assistant..."
         class="input input-bordered w-full"
       />
+      <button type="submit" class="btn btn-primary mt-2">Send</button>
     </form>
     """
   end

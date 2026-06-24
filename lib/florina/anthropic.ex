@@ -20,42 +20,46 @@ defmodule Florina.Anthropic do
     on_delta = Keyword.get(opts, :on_delta, fn _ -> :ok end)
     api_key = Application.fetch_env!(:florina, :anthropic_api_key)
 
-    model =
-      Keyword.get(
-        opts,
-        :model,
-        Application.get_env(:florina, :anthropic_model, "claude-sonnet-4-6")
-      )
+    if api_key in [nil, ""] do
+      {:error, :api_key_not_configured}
+    else
+      model =
+        Keyword.get(
+          opts,
+          :model,
+          Application.get_env(:florina, :anthropic_model, "claude-sonnet-4-6")
+        )
 
-    body =
-      %{
-        model: model,
-        max_tokens: Keyword.get(opts, :max_tokens, 2048),
-        stream: true,
-        messages: messages
-      }
-      |> maybe_put(:system, Keyword.get(opts, :system))
+      body =
+        %{
+          model: model,
+          max_tokens: Keyword.get(opts, :max_tokens, 2048),
+          stream: true,
+          messages: messages
+        }
+        |> maybe_put(:system, Keyword.get(opts, :system))
 
-    result =
-      Req.post(@endpoint,
-        headers: [
-          {"x-api-key", api_key},
-          {"anthropic-version", @version},
-          {"content-type", "application/json"}
-        ],
-        json: body,
-        into: fn {:data, data}, {req, resp} ->
-          buffer = (resp.private[:sse_buf] || "") <> data
-          {deltas, rest} = SSE.parse(buffer)
-          Enum.each(deltas, on_delta)
-          {:cont, {req, put_in(resp.private[:sse_buf], rest)}}
-        end
-      )
+      result =
+        Req.post(@endpoint,
+          headers: [
+            {"x-api-key", api_key},
+            {"anthropic-version", @version},
+            {"content-type", "application/json"}
+          ],
+          json: body,
+          into: fn {:data, data}, {req, resp} ->
+            buffer = (resp.private[:sse_buf] || "") <> data
+            {deltas, rest} = SSE.parse(buffer)
+            Enum.each(deltas, on_delta)
+            {:cont, {req, put_in(resp.private[:sse_buf], rest)}}
+          end
+        )
 
-    case result do
-      {:ok, %{status: 200}} -> :ok
-      {:ok, %{status: status, body: body}} -> {:error, {:http, status, body}}
-      {:error, reason} -> {:error, reason}
+      case result do
+        {:ok, %{status: 200}} -> :ok
+        {:ok, %{status: status, body: resp_body}} -> {:error, {:http, status, resp_body}}
+        {:error, reason} -> {:error, reason}
+      end
     end
   end
 
