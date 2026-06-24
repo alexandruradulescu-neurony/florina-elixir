@@ -28,6 +28,12 @@ config :florina, FlorinaWeb.Endpoint,
   http: [port: String.to_integer(System.get_env("PORT", "4000"))]
 
 if config_env() == :prod do
+  config :florina, :dashboard_auth,
+    username: System.get_env("DASHBOARD_USER") || "admin",
+    password:
+      System.get_env("DASHBOARD_PASS") ||
+        raise("DASHBOARD_PASS not set — required to protect the /calls dashboard")
+
   database_url =
     System.get_env("DATABASE_URL") ||
       raise """

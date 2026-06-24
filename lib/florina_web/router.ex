@@ -18,6 +18,15 @@ defmodule FlorinaWeb.Router do
     plug :accepts, ["json"]
   end
 
+  pipeline :dashboard_auth do
+    plug :basic_auth_dashboard
+  end
+
+  defp basic_auth_dashboard(conn, _opts) do
+    creds = Application.fetch_env!(:florina, :dashboard_auth)
+    Plug.BasicAuth.basic_auth(conn, username: creds[:username], password: creds[:password])
+  end
+
   scope "/webhooks", FlorinaWeb.Webhook do
     pipe_through :webhook
     post "/elevenlabs", ElevenLabsController, :create
