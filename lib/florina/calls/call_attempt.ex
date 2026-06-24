@@ -21,7 +21,15 @@ defmodule Florina.Calls.CallAttempt do
   @doc "Fields the webhook edge is allowed to write."
   def webhook_changeset(call_attempt, attrs) do
     call_attempt
-    |> cast(attrs, [:external_call_id, :status, :phase, :transcript, :summary, :summary_title, :analysis])
+    |> cast(attrs, [
+      :external_call_id,
+      :status,
+      :phase,
+      :transcript,
+      :summary,
+      :summary_title,
+      :analysis
+    ])
     |> validate_required([:status])
   end
 end

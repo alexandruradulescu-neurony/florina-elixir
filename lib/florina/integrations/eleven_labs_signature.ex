@@ -23,12 +23,13 @@ defmodule Florina.Integrations.ElevenLabsSignature do
   end
 
   defp parse(header) when is_binary(header) do
-    parts = for kv <- String.split(header, ","), into: %{} do
-      case String.split(String.trim(kv), "=", parts: 2) do
-        [k, v] -> {k, v}
-        _ -> {"", ""}
+    parts =
+      for kv <- String.split(header, ","), into: %{} do
+        case String.split(String.trim(kv), "=", parts: 2) do
+          [k, v] -> {k, v}
+          _ -> {"", ""}
+        end
       end
-    end
 
     with t when is_binary(t) <- parts["t"],
          v0 when is_binary(v0) <- parts["v0"],

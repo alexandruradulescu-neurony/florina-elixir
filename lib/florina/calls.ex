@@ -4,6 +4,7 @@ defmodule Florina.Calls do
   alias Florina.Calls.CallAttempt
 
   def get_by_external_id(nil), do: nil
+
   def get_by_external_id(external_id),
     do: Repo.get_by(CallAttempt, external_call_id: external_id)
 
@@ -21,7 +22,10 @@ defmodule Florina.Calls do
 
       %CallAttempt{} = ca ->
         transcript = extract_transcript(data["transcript"])
-        summary = get_in(data, ["analysis", "transcript_summary"]) || get_in(data, ["analysis", "summary"])
+
+        summary =
+          get_in(data, ["analysis", "transcript_summary"]) ||
+            get_in(data, ["analysis", "summary"])
 
         attrs =
           %{status: map_status(data["status"], transcript)}
@@ -36,6 +40,7 @@ defmodule Florina.Calls do
   end
 
   defp find_call(conversation_id, nil), do: get_by_external_id(conversation_id)
+
   defp find_call(conversation_id, call_attempt_id) do
     get_by_external_id(conversation_id) || get(call_attempt_id)
   end
@@ -46,11 +51,22 @@ defmodule Florina.Calls do
   # ElevenLabs status -> our CallStatus. "done"/transcript present => COMPLETED.
   defp map_status(status, transcript) do
     case to_string(status) |> String.upcase() do
-      "IN_PROGRESS" -> "IN_PROGRESS"
-      "RINGING" -> "IN_PROGRESS"
-      "FAILED" -> "FAILED"
-      "NO_ANSWER" -> "NO_ANSWER"
-      _ -> if transcript not in [nil, ""] or String.downcase(to_string(status)) == "done", do: "COMPLETED", else: "FAILED"
+      "IN_PROGRESS" ->
+        "IN_PROGRESS"
+
+      "RINGING" ->
+        "IN_PROGRESS"
+
+      "FAILED" ->
+        "FAILED"
+
+      "NO_ANSWER" ->
+        "NO_ANSWER"
+
+      _ ->
+        if transcript not in [nil, ""] or String.downcase(to_string(status)) == "done",
+          do: "COMPLETED",
+          else: "FAILED"
     end
   end
 
