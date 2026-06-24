@@ -8,6 +8,8 @@ defmodule Florina.Integrations.ElevenLabsSignature do
 
   def verify(_h, _b, secret, _now) when secret in [nil, ""], do: {:error, :no_secret}
 
+  def verify(_h, nil, _secret, _now), do: {:error, :malformed}
+
   def verify(signature_header, raw_body, secret, now) do
     with {:ok, ts, v0} <- parse(signature_header),
          :ok <- check_freshness(ts, now),
