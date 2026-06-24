@@ -1,9 +1,0 @@
-{% comment %}
-Count badge — §7.4.
-
-Usage:
-  {% include "voice/partials/count_badge.html" with count=12 %}
-
-Renders nothing if count is 0 or falsy.
-{% endcomment %}
-{% if count %}<span class="count-badge">{{ count }}</span>{% endif %}
