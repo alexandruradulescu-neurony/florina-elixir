@@ -42,3 +42,5 @@ config :phoenix,
 
 # Oban: don't run jobs automatically during tests; insert and assert/drain manually.
 config :florina, Oban, testing: :manual
+
+config :florina, :elevenlabs_webhook_secret, "wsec_test"

@@ -14,6 +14,15 @@ defmodule FlorinaWeb.Router do
     plug :accepts, ["json"]
   end
 
+  pipeline :webhook do
+    plug :accepts, ["json"]
+  end
+
+  scope "/webhooks", FlorinaWeb.Webhook do
+    pipe_through :webhook
+    post "/elevenlabs", ElevenLabsController, :create
+  end
+
   scope "/", FlorinaWeb do
     pipe_through :browser
 
