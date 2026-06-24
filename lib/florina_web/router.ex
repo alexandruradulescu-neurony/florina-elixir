@@ -22,6 +22,10 @@ defmodule FlorinaWeb.Router do
     plug :basic_auth_dashboard
   end
 
+  pipeline :resolve_tenant do
+    plug FlorinaWeb.Plugs.ResolveTenant
+  end
+
   defp basic_auth_dashboard(conn, _opts) do
     creds = Application.fetch_env!(:florina, :dashboard_auth)
     Plug.BasicAuth.basic_auth(conn, username: creds[:username], password: creds[:password])
@@ -42,6 +46,11 @@ defmodule FlorinaWeb.Router do
     pipe_through [:browser, :dashboard_auth]
     live "/calls", CallsLive
     live "/chat", ChatLive
+  end
+
+  scope "/", FlorinaWeb do
+    pipe_through [:browser, :resolve_tenant]
+    get "/whoami", WhoamiController, :show
   end
 
   # Liveness probe for deploy checks and uptime monitors. Intentionally no
