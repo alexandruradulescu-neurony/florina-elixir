@@ -18,6 +18,19 @@ defmodule Florina.Release do
     {:ok, _, _} = Ecto.Migrator.with_repo(repo, &Ecto.Migrator.run(&1, :down, to: version))
   end
 
+  @doc """
+  Onboard a tenant in production. Run against the RUNNING release node:
+
+      bin/florina rpc 'Florina.Release.provision_tenant("acme", "Acme Corp", "florina_tenant_acme")'
+
+  Creates the tenant's own database on the configured Postgres, runs the
+  per-tenant migrations into it, and registers it in the control-plane.
+  Idempotent — safe to run again.
+  """
+  def provision_tenant(slug, name, database) do
+    Florina.Tenants.Provisioner.provision(%{slug: slug, name: name, database: database})
+  end
+
   defp repos do
     Application.fetch_env!(@app, :ecto_repos)
   end
