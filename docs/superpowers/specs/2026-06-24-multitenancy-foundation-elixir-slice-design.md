@@ -169,6 +169,16 @@ is a *separate process* and will **not** inherit the pinned tenant connection. W
 wire real consumers, the tenant must be re-pinned inside such tasks. Flagged now so it isn't
 a surprise later.
 
+A second gotcha — the dynamic-repo pin is process-local and is **not** reset at end
+of request. The web server (Bandit) reuses handler processes across requests, so a pin
+set by one request persists on that process. This is safe today because the only
+`TenantRepo` consumer (`/whoami`) is always gated by `ResolveTenant`, which re-pins (or
+halts) on every request. But when a future consumer queries `TenantRepo` on a route that
+is **not** behind the plug — or after a half-run pipeline — it could read whichever tenant
+a previous request left pinned on that reused process. The consumer-wiring slice must
+reset/clear the pin per request (e.g. an end-of-request reset, or pinning within a
+checkout scope).
+
 ## Open decisions (confirm during planning)
 
 1. **Connection-manager shape** — a simple GenServer holding a slug→pool map, vs. a
