@@ -28,6 +28,8 @@ config :florina, FlorinaWeb.Endpoint,
   http: [port: String.to_integer(System.get_env("PORT", "4000"))]
 
 if config_env() == :prod do
+  config :florina, :anthropic_api_key, System.get_env("ANTHROPIC_API_KEY")
+
   config :florina, :dashboard_auth,
     username: System.get_env("DASHBOARD_USER") || "admin",
     password:
