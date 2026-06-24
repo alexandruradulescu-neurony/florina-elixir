@@ -14,8 +14,12 @@ defmodule Florina.Anthropic.SSE do
     |> Enum.flat_map(fn
       "data:" <> json ->
         case Jason.decode(String.trim(json)) do
-          {:ok, %{"type" => "content_block_delta", "delta" => %{"type" => "text_delta", "text" => t}}} -> [t]
-          _ -> []
+          {:ok,
+           %{"type" => "content_block_delta", "delta" => %{"type" => "text_delta", "text" => t}}} ->
+            [t]
+
+          _ ->
+            []
         end
 
       _ ->
