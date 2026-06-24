@@ -10,6 +10,7 @@ defmodule Florina.Application do
     children = [
       FlorinaWeb.Telemetry,
       Florina.Repo,
+      Florina.Tenants.ConnectionManager,
       {DNSCluster, query: Application.get_env(:florina, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Florina.PubSub},
       # Background job processing (Oban)

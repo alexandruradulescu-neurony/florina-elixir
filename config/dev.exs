@@ -94,3 +94,6 @@ config :phoenix_live_view,
 config :swoosh, :api_client, false
 
 config :florina, :anthropic_api_key, System.get_env("ANTHROPIC_API_KEY")
+
+# Tenancy: requests like acme.localhost resolve the tenant "acme".
+config :florina, :tenant_base_host, "localhost"
