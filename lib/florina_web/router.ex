@@ -42,7 +42,7 @@ defmodule FlorinaWeb.Router do
     Plug.BasicAuth.basic_auth(conn, username: creds[:username], password: creds[:password])
   end
 
-  scope "/webhooks", FlorinaWeb.Webhook do
+  scope "/t/:tenant_slug/webhooks", FlorinaWeb.Webhook do
     pipe_through [:webhook, :resolve_tenant]
     post "/elevenlabs", ElevenLabsController, :create
   end
@@ -53,7 +53,7 @@ defmodule FlorinaWeb.Router do
     get "/", PageController, :home
   end
 
-  scope "/", FlorinaWeb do
+  scope "/t/:tenant_slug", FlorinaWeb do
     pipe_through [:browser, :dashboard_auth, :resolve_tenant, :tenant_session]
     live "/calls", CallsLive
   end
@@ -63,7 +63,7 @@ defmodule FlorinaWeb.Router do
     live "/chat", ChatLive
   end
 
-  scope "/", FlorinaWeb do
+  scope "/t/:tenant_slug", FlorinaWeb do
     pipe_through [:browser, :resolve_tenant]
     get "/whoami", WhoamiController, :show
   end

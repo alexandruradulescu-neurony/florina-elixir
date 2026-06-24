@@ -60,10 +60,14 @@ SECRET_KEY_BASE=$(mix phx.gen.secret) PHX_SERVER=true \
 
 Phoenix can route each customer to their own physically separate database.
 
-- Tenant is resolved from the **subdomain** (`acme.localhost`, `globex.localhost`).
+- Tenant is resolved from the **URL path** (`/t/:tenant_slug/...`), with subdomain as a fallback.
 - The control-plane database (the main app DB) holds a `tenants` registry.
 - Set up two local demo tenants: `mix florina.tenants.setup`
-- See it work: visit `http://acme.localhost:4000/whoami` vs `http://globex.localhost:4000/whoami`.
+- See it work:
+  - `http://localhost:4000/t/acme/whoami` vs `http://localhost:4000/t/globex/whoami`
+  - Calls dashboard: `http://localhost:4000/t/acme/calls`
+  - ElevenLabs webhook: `POST http://localhost:4000/t/acme/webhooks/elevenlabs`
 
-Not yet wired to `/calls` or `/chat`, and not yet connected to production databases —
-those are later slices.
+Path-based routing works on the default Railway domain with no custom domain needed.
+Subdomain resolution (`acme.localhost`) remains supported as a fallback for future
+custom-domain setups.
