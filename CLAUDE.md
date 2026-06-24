@@ -27,7 +27,13 @@ confirm the git remote is the sandbox fork (`alexandruradulescu-neurony/florina-
 - **Explain in plain English first.** The maintainer builds with Claude Code but does not read
   code fluently — lead with a no-jargon explanation before any code or diff.
 - **Plan before doing**, and get approval before anything destructive or wide-reaching.
-- **Work on a branch; the maintainer reviews before merging.** Do not push or merge unasked.
+- **Work on `develop`; never push or merge to `main` unasked** (see Branching & deploy).
+
+## Branching & deploy
+
+- **`main` is production — Railway auto-deploys it. Every change to `main` is a LIVE deploy.**
+- Do all work on **`develop`** (or feature branches off `develop`). Pushing `develop` is safe — it does **not** deploy.
+- Merge/deploy `develop` → `main` **only on the maintainer's explicit green light.** Treat it as shipping to live.
 
 ## Commands
 
