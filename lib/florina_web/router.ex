@@ -32,7 +32,7 @@ defmodule FlorinaWeb.Router do
   end
 
   scope "/webhooks", FlorinaWeb.Webhook do
-    pipe_through :webhook
+    pipe_through [:webhook, :resolve_tenant]
     post "/elevenlabs", ElevenLabsController, :create
   end
 
@@ -43,8 +43,12 @@ defmodule FlorinaWeb.Router do
   end
 
   scope "/", FlorinaWeb do
-    pipe_through [:browser, :dashboard_auth]
+    pipe_through [:browser, :dashboard_auth, :resolve_tenant]
     live "/calls", CallsLive
+  end
+
+  scope "/", FlorinaWeb do
+    pipe_through [:browser, :dashboard_auth]
     live "/chat", ChatLive
   end
 
