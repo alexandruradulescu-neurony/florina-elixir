@@ -67,6 +67,8 @@ if config_env() == :prod do
 
   host = System.get_env("PHX_HOST") || "example.com"
 
+  config :florina, :tenant_base_host, System.get_env("TENANT_BASE_HOST") || host
+
   config :florina, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
 
   config :florina, FlorinaWeb.Endpoint,

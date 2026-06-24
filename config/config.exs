@@ -78,6 +78,9 @@ config :phoenix, :json_library, Jason
 
 config :florina, :dashboard_auth, username: "admin", password: "change-me-in-prod"
 
+# Tenancy: connection pool size for each per-tenant database.
+config :florina, :tenant_pool_size, 2
+
 config :florina,
   anthropic_model: "claude-sonnet-4-6",
   anthropic_client: Florina.Anthropic

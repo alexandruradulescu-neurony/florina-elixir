@@ -49,3 +49,5 @@ config :florina, :dashboard_auth, username: "admin", password: "test-pass"
 
 config :florina, :anthropic_client, Florina.Anthropic.Stub
 config :florina, :anthropic_api_key, "test-key"
+
+config :florina, :tenant_base_host, "localhost"
