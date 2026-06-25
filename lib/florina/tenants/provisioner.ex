@@ -11,6 +11,7 @@ defmodule Florina.Tenants.Provisioner do
     {:ok, _} = Tenants.register(%{slug: slug, name: name, database: database})
     {:ok, pid} = ConnectionManager.ensure_started(slug)
     Migrator.migrate_one(pid)
+    :ok = Florina.CentralConfig.seed_tenant(slug)
     {:ok, Tenants.get_by_slug(slug)}
   end
 

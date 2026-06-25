@@ -1,12 +1,11 @@
-defmodule Florina.Prompts.MegaPrompt do
+defmodule Florina.CentralConfig.MegaPrompt do
   @moduledoc """
-  Versioned meta-prompt for the Auto Prompt Assembler.
+  Canonical (control-plane) copy of a mega prompt.
 
-  Edit always creates a new version (never in-place). At most one active
-  version per domain at a time — enforced by a partial unique index.
-  Old versions are retained forever; rollback = activating an older row.
+  Lives in the main `Florina.Repo` database — not per-tenant.
+  `created_by_id` is a plain integer field; no FK to voice_user.
 
-  Table: `voice_megaprompt`
+  Table: `voice_megaprompt` (in the control-plane DB)
   """
   use Ecto.Schema
   import Ecto.Changeset
@@ -20,26 +19,22 @@ defmodule Florina.Prompts.MegaPrompt do
     field :meta_prompt, :string
     field :is_active, :boolean, default: false
     field :version, :integer, default: 1
-    field :is_overridden, :boolean, default: false
-
-    belongs_to :created_by, Florina.Accounts.User
+    # Plain integer — no FK (voice_user is per-tenant only)
+    field :created_by_id, :integer
 
     timestamps()
   end
 
   @required_fields [:domain, :name, :meta_prompt]
-  @optional_fields [:is_active, :version, :created_by_id, :is_overridden]
+  @optional_fields [:is_active, :version, :created_by_id]
 
-  @doc "Changeset for creating/updating a mega prompt version."
   def changeset(mega_prompt, attrs) do
     mega_prompt
     |> cast(attrs, @required_fields ++ @optional_fields)
     |> validate_required(@required_fields)
     |> validate_length(:name, max: 255)
     |> validate_number(:version, greater_than: 0)
-    # unique (domain, version)
     |> unique_constraint([:domain, :version], name: "megaprompt_unique_domain_version")
-    # unique active per domain (partial unique index)
     |> unique_constraint(:domain,
       name: "megaprompt_one_active_per_domain",
       message: "an active mega-prompt for this domain already exists"

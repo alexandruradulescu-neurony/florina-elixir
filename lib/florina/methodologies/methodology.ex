@@ -19,6 +19,7 @@ defmodule Florina.Methodologies.Methodology do
     field :source_material, :string
     field :ai_summary, :string
     field :is_active, :boolean, default: true
+    field :is_overridden, :boolean, default: false
 
     belongs_to :created_by, Florina.Accounts.User
 
@@ -26,7 +27,7 @@ defmodule Florina.Methodologies.Methodology do
   end
 
   @required_fields [:name]
-  @optional_fields [:description, :source_material, :ai_summary, :is_active, :created_by_id]
+  @optional_fields [:description, :source_material, :ai_summary, :is_active, :is_overridden, :created_by_id]
 
   @doc "Changeset for creating/updating a methodology."
   def changeset(methodology, attrs) do

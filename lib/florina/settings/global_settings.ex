@@ -18,6 +18,8 @@ defmodule Florina.Settings.GlobalSettings do
     field :retry_interval_minutes, :integer, default: 5
     field :max_context_tokens_warn, :integer, default: 50_000
 
+    field :is_overridden, :boolean, default: false
+
     belongs_to :default_methodology, Florina.Methodologies.Methodology
 
     timestamps()
@@ -28,7 +30,8 @@ defmodule Florina.Settings.GlobalSettings do
     :post_call_offset_minutes,
     :retry_interval_minutes,
     :max_context_tokens_warn,
-    :default_methodology_id
+    :default_methodology_id,
+    :is_overridden
   ]
 
   @doc "Get-or-create the singleton settings row (pk=1) using TenantRepo."
