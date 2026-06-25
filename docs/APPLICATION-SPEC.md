@@ -240,6 +240,18 @@ An internal pass surfaced these. They are **leads, not verdicts** — verify eac
 > - **[FIXED]** Encrypt migration corruption — corrective migration + tested `GenerationRunReencryptor` re-encrypts any raw-cast plaintext rows (no-op on the empty tables every env had).
 > - **[FIXED]** `RawBodyReader` handles `{:more, …}`/`{:error, …}` (was a `MatchError` → 500 on oversized bodies).
 > - **[FIXED]** Agent LiveViews render `Layouts.flash_group` (flash + reconnect banners now show).
+>
+> **Resolution status (2026-06-25, after the third external review round).** Fixed on
+> `develop` (`mix precommit` green, 335 tests); `mix assets.build` clean.
+> - **[FIXED]** Boot migrations only run for fully-provisioned tenants (`Tenants.list_active/0`), so a half-provisioned/failed tenant can't abort boot.
+> - **[FIXED]** Post-call lessons now run — the debrief summary (`CallAttempt.summary`) is written to `Visit.post_call_summary` before the pipeline, which previously gated on a field nothing wrote.
+> - **[FIXED]** Re-login no longer wipes the stored refresh token (`upsert_calendar_credential` preserves it when the callback omits one).
+> - **[FIXED]** Cancelled calendar events no longer create visits (and an existing visit for a now-cancelled event is retired to `COMPLETE`).
+> - **[FIXED]** Visit idempotency backstopped by a partial unique index `(agent_id, provider, calendar_event_id)`; concurrent syncs can't duplicate.
+> - **[FIXED]** First webhook matched by `call_attempt_id` now persists the `conversation_id` as `external_call_id`.
+> - **[FIXED]** CRM-derived `client_name`/`client_industry` are sanitized (control-char flatten, fence-close defang, length cap) before prompt interpolation.
+> - **[FIXED]** daisyUI removed — color tokens moved to a Tailwind `@theme` block with a `:root[data-theme=dark]` override; components hand-rolled in plain Tailwind. LiveViews now wrap in `<Layouts.app>`; `flash_group` only inside `layouts.ex`. Root inline theme script moved to `assets/js/theme.js` (tiny no-flash boot snippet remains).
+> - **Note:** the old `voice_googleoauthcredential` drop (flagged for data migration) is moot — it already ran on an empty table in the clean-rebuild prod tenant; nothing to migrate.
 
 **Auth / access control**
 - `GET /t/:slug/whoami` runs `[:browser, :resolve_tenant]` with **no auth** and returns tenant marker labels — confirm it's harmless/diagnostic and consider removing in prod.
