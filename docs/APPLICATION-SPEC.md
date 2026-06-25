@@ -204,13 +204,29 @@ Canonical config lives in the control-plane (`CentralConfig`, `Florina.Repo`). O
 
 **Required at prod boot (raise if missing):** `FIELD_ENCRYPTION_KEY`, `DATABASE_URL`, `SECRET_KEY_BASE`, `DASHBOARD_PASS`. **Optional (feature silently degrades if absent):** all integration keys (`ANTHROPIC_API_KEY`, `ELEVENLABS_*`, `GOOGLE_*`, `MICROSOFT_*`, `PIPEDRIVE_*`), `OAUTH_REDIRECT_BASE`, `PHX_HOST`/`TENANT_BASE_HOST`, `POOL_SIZE`, `ECTO_IPV6`, `DNS_CLUSTER_QUERY`, `DASHBOARD_USER`, `ADMIN_EMAIL`/`ADMIN_PASSWORD`. `ELEVENLABS_WEBHOOK_SECRET` is read in all envs.
 
-**Release ops** (`Florina.Release`): `migrate/0` (control-plane), `migrate_tenants/0` (all tenant DBs), `provision_tenant/3`, `create_admin/2`. **`railway.json` `preDeployCommand` runs `bin/migrate` (control-plane only)** — **per-tenant migrations must be run manually** (`bin/florina rpc 'Florina.Release.migrate_tenants()'`) after a deploy that changes tenant schema. Docker runs as `nobody`; `bin/server` sets `PHX_SERVER`.
+**Release ops** (`Florina.Release`): `migrate/0` (control-plane), `migrate_tenants/0` (all tenant DBs), `provision_tenant/3`, `create_admin/2`. `railway.json` `preDeployCommand` runs `bin/migrate` (control-plane) before traffic; **per-tenant migrations now auto-apply at boot in prod** (`:migrate_tenants_on_boot`, async + best-effort per tenant) — `migrate_tenants/0` remains available for manual runs. Docker runs as `nobody`; `bin/server` sets `PHX_SERVER`.
 
 ---
 
 ## 13. Areas flagged for scrutiny (hypotheses — confirm/refute against code)
 
 An internal pass surfaced these. They are **leads, not verdicts** — verify each. Roughly prioritized.
+
+> **Resolution status (2026-06-25, after the first external review round).** The items below
+> marked **[FIXED]** were addressed on `develop` (commits `73180b1`, `a615ee1`, `3869581`,
+> `5cf20a5`, `edd33a1`) and verified — full suite green across seeds. Re-review should confirm
+> the fixes against the code.
+> - **[FIXED]** Tenant gating — web gates + operational workers now require `active` AND `status == "active"` (`Tenants.accessible?/1`, `Workers.Tenant.pin_active/1`).
+> - **[FIXED]** Post-call pipeline — the webhook + polling now enqueue `PostCallCompletion` (idempotent, Oban-unique).
+> - **[FIXED]** Duplicate dials — `DialCall` is Oban-unique per (visit, phase, tenant).
+> - **[FIXED]** Anthropic timeouts — explicit `receive_timeout` + connect timeout on both calls.
+> - **[FIXED]** Calendar coverage — wider sync window + Google/Microsoft pagination.
+> - **[FIXED]** CRM domain — derived from contacts' email domains; pipedrivemail/free rejected; cc_email only a fallback.
+> - **[FIXED]** `/whoami` — route + controller removed.
+> - **[FIXED]** Pipedrive — token via `x-api-token` header; org pagination capped + logged.
+> - **[FIXED]** Per-tenant migrations on deploy — now auto-applied at boot in prod (`:migrate_tenants_on_boot`).
+>
+> **Still open (not yet addressed):** dev/test share a hardcoded Cloak key; CI does not run the test suite; the session cookie is signed but not encrypted; `oauth_credentials` needs a partial unique index for nullable `user_id` (Phase-2 mailbox).
 
 **Auth / access control**
 - `GET /t/:slug/whoami` runs `[:browser, :resolve_tenant]` with **no auth** and returns tenant marker labels — confirm it's harmless/diagnostic and consider removing in prod.
