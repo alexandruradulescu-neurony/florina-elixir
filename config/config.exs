@@ -107,6 +107,11 @@ config :florina, :dashboard_auth, username: "admin", password: "change-me-in-pro
 # Tenancy: connection pool size for each per-tenant database.
 config :florina, :tenant_pool_size, 2
 
+# Tenant database provisioning backend (swappable per environment). Default
+# creates the DB on the same Postgres the app connects to (works in prod via
+# DATABASE_URL). Swap this module to move to AWS/another host without core changes.
+config :florina, :database_provisioner, Florina.Tenants.DatabaseProvisioner.SamePostgres
+
 config :florina,
   anthropic_model: "claude-sonnet-4-6",
   anthropic_client: Florina.Anthropic
