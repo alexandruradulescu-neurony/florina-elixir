@@ -93,23 +93,39 @@ defmodule Florina.Integrations.Providers.Microsoft do
         {"Prefer", ~s(outlook.timezone="UTC")}
       ]
 
-      case Req.get("#{@graph}/me/calendarView",
-             headers: headers,
-             params: params,
-             receive_timeout: 30_000
-           ) do
-        {:ok, %{status: 200, body: b}} ->
-          {:ok, b |> Map.get("value", []) |> Enum.map(&normalize/1) |> Enum.reject(&is_nil/1)}
+      fetch_graph_pages("#{@graph}/me/calendarView", params, headers, [], 0)
+    end
+  end
 
-        {:ok, %{status: 401}} ->
-          {:error, :unauthorized}
+  # Follow Graph's @odata.nextLink (a full URL carrying its own query +
+  # skiptoken), accumulating events. Capped at 20 pages (~5000 events).
+  defp fetch_graph_pages(_url, _params, _headers, acc, page) when page >= 20, do: {:ok, acc}
 
-        {:ok, %{status: s, body: b}} ->
-          {:error, {:http, s, b}}
+  defp fetch_graph_pages(url, params, headers, acc, page) do
+    opts = [headers: headers, receive_timeout: 30_000]
+    opts = if params, do: Keyword.put(opts, :params, params), else: opts
 
-        {:error, r} ->
-          {:error, r}
-      end
+    case Req.get(url, opts) do
+      {:ok, %{status: 200, body: b}} ->
+        events = b |> Map.get("value", []) |> Enum.map(&normalize/1) |> Enum.reject(&is_nil/1)
+        acc = acc ++ events
+
+        case b["@odata.nextLink"] do
+          next when is_binary(next) and next != "" ->
+            fetch_graph_pages(next, nil, headers, acc, page + 1)
+
+          _ ->
+            {:ok, acc}
+        end
+
+      {:ok, %{status: 401}} ->
+        {:error, :unauthorized}
+
+      {:ok, %{status: s, body: b}} ->
+        {:error, {:http, s, b}}
+
+      {:error, r} ->
+        {:error, r}
     end
   end
 

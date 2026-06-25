@@ -102,11 +102,6 @@ defmodule FlorinaWeb.Router do
     live "/config", ConfigLive
   end
 
-  scope "/t/:tenant_slug", FlorinaWeb do
-    pipe_through [:browser, :resolve_tenant]
-    get "/whoami", WhoamiController, :show
-  end
-
   # Liveness probe for deploy checks and uptime monitors. Intentionally no
   # pipeline, so probes are cheap and unaffected by session/CSRF handling.
   scope "/", FlorinaWeb do

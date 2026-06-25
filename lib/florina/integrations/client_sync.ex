@@ -101,12 +101,14 @@ defmodule Florina.Integrations.ClientSync do
     deal_history = fetch_deal_history(crm_id)
     interaction_history = fetch_interaction_history(crm_id)
 
-    attrs = %{
-      contacts: contacts,
-      deal_history: deal_history,
-      interaction_history: interaction_history,
-      last_synced_at: DateTime.utc_now() |> DateTime.truncate(:second)
-    }
+    attrs =
+      %{
+        contacts: contacts,
+        deal_history: deal_history,
+        interaction_history: interaction_history,
+        last_synced_at: DateTime.utc_now() |> DateTime.truncate(:second)
+      }
+      |> maybe_put_domain(domain_from_contacts(contacts))
 
     Clients.update(client, attrs)
   end
@@ -267,18 +269,63 @@ defmodule Florina.Integrations.ClientSync do
     end
   end
 
-  # Extract a domain from Pipedrive org.
-  # Pipedrive stores the cc_email field as "orgname@pipedrivemail.com" for auto-generated
-  # forwarding addresses, but the real domain is sometimes in "owner_name" or custom fields.
-  # As a best-effort, we split the cc_email domain part — matching Django's `_normalize_client`.
+  # Fallback domain from the Pipedrive org's `cc_email`. Pipedrive's cc_email is
+  # an auto-generated forwarding address whose domain is "<account>.pipedrivemail.com"
+  # — NOT the client's real domain — so that is rejected here. The real domain is
+  # inferred from the org's contacts (see `domain_from_contacts/1` in enrich_client);
+  # a non-pipedrive cc_email is only used as a fallback when there are no contacts.
   defp extract_domain(%{"cc_email" => cc_email}) when is_binary(cc_email) and cc_email != "" do
     case String.split(cc_email, "@") do
-      [_, domain] when domain != "" -> domain
+      [_, domain] when domain != "" -> usable_domain(String.downcase(domain))
       _ -> nil
     end
   end
 
   defp extract_domain(_), do: nil
+
+  # Prefer the real company domain inferred from the org's contacts' email
+  # addresses: the most common domain that isn't a free provider or pipedrivemail.
+  defp domain_from_contacts(contacts) do
+    contacts
+    |> Enum.map(& &1.email)
+    |> Enum.map(&email_domain/1)
+    |> Enum.map(&usable_domain/1)
+    |> Enum.reject(&is_nil/1)
+    |> most_common()
+  end
+
+  defp email_domain(email) when is_binary(email) do
+    case String.split(email, "@") do
+      [_, d] when d != "" -> String.downcase(d)
+      _ -> nil
+    end
+  end
+
+  defp email_domain(_), do: nil
+
+  @free_email_domains ~w(gmail.com googlemail.com yahoo.com hotmail.com outlook.com live.com icloud.com aol.com proton.me protonmail.com)
+
+  # Returns the domain unless it's a free provider or a pipedrivemail forwarding
+  # domain (neither identifies the client company), in which case nil.
+  defp usable_domain(nil), do: nil
+
+  defp usable_domain(domain) do
+    if domain in @free_email_domains or String.contains?(domain, "pipedrivemail.com"),
+      do: nil,
+      else: domain
+  end
+
+  defp most_common([]), do: nil
+
+  defp most_common(domains) do
+    domains
+    |> Enum.frequencies()
+    |> Enum.max_by(fn {_domain, count} -> count end)
+    |> elem(0)
+  end
+
+  defp maybe_put_domain(attrs, nil), do: attrs
+  defp maybe_put_domain(attrs, domain), do: Map.put(attrs, :domain, domain)
 
   # Pipedrive returns email/phone as a list of `%{"value" => ..., "primary" => true/false}`.
   # Extract the primary entry's value, falling back to the first entry.
