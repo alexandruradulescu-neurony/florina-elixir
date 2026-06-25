@@ -30,6 +30,22 @@ config :florina, FlorinaWeb.Endpoint,
 if config_env() == :prod do
   config :florina, :anthropic_api_key, System.get_env("ANTHROPIC_API_KEY")
 
+  # ElevenLabs outbound calling
+  config :florina,
+    elevenlabs_api_key: System.get_env("ELEVENLABS_API_KEY"),
+    elevenlabs_agent_id: System.get_env("ELEVENLABS_AGENT_ID"),
+    elevenlabs_phone_number_id: System.get_env("ELEVENLABS_PHONE_NUMBER_ID")
+
+  # Google Calendar OAuth app credentials
+  config :florina,
+    google_client_id: System.get_env("GOOGLE_CLIENT_ID"),
+    google_client_secret: System.get_env("GOOGLE_CLIENT_SECRET")
+
+  # Pipedrive CRM
+  config :florina,
+    pipedrive_api_token: System.get_env("PIPEDRIVE_API_TOKEN"),
+    pipedrive_domain: System.get_env("PIPEDRIVE_DOMAIN")
+
   config :florina, :dashboard_auth,
     username: System.get_env("DASHBOARD_USER") || "admin",
     password:

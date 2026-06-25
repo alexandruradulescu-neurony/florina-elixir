@@ -85,6 +85,28 @@ config :florina,
   anthropic_model: "claude-sonnet-4-6",
   anthropic_client: Florina.Anthropic
 
+# External integration clients (real impls; overridden to stubs in test.exs)
+config :florina,
+  elevenlabs_client: Florina.Integrations.ElevenLabs,
+  google_calendar_client: Florina.Integrations.GoogleCalendar,
+  pipedrive_client: Florina.Integrations.Pipedrive
+
+# ElevenLabs — global keys (set in runtime.exs for prod from env)
+config :florina,
+  elevenlabs_api_key: nil,
+  elevenlabs_agent_id: nil,
+  elevenlabs_phone_number_id: nil
+
+# Google Calendar OAuth — global client credentials (set in runtime.exs for prod)
+config :florina,
+  google_client_id: nil,
+  google_client_secret: nil
+
+# Pipedrive — global keys (set in runtime.exs for prod from env)
+config :florina,
+  pipedrive_api_token: nil,
+  pipedrive_domain: nil
+
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "#{config_env()}.exs"
