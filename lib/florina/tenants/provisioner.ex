@@ -16,14 +16,8 @@ defmodule Florina.Tenants.Provisioner do
   end
 
   defp create_database(database) do
-    opts =
-      Application.get_env(:florina, Florina.Repo)
-      |> Keyword.take([:username, :password, :hostname, :port])
-      |> Keyword.put(:database, database)
-
-    case Ecto.Adapters.Postgres.storage_up(opts) do
+    case Florina.Tenants.DatabaseProvisioner.create_database(database) do
       :ok -> :ok
-      {:error, :already_up} -> :ok
       {:error, reason} -> raise "could not create tenant database #{database}: #{inspect(reason)}"
     end
   end
