@@ -1,4 +1,4 @@
-# Central Configuration Distribution (control-plane → tenants)
+# Central Admin — Config Distribution + In-App Tenant Onboarding
 
 **Date:** 2026-06-25
 **Status:** Design agreed; build on green light
@@ -32,6 +32,11 @@ default locally.
 **Override:** a tenant-local override wins over the central default. Effective value =
 `tenant override ?? central default`.
 
+Additionally, the control-plane app gets an **operator admin area**: add a new tenant from a
+web page (which creates its database, migrates it, seeds the central config, and registers it
+— live at `/t/<slug>/…`), manage existing tenants, and edit + **publish** the central config
+— all without console commands.
+
 ## Model
 
 Because each customer is a *physically separate* database, tenants can't cheaply read the
@@ -43,6 +48,23 @@ central DB at query time (no cross-database joins). So:
    every registered tenant's local copy.
 4. Each tenant keeps a **synced local copy**, so all in-app lookups stay within one database.
 5. Reads resolve **tenant override → central default**.
+
+## Central admin app (operator UI)
+
+A protected admin area in the central (control-plane) app — **not** tenant-scoped (it manages
+the platform, not one customer's data). For v1 it sits behind the existing dashboard auth
+(operator-only); a dedicated admin login is a later enhancement.
+
+- **Tenants:** list all tenants + status; **add a new tenant** from a form (display name +
+  slug + database name) that provisions everything end-to-end — create the database, run the
+  tenant migrations, seed the central config, register it — then it is live at `/t/<slug>/…`.
+  Activate/deactivate existing tenants. Reuses `Florina.Tenants.Provisioner`.
+  - Provisioning runs as an **Oban job** (create-DB + migrate + seed takes a few seconds), with
+    a visible status: `provisioning → active` (or `failed` with the reason).
+- **Central config:** view/edit the central config (prompts, methodologies, scenarios, default
+  settings) and a **"Publish to all tenants"** button (runs the publish from the Model above).
+- **Security:** these actions are powerful (they create databases) → operator-only, behind
+  auth, and recorded in an audit log.
 
 ## Implications for the current build
 
