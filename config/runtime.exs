@@ -59,7 +59,7 @@ if config_env() == :prod do
   config :florina,
     microsoft_client_id: System.get_env("MICROSOFT_CLIENT_ID"),
     microsoft_client_secret: System.get_env("MICROSOFT_CLIENT_SECRET"),
-    microsoft_tenant: System.get_env("MICROSOFT_TENANT") || "common"
+    microsoft_tenant: System.get_env("MICROSOFT_TENANT") || "organizations"
 
   # Shared OAuth callback base (falls back to PHX_HOST endpoint URL). Set if the
   # public callback host differs from PHX_HOST.

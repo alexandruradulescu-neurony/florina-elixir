@@ -2,9 +2,12 @@ defmodule Florina.Integrations.Providers.Microsoft do
   @moduledoc """
   Microsoft identity platform (Entra ID) + Microsoft Graph Calendar implementation.
 
-  Uses a multi-tenant app by default (`MICROSOFT_TENANT=common`) so agents from
-  any customer's Microsoft 365 directory can sign in. Identity comes from the
-  id_token claims; calendar from Graph `/me/calendarView`.
+  Multi-tenant by default for WORK/SCHOOL accounts only (`MICROSOFT_TENANT=organizations`)
+  so agents from any customer's Microsoft 365 directory can sign in, while personal
+  Microsoft accounts are excluded — keeping the email/UPN that the sign-in gate
+  checks an org-controlled (DNS-verified) address. Set `MICROSOFT_TENANT` to a
+  specific directory id to lock sign-in to one organization. Identity comes from
+  the id_token claims; calendar from Graph `/me/calendarView`.
   """
   @behaviour Florina.Integrations.OAuthProvider
   @behaviour Florina.Integrations.CalendarProvider
@@ -113,7 +116,7 @@ defmodule Florina.Integrations.Providers.Microsoft do
   defp tenant,
     do:
       Application.get_env(:florina, :microsoft_tenant) ||
-        System.get_env("MICROSOFT_TENANT") || "common"
+        System.get_env("MICROSOFT_TENANT") || "organizations"
 
   defp authorize_endpoint,
     do: "https://login.microsoftonline.com/#{tenant()}/oauth2/v2.0/authorize"
