@@ -36,19 +36,26 @@ defmodule Florina.Workers.PostCallCompletion do
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"call_attempt_id" => ca_id, "tenant_slug" => slug}}) do
-    Tenant.pin!(slug)
+    with :ok <- Tenant.pin_active(slug) do
+      case TenantRepo.get(CallAttempt, ca_id) do
+        nil ->
+          Logger.error("[PostCallCompletion] CallAttempt #{ca_id} not found")
+          :ok
 
-    case TenantRepo.get(CallAttempt, ca_id) do
-      nil ->
-        Logger.error("[PostCallCompletion] CallAttempt #{ca_id} not found")
+        %CallAttempt{visit_id: nil} ->
+          Logger.warning(
+            "[PostCallCompletion] CallAttempt #{ca_id} has no associated visit — skip"
+          )
+
+          :ok
+
+        %CallAttempt{} = ca ->
+          handle_completion(ca)
+      end
+    else
+      :skip ->
+        Logger.info("[PostCallCompletion] tenant=#{slug} not active — skipping")
         :ok
-
-      %CallAttempt{visit_id: nil} ->
-        Logger.warning("[PostCallCompletion] CallAttempt #{ca_id} has no associated visit — skip")
-        :ok
-
-      %CallAttempt{} = ca ->
-        handle_completion(ca)
     end
   end
 
