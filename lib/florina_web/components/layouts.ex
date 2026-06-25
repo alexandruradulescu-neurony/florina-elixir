@@ -182,6 +182,20 @@ defmodule FlorinaWeb.Layouts do
                 active={@active == :calls}
               />
               <.nav_item
+                :if={!@manager?}
+                label="Today"
+                icon="hero-sun"
+                href={"/t/#{@tenant.slug}/today"}
+                active={@active == :today}
+              />
+              <.nav_item
+                :if={!@manager?}
+                label="Clients"
+                icon="hero-building-office-2"
+                href={"/t/#{@tenant.slug}/clients"}
+                active={@active == :clients}
+              />
+              <.nav_item
                 :if={@manager?}
                 label="Assistant"
                 icon="hero-chat-bubble-left-right"

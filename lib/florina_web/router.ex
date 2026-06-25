@@ -83,6 +83,8 @@ defmodule FlorinaWeb.Router do
     live "/calls", CallsLive
     live "/chat", TenantChatLive
     live "/calendar", CalendarLive
+    live "/today", AgentTodayLive
+    live "/clients", ClientsLive
 
     # Manager-only screens (each LiveView gates with AgentAuth :require_manager).
     live "/manage/dashboard", Manage.DashboardLive
