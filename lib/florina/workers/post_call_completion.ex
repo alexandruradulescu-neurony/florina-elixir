@@ -19,7 +19,12 @@ defmodule Florina.Workers.PostCallCompletion do
 
   Args required: `call_attempt_id`, `tenant_slug`.
   """
-  use Oban.Worker, queue: :calls, max_attempts: 3
+  # Oban-unique per (call_attempt_id, tenant) for an hour so the webhook path and
+  # the polling fallback can't both run the post-call pipeline for one call.
+  use Oban.Worker,
+    queue: :calls,
+    max_attempts: 3,
+    unique: [period: 3600, keys: [:call_attempt_id, :tenant_slug]]
 
   require Logger
 
@@ -51,6 +56,13 @@ defmodule Florina.Workers.PostCallCompletion do
     case Visits.get_with_associations(visit_id) do
       nil ->
         Logger.error("[PostCallCompletion] Visit #{visit_id} not found")
+        :ok
+
+      %{status: :COMPLETE} = visit ->
+        Logger.info(
+          "[PostCallCompletion] visit=#{visit.id} already COMPLETE — skipping reprocess"
+        )
+
         :ok
 
       visit ->

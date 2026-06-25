@@ -20,7 +20,14 @@ defmodule Florina.Workers.DialCall do
 
   Args required: `visit_id`, `phase` ("PRE" | "POST"), `tenant_slug`.
   """
-  use Oban.Worker, queue: :calls, max_attempts: 2
+  # `unique` dedupes concurrent enqueues of the same (visit, phase, tenant) within
+  # a 5-min window, so two overlapping ScanTenantCalls runs can't both dial. The
+  # spaced PRE/POST offsets (30 min apart) are outside this window, so legitimate
+  # repeat dials up to the per-phase cap still happen.
+  use Oban.Worker,
+    queue: :calls,
+    max_attempts: 2,
+    unique: [period: 300, keys: [:visit_id, :phase, :tenant_slug]]
 
   require Logger
 

@@ -40,7 +40,7 @@ defmodule Florina.Workers.SyncPendingCalls do
 
       synced =
         Enum.reduce(pending, 0, fn ca, acc ->
-          case sync_one(ca) do
+          case sync_one(ca, slug) do
             :synced -> acc + 1
             _other -> acc
           end
@@ -58,12 +58,12 @@ defmodule Florina.Workers.SyncPendingCalls do
     end
   end
 
-  defp sync_one(%CallAttempt{external_call_id: ext_id} = ca) do
+  defp sync_one(%CallAttempt{external_call_id: ext_id} = ca, slug) do
     el = Application.get_env(:florina, :elevenlabs_client, Florina.Integrations.ElevenLabs)
 
     case el.do_get_conversation(ext_id) do
       {:ok, data} ->
-        apply_conversation_update(ca, data)
+        apply_conversation_update(ca, data, slug)
         :synced
 
       {:error, reason} ->
@@ -75,7 +75,7 @@ defmodule Florina.Workers.SyncPendingCalls do
     end
   end
 
-  defp apply_conversation_update(%CallAttempt{} = ca, data) when is_map(data) do
+  defp apply_conversation_update(%CallAttempt{} = ca, data, slug) when is_map(data) do
     el_status = data["status"] || data["call_status"]
     transcript_raw = data["transcript"] || data["conversation_transcript"]
     transcript = format_transcript(transcript_raw)
@@ -90,12 +90,13 @@ defmodule Florina.Workers.SyncPendingCalls do
       |> maybe_put(:transcript, transcript)
       |> maybe_put(:summary, summary)
 
-    ca
-    |> CallAttempt.webhook_changeset(attrs)
-    |> TenantRepo.update()
+    with {:ok, updated} <- ca |> CallAttempt.webhook_changeset(attrs) |> TenantRepo.update() do
+      Florina.Calls.maybe_enqueue_post_completion(updated, slug)
+      {:ok, updated}
+    end
   end
 
-  defp apply_conversation_update(ca, _), do: {:ok, ca}
+  defp apply_conversation_update(ca, _data, _slug), do: {:ok, ca}
 
   # Map ElevenLabs status strings to our CallStatus values
   defp map_el_status(status, transcript) do
