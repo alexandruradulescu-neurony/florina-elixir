@@ -63,7 +63,7 @@ defmodule FlorinaWeb.TenantChatLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash}>
+    <Layouts.agent_app flash={@flash} tenant={@tenant} current_agent={@current_agent} active={:chat}>
       <div class="mb-6">
         <h1 class="text-2xl font-semibold">Assistant — {@tenant.name}</h1>
         <p class="text-sm text-base-content/60">
@@ -94,7 +94,7 @@ defmodule FlorinaWeb.TenantChatLive do
           Send
         </button>
       </form>
-    </Layouts.app>
+    </Layouts.agent_app>
     """
   end
 end

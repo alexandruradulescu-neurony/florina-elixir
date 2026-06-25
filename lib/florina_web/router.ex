@@ -128,5 +128,12 @@ defmodule FlorinaWeb.Router do
       live_dashboard "/dashboard", metrics: FlorinaWeb.Telemetry
       forward "/mailbox", Plug.Swoosh.MailboxPreview
     end
+
+    # UI component preview (dev only) — eyeball shells/components without auth.
+    scope "/dev", FlorinaWeb do
+      pipe_through :browser
+
+      get "/shell", PageController, :shell_preview
+    end
   end
 end

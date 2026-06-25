@@ -20,7 +20,7 @@ defmodule FlorinaWeb.CallsLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash}>
+    <Layouts.agent_app flash={@flash} tenant={@tenant} current_agent={@current_agent} active={:calls}>
       <h1 class="text-2xl font-semibold mb-4">Calls</h1>
       <table class="w-full text-left text-sm">
         <thead>
@@ -46,7 +46,7 @@ defmodule FlorinaWeb.CallsLive do
           </tr>
         </tbody>
       </table>
-    </Layouts.app>
+    </Layouts.agent_app>
     """
   end
 end

@@ -32,7 +32,12 @@ defmodule FlorinaWeb.CalendarLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash}>
+    <Layouts.agent_app
+      flash={@flash}
+      tenant={@tenant}
+      current_agent={@current_agent}
+      active={:calendar}
+    >
       <div class="flex items-center justify-between mb-4">
         <h1 class="text-2xl font-semibold">Calendar</h1>
         <div class="flex items-center gap-2">
@@ -69,7 +74,7 @@ defmodule FlorinaWeb.CalendarLive do
           </div>
         </div>
       </div>
-    </Layouts.app>
+    </Layouts.agent_app>
     """
   end
 

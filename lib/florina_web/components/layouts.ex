@@ -49,6 +49,200 @@ defmodule FlorinaWeb.Layouts do
   end
 
   @doc """
+  Authenticated agent app shell: responsive sidebar (desktop fixed + mobile
+  off-canvas) + sticky top bar + content slot. Adapted from a Tailwind Plus
+  application-shell — Elements web components replaced with LiveView `JS`,
+  colors mapped to the project's `base-*`/`primary` theme tokens.
+
+      <Layouts.agent_app flash={@flash} tenant={@tenant} current_agent={@current_agent} active={:calendar}>
+        <h1>Content</h1>
+      </Layouts.agent_app>
+  """
+  attr :flash, :map, required: true
+  attr :tenant, :map, required: true, doc: "the resolved tenant (has :slug, :name)"
+  attr :current_agent, :map, default: nil, doc: "the signed-in agent user"
+  attr :active, :atom, default: nil, doc: ":calendar | :calls | :chat — highlights the nav item"
+  slot :inner_block, required: true
+
+  def agent_app(assigns) do
+    ~H"""
+    <%!-- Mobile off-canvas sidebar (toggled by JS; hidden on lg+) --%>
+    <div id="mobile-sidebar" class="relative z-50 hidden lg:hidden" role="dialog" aria-modal="true">
+      <div class="fixed inset-0 bg-gray-900/80" phx-click={hide_mobile_sidebar()} aria-hidden="true" />
+      <div class="fixed inset-0 flex">
+        <div class="relative mr-16 flex w-full max-w-xs flex-1">
+          <div class="absolute top-0 left-full flex w-16 justify-center pt-5">
+            <button type="button" phx-click={hide_mobile_sidebar()} class="-m-2.5 p-2.5">
+              <span class="sr-only">Close sidebar</span>
+              <.icon name="hero-x-mark" class="size-6 text-white" />
+            </button>
+          </div>
+          <.sidebar tenant={@tenant} active={@active} />
+        </div>
+      </div>
+    </div>
+
+    <%!-- Desktop sidebar (fixed) --%>
+    <div class="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-72 lg:flex-col">
+      <.sidebar tenant={@tenant} active={@active} />
+    </div>
+
+    <div class="lg:pl-72">
+      <%!-- Top bar --%>
+      <div class="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-x-4 border-b border-base-300 bg-base-100 px-4 shadow-sm sm:gap-x-6 sm:px-6 lg:px-8">
+        <button
+          type="button"
+          phx-click={show_mobile_sidebar()}
+          class="-m-2.5 p-2.5 text-base-content/70 lg:hidden"
+        >
+          <span class="sr-only">Open sidebar</span>
+          <.icon name="hero-bars-3" class="size-6" />
+        </button>
+        <div aria-hidden="true" class="h-6 w-px bg-base-300 lg:hidden" />
+
+        <div class="flex flex-1 items-center justify-end gap-x-4 self-stretch lg:gap-x-6">
+          <.theme_toggle />
+          <div aria-hidden="true" class="hidden lg:block lg:h-6 lg:w-px lg:bg-base-300" />
+
+          <%!-- User menu --%>
+          <div class="relative">
+            <button
+              type="button"
+              phx-click={JS.toggle(to: "#user-menu")}
+              class="flex items-center gap-x-2"
+            >
+              <span class="sr-only">Open user menu</span>
+              <span class="flex size-8 items-center justify-center rounded-full bg-base-200 text-sm font-medium text-base-content">
+                {agent_initial(@current_agent)}
+              </span>
+              <span class="hidden lg:flex lg:items-center">
+                <span class="text-sm font-semibold text-base-content">{agent_name(@current_agent)}</span>
+                <.icon name="hero-chevron-down" class="ml-1 size-5 text-base-content/50" />
+              </span>
+            </button>
+            <div
+              id="user-menu"
+              phx-click-away={JS.hide(to: "#user-menu")}
+              class="absolute right-0 z-10 mt-2 hidden w-44 origin-top-right rounded-md bg-base-100 py-2 shadow-lg ring-1 ring-base-300"
+            >
+              <div class="truncate border-b border-base-300 px-3 pb-2 text-xs text-base-content/60">
+                {agent_email(@current_agent)}
+              </div>
+              <.link
+                href={"/t/#{@tenant.slug}/logout"}
+                method="delete"
+                class="block px-3 py-1.5 text-sm text-base-content hover:bg-base-200"
+              >
+                Sign out
+              </.link>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <main class="px-4 py-8 sm:px-6 lg:px-8">
+        <div class="mx-auto max-w-6xl">
+          {render_slot(@inner_block)}
+        </div>
+      </main>
+    </div>
+
+    <.flash_group flash={@flash} />
+    """
+  end
+
+  # Sidebar inner (shared by the desktop + mobile variants).
+  attr :tenant, :map, required: true
+  attr :active, :atom, default: nil
+
+  defp sidebar(assigns) do
+    ~H"""
+    <div class="flex grow flex-col gap-y-5 overflow-y-auto border-r border-base-300 bg-base-100 px-6 pb-4">
+      <div class="flex h-16 shrink-0 items-center">
+        <span class="text-lg font-semibold text-base-content">Florina</span>
+      </div>
+      <nav class="flex flex-1 flex-col">
+        <ul role="list" class="flex flex-1 flex-col gap-y-7">
+          <li>
+            <div class="text-xs font-semibold text-base-content/50">{@tenant.name}</div>
+            <ul role="list" class="-mx-2 mt-2 space-y-1">
+              <.nav_item
+                label="Calendar"
+                icon="hero-calendar"
+                href={"/t/#{@tenant.slug}/calendar"}
+                active={@active == :calendar}
+              />
+              <.nav_item
+                label="Calls"
+                icon="hero-phone"
+                href={"/t/#{@tenant.slug}/calls"}
+                active={@active == :calls}
+              />
+              <.nav_item
+                label="Assistant"
+                icon="hero-chat-bubble-left-right"
+                href={"/t/#{@tenant.slug}/chat"}
+                active={@active == :chat}
+              />
+            </ul>
+          </li>
+        </ul>
+      </nav>
+    </div>
+    """
+  end
+
+  attr :label, :string, required: true
+  attr :icon, :string, required: true
+  attr :href, :string, required: true
+  attr :active, :boolean, default: false
+
+  defp nav_item(assigns) do
+    ~H"""
+    <li>
+      <.link
+        navigate={@href}
+        class={[
+          "group flex gap-x-3 rounded-md p-2 text-sm font-semibold",
+          (@active && "bg-base-200 text-primary") ||
+            "text-base-content/70 hover:bg-base-200 hover:text-primary"
+        ]}
+      >
+        <.icon
+          name={@icon}
+          class={[
+            "size-6 shrink-0",
+            (@active && "text-primary") || "text-base-content/50 group-hover:text-primary"
+          ]}
+        />
+        {@label}
+      </.link>
+    </li>
+    """
+  end
+
+  defp show_mobile_sidebar(js \\ %JS{}), do: JS.show(js, to: "#mobile-sidebar")
+  defp hide_mobile_sidebar(js \\ %JS{}), do: JS.hide(js, to: "#mobile-sidebar")
+
+  defp agent_name(%{first_name: f, last_name: l} = a)
+       when is_binary(f) or is_binary(l) do
+    case [f, l] |> Enum.reject(&(&1 in [nil, ""])) |> Enum.join(" ") do
+      "" -> agent_email(a)
+      name -> name
+    end
+  end
+
+  defp agent_name(a), do: agent_email(a)
+
+  defp agent_email(%{email: e}) when is_binary(e) and e != "", do: e
+  defp agent_email(%{username: u}) when is_binary(u) and u != "", do: u
+  defp agent_email(_), do: "Agent"
+
+  defp agent_initial(a) do
+    a |> agent_name() |> String.first() |> Kernel.||("A") |> String.upcase()
+  end
+
+  @doc """
   Shows the flash group with standard titles and content.
 
   ## Examples
