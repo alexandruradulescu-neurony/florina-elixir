@@ -32,4 +32,21 @@ defmodule Florina.Calls.CallAttempt do
     ])
     |> validate_required([:status])
   end
+
+  @doc "Changeset for creating a new CallAttempt row (used by Oban workers)."
+  def create_changeset(call_attempt, attrs) do
+    call_attempt
+    |> cast(attrs, [
+      :visit_id,
+      :phase,
+      :status,
+      :external_call_id,
+      :transcript,
+      :summary,
+      :summary_title,
+      :analysis
+    ])
+    |> validate_required([:visit_id, :phase, :status])
+    |> foreign_key_constraint(:visit_id)
+  end
 end

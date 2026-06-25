@@ -12,13 +12,37 @@ config :florina,
   generators: [timestamp_type: :utc_datetime]
 
 # Configure Oban (database-backed background jobs).
-# Queues and plugins are intentionally minimal for the skeleton; grow as needed.
 config :florina, Oban,
   repo: Florina.Repo,
-  queues: [default: 10],
+  queues: [
+    default: 10,
+    # Fan-out cron schedulers (lightweight, high-priority)
+    scheduler: 5,
+    # Outbound call workers (rate-limited)
+    calls: 5,
+    # Sync jobs (calendar + CRM + call status polling)
+    sync: 10
+  ],
   plugins: [
     # Periodically delete jobs that finished more than 7 days ago.
-    {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7}
+    {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7},
+
+    # Recurring cron jobs.
+    # Cron fan-out pattern: each scheduler enqueues per-tenant child jobs.
+    #
+    # Schedule     Worker
+    # ──────────── ──────────────────────────────────────────────────────────
+    # Every 5 min  CallScheduler → ScanTenantCalls → DialCall
+    # Every 15 min SyncPendingCallsScheduler → SyncPendingCalls
+    # Every 30 min CalendarSyncScheduler → CalendarSync (per-user)
+    # Daily 00:05  CrmSyncScheduler → CrmSync
+    {Oban.Plugins.Cron,
+     crontab: [
+       {"*/5 * * * *", Florina.Workers.CallScheduler},
+       {"*/15 * * * *", Florina.Workers.SyncPendingCallsScheduler},
+       {"*/30 * * * *", Florina.Workers.CalendarSyncScheduler},
+       {"5 0 * * *", Florina.Workers.CrmSyncScheduler}
+     ]}
   ]
 
 # Configure the endpoint
