@@ -43,6 +43,7 @@ defmodule Florina.Calls do
           %{status: map_status(data["status"], transcript)}
           |> maybe_put(:transcript, transcript)
           |> maybe_put(:summary, summary)
+          |> maybe_bind_external_id(ca, conversation_id)
 
         with {:ok, updated} <- ca |> CallAttempt.webhook_changeset(attrs) |> TenantRepo.update() do
           Phoenix.PubSub.broadcast(Florina.PubSub, topic(tenant_slug), {:call_updated, updated})
@@ -93,6 +94,15 @@ defmodule Florina.Calls do
 
   defp maybe_put(map, _k, nil), do: map
   defp maybe_put(map, k, v), do: Map.put(map, k, v)
+
+  # On the first webhook matched via call_attempt_id (external_call_id not yet
+  # stored), bind the ElevenLabs conversation_id so later metadata-less webhooks
+  # for the same conversation resolve by external id.
+  defp maybe_bind_external_id(attrs, %CallAttempt{external_call_id: x}, conv_id)
+       when x in [nil, ""] and is_binary(conv_id) and conv_id != "",
+       do: Map.put(attrs, :external_call_id, conv_id)
+
+  defp maybe_bind_external_id(attrs, _ca, _conv_id), do: attrs
 
   # ElevenLabs status -> our CallStatus. "done"/transcript present => COMPLETED.
   defp map_status(status, transcript) do
