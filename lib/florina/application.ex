@@ -5,6 +5,8 @@ defmodule Florina.Application do
 
   use Application
 
+  require Logger
+
   @impl true
   def start(_type, _args) do
     children = [
@@ -31,7 +33,32 @@ defmodule Florina.Application do
     # seed the first operator account automatically. Runs after the repo is up.
     Florina.Admins.ensure_seed_from_env()
 
+    # Apply pending per-tenant migrations to all provisioned tenants on boot
+    # (prod only, gated by :migrate_tenants_on_boot). Runs async + best-effort
+    # AFTER the supervisor (Repo + ConnectionManager) is up, so a deploy that
+    # adds tenant migrations no longer needs a manual migrate_tenants rpc.
+    maybe_migrate_tenants_on_boot()
+
     result
+  end
+
+  defp maybe_migrate_tenants_on_boot do
+    if Application.get_env(:florina, :migrate_tenants_on_boot, false) do
+      Task.start(fn ->
+        for tenant <- Florina.Tenants.list() do
+          try do
+            {:ok, pid} = Florina.Tenants.ConnectionManager.ensure_started(tenant.slug)
+            Florina.Tenants.Migrator.migrate_one(pid)
+            Logger.info("[boot] per-tenant migrations applied for #{tenant.slug}")
+          rescue
+            e -> Logger.error("[boot] tenant #{tenant.slug} migration failed: #{inspect(e)}")
+          catch
+            kind, value ->
+              Logger.error("[boot] tenant #{tenant.slug} migration #{kind}: #{inspect(value)}")
+          end
+        end
+      end)
+    end
   end
 
   # Tell Phoenix to update the endpoint configuration

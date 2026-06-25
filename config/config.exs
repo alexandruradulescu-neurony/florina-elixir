@@ -112,6 +112,10 @@ config :florina, :tenant_pool_size, 2
 # DATABASE_URL). Swap this module to move to AWS/another host without core changes.
 config :florina, :database_provisioner, Florina.Tenants.DatabaseProvisioner.SamePostgres
 
+# Auto-apply pending per-tenant migrations at app boot. Off by default (dev/test
+# migrate explicitly / via TenantCase); turned on in prod (runtime.exs).
+config :florina, :migrate_tenants_on_boot, false
+
 config :florina,
   anthropic_model: "claude-sonnet-4-6",
   anthropic_client: Florina.Anthropic

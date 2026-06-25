@@ -45,6 +45,10 @@ if config_env() == :prod do
 
   config :florina, :anthropic_api_key, System.get_env("ANTHROPIC_API_KEY")
 
+  # Apply pending per-tenant migrations automatically on boot (see application.ex)
+  # so deploys that add tenant migrations don't need a manual migrate_tenants rpc.
+  config :florina, :migrate_tenants_on_boot, true
+
   # ElevenLabs outbound calling
   config :florina,
     elevenlabs_api_key: System.get_env("ELEVENLABS_API_KEY"),
