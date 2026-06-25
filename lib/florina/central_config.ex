@@ -35,7 +35,6 @@ defmodule Florina.CentralConfig do
   alias Florina.Repo
   alias Florina.TenantRepo
   alias Florina.Tenants
-  alias Florina.Tenants.ConnectionManager
 
   alias Florina.CentralConfig.{
     MegaPrompt,
@@ -172,10 +171,9 @@ defmodule Florina.CentralConfig do
   customisations the tenant has made. Fresh tenants (no rows yet) get everything.
   """
   def seed_tenant(slug) when is_binary(slug) do
-    with {:ok, pid} <- ConnectionManager.ensure_started(slug) do
-      TenantRepo.put_dynamic_repo(pid)
-      do_seed()
-      :ok
+    case Tenants.get_by_slug(slug) do
+      nil -> {:error, :unknown_tenant}
+      tenant -> Tenants.with_prefix(tenant, fn -> do_seed() end)
     end
   end
 
@@ -348,12 +346,14 @@ defmodule Florina.CentralConfig do
   to opt out of future syncs.
   """
   def publish_to(slug) when is_binary(slug) do
-    with {:ok, pid} <- ConnectionManager.ensure_started(slug) do
-      TenantRepo.put_dynamic_repo(pid)
+    case Tenants.get_by_slug(slug) do
+      nil ->
+        {:error, :unknown_tenant}
 
-      TenantRepo.transaction(fn ->
-        do_publish()
-      end)
+      tenant ->
+        Tenants.with_prefix(tenant, fn ->
+          TenantRepo.transaction(fn -> do_publish() end)
+        end)
     end
   end
 

@@ -104,13 +104,10 @@ config :phoenix, :json_library, Jason
 
 config :florina, :dashboard_auth, username: "admin", password: "change-me-in-prod"
 
-# Tenancy: connection pool size for each per-tenant database.
-config :florina, :tenant_pool_size, 2
-
-# Tenant database provisioning backend (swappable per environment). Default
-# creates the DB on the same Postgres the app connects to (works in prod via
-# DATABASE_URL). Swap this module to move to AWS/another host without core changes.
-config :florina, :database_provisioner, Florina.Tenants.DatabaseProvisioner.SamePostgres
+# Tenancy: one shared database + one connection pool (Florina.Repo). Each tenant
+# is isolated by Postgres schema (`tenant_<id>`), provisioned + migrated via
+# Florina.Tenants.Provisioner / Migrator with an Ecto `:prefix`. No per-tenant
+# database or pool — so no pool-size / database-provisioner config.
 
 # Auto-apply pending per-tenant migrations at app boot. Off by default (dev/test
 # migrate explicitly / via TenantCase); turned on in prod (runtime.exs).

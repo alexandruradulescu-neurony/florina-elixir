@@ -1,8 +1,33 @@
 defmodule Florina.Tenants do
-  @moduledoc "Control-plane registry of tenants and which database each one lives in."
+  @moduledoc """
+  Control-plane registry of tenants. Each tenant's data lives in its own Postgres
+  **schema** (`tenant_<id>`) on the single shared database; this module owns the
+  registry rows and the schema-prefix helpers every chokepoint pins from.
+  """
   import Ecto.Query, only: [from: 2]
   alias Florina.Repo
   alias Florina.Tenants.Tenant
+
+  @doc """
+  The Postgres schema name for a tenant: `"tenant_<id>"`. Derived from the
+  tenant's immutable id (never the mutable slug), so a slug rename never moves a
+  tenant's data.
+  """
+  def schema_prefix(%Tenant{id: id}) when is_integer(id), do: "tenant_#{id}"
+
+  @doc "Run `fun` with the tenant's schema prefix pinned on the current process."
+  def with_prefix(%Tenant{} = tenant, fun) when is_function(fun, 0) do
+    previous = Process.get(:tenant_prefix)
+    Process.put(:tenant_prefix, schema_prefix(tenant))
+
+    try do
+      fun.()
+    after
+      if previous,
+        do: Process.put(:tenant_prefix, previous),
+        else: Process.delete(:tenant_prefix)
+    end
+  end
 
   def list, do: Repo.all(from t in Tenant, order_by: t.slug)
 

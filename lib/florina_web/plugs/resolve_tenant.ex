@@ -2,9 +2,10 @@ defmodule FlorinaWeb.Plugs.ResolveTenant do
   @moduledoc """
   Resolves the tenant from the URL path parameter `tenant_slug`
   (e.g. `/t/:tenant_slug/...`), falling back to subdomain extraction when no
-  path param is present. Pins `Florina.TenantRepo` to that tenant's database
-  and assigns the tenant on the conn. Fails closed (404, halted) when the
-  tenant cannot be resolved.
+  path param is present. Pins the tenant's schema prefix
+  (`Process.put(:tenant_prefix, "tenant_<id>")`) so all `Florina.TenantRepo`
+  calls in this request hit that tenant's schema, and assigns the tenant on the
+  conn. Fails closed (404, halted) when the tenant cannot be resolved.
 
   Primary resolution: `conn.path_params["tenant_slug"]` — works on any domain,
   including the default Railway domain with no custom domain configured.
@@ -15,7 +16,7 @@ defmodule FlorinaWeb.Plugs.ResolveTenant do
   """
   import Plug.Conn
   alias Florina.Tenants
-  alias Florina.Tenants.{ConnectionManager, Subdomain}
+  alias Florina.Tenants.Subdomain
 
   def init(opts), do: opts
 
@@ -24,9 +25,8 @@ defmodule FlorinaWeb.Plugs.ResolveTenant do
 
     with slug when is_binary(slug) <-
            conn.path_params["tenant_slug"] || Subdomain.extract(conn.host, base),
-         %Tenants.Tenant{active: true, status: "active"} = tenant <- Tenants.get_by_slug(slug),
-         {:ok, pid} <- ConnectionManager.ensure_started(slug) do
-      Florina.TenantRepo.put_dynamic_repo(pid)
+         %Tenants.Tenant{active: true, status: "active"} = tenant <- Tenants.get_by_slug(slug) do
+      Process.put(:tenant_prefix, Tenants.schema_prefix(tenant))
       assign(conn, :tenant, tenant)
     else
       _ ->

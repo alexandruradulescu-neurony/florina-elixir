@@ -13,7 +13,6 @@ defmodule Florina.Application do
       FlorinaWeb.Telemetry,
       Florina.Vault,
       Florina.Repo,
-      Florina.Tenants.ConnectionManager,
       # Apply pending per-tenant migrations BEFORE Oban + the Endpoint start, so
       # jobs/requests never hit an out-of-date schema. Blocking + fail-loud: a
       # migration error aborts boot (and the deploy). Gated by
