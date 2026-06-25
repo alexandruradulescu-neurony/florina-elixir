@@ -6,7 +6,7 @@ defmodule Florina.Calls.CallAttempt do
   @timestamps_opts [type: :utc_datetime, inserted_at: :created_at, updated_at: :updated_at]
 
   schema "voice_callattempt" do
-    field :visit_id, :integer
+    belongs_to :visit, Florina.Visits.Visit
     field :phase, :string
     field :external_call_id, :string
     field :status, :string

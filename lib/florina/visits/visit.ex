@@ -16,6 +16,8 @@ defmodule Florina.Visits.Visit do
     belongs_to :methodology, Florina.Methodologies.Methodology
     belongs_to :scenario, Florina.Scenarios.Scenario
 
+    has_many :call_attempts, Florina.Calls.CallAttempt
+
     field :calendar_event_id, :string
     field :title, :string
     field :start_time, :utc_datetime
