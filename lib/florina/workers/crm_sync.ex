@@ -22,9 +22,7 @@ defmodule Florina.Workers.CrmSync do
 
     case ClientSync.sync_all() do
       {:ok, %{created: c, updated: u, errors: errors}} ->
-        Logger.info(
-          "[CrmSync] tenant=#{slug} created=#{c} updated=#{u} errors=#{length(errors)}"
-        )
+        Logger.info("[CrmSync] tenant=#{slug} created=#{c} updated=#{u} errors=#{length(errors)}")
 
         if errors != [] do
           Logger.warning("[CrmSync] tenant=#{slug} sync errors: #{inspect(errors)}")

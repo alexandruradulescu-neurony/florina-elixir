@@ -119,19 +119,32 @@ defmodule Florina.Services.Placeholders do
           if rem(idx, 2) == 0 do
             Regex.replace(@placeholder_re, part, fn _, name ->
               key = String.to_existing_atom(name)
+
               case Map.fetch(context, key) do
-                {:ok, nil} -> ""
-                {:ok, val} -> to_string(val)
+                {:ok, nil} ->
+                  ""
+
+                {:ok, val} ->
+                  to_string(val)
+
                 :error ->
                   # Try string key too
                   case Map.fetch(context, name) do
-                    {:ok, nil} -> ""
-                    {:ok, val} -> to_string(val)
+                    {:ok, nil} ->
+                      ""
+
+                    {:ok, val} ->
+                      to_string(val)
+
                     :error ->
                       unless :ets.member(seen_unknown, name) do
                         :ets.insert(seen_unknown, {name, true})
-                        Logger.warning("render_placeholders: unknown placeholder {#{name}} left untouched")
+
+                        Logger.warning(
+                          "render_placeholders: unknown placeholder {#{name}} left untouched"
+                        )
                       end
+
                       "{#{name}}"
                   end
               end
@@ -165,8 +178,12 @@ defmodule Florina.Services.Placeholders do
       if rem(idx, 2) == 0 do
         Regex.replace(@placeholder_re, part, fn _, name ->
           case Map.fetch(string_ctx, name) do
-            {:ok, nil} -> ""
-            {:ok, val} -> to_string(val)
+            {:ok, nil} ->
+              ""
+
+            {:ok, val} ->
+              to_string(val)
+
             :error ->
               Logger.warning("render_placeholders: unknown placeholder {#{name}} left untouched")
               "{#{name}}"

@@ -34,8 +34,12 @@ defmodule Florina.Integrations.ClientSync do
 
         Enum.reduce(orgs, results, fn org, acc ->
           case upsert_client(org, now) do
-            {:created, _client} -> %{acc | created: acc.created + 1}
-            {:updated, _client} -> %{acc | updated: acc.updated + 1}
+            {:created, _client} ->
+              %{acc | created: acc.created + 1}
+
+            {:updated, _client} ->
+              %{acc | updated: acc.updated + 1}
+
             {:error, reason} ->
               msg = "Error syncing org #{org["id"] || "?"}: #{inspect(reason)}"
               %{acc | errors: [msg | acc.errors]}

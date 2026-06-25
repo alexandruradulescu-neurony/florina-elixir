@@ -77,6 +77,7 @@ defmodule Florina.Workers.PostCallCompletion do
             Logger.error(
               "[PostCallCompletion] process_post_call failed for visit=#{visit.id}: #{inspect(reason)}"
             )
+
             {:error, reason}
         end
     end

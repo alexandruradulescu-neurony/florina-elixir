@@ -287,7 +287,9 @@ defmodule Florina.Integrations.Pipedrive do
         if body["success"] do
           items = body["data"] || []
           all = acc ++ items
-          more = get_in(body, ["additional_data", "pagination", "more_items_in_collection"]) || false
+
+          more =
+            get_in(body, ["additional_data", "pagination", "more_items_in_collection"]) || false
 
           if more do
             fetch_page(url, token, start + limit, limit, all)

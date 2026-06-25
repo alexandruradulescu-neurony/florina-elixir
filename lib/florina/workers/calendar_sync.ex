@@ -80,7 +80,12 @@ defmodule Florina.Workers.CalendarSync do
         acc
 
       cred ->
-        gc = Application.get_env(:florina, :google_calendar_client, Florina.Integrations.GoogleCalendar)
+        gc =
+          Application.get_env(
+            :florina,
+            :google_calendar_client,
+            Florina.Integrations.GoogleCalendar
+          )
 
         case gc.do_list_events(cred, today_start, today_end) do
           {:ok, events} ->

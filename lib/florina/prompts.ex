@@ -14,7 +14,9 @@ defmodule Florina.Prompts do
 
   def list_by_domain(domain),
     do:
-      TenantRepo.all(from m in MegaPrompt, where: m.domain == ^domain, order_by: [desc: m.version])
+      TenantRepo.all(
+        from m in MegaPrompt, where: m.domain == ^domain, order_by: [desc: m.version]
+      )
 
   def get_mega!(id), do: TenantRepo.get!(MegaPrompt, id)
   def get_mega(id), do: TenantRepo.get(MegaPrompt, id)

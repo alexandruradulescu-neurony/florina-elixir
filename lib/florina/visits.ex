@@ -168,11 +168,16 @@ defmodule Florina.Visits do
     # 2. Agent default
     agent_methodology =
       case agent do
-        %{default_methodology_id: nil} -> nil
-        %{default_methodology: %Ecto.Association.NotLoaded{}, default_methodology_id: id} when not is_nil(id) ->
+        %{default_methodology_id: nil} ->
+          nil
+
+        %{default_methodology: %Ecto.Association.NotLoaded{}, default_methodology_id: id}
+        when not is_nil(id) ->
           TenantRepo.get(Florina.Methodologies.Methodology, id)
+
         %{default_methodology: m} ->
           m
+
         _ ->
           nil
       end
@@ -186,10 +191,14 @@ defmodule Florina.Visits do
       case settings do
         %{default_methodology_id: nil} ->
           nil
-        %{default_methodology: %Ecto.Association.NotLoaded{}, default_methodology_id: id} when not is_nil(id) ->
+
+        %{default_methodology: %Ecto.Association.NotLoaded{}, default_methodology_id: id}
+        when not is_nil(id) ->
           TenantRepo.get(Florina.Methodologies.Methodology, id)
+
         %{default_methodology: m} ->
           m
+
         _ ->
           nil
       end

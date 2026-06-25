@@ -104,6 +104,7 @@ defmodule Florina.Services.Assembler do
     if is_nil(mega) do
       error = "No active MegaPrompt for #{domain}"
       Logger.error("Assembler aborted: #{error} (visit=#{visit.id})")
+
       record_run(%{
         visit_id: visit.id,
         client_id: nil,
@@ -176,6 +177,7 @@ defmodule Florina.Services.Assembler do
       {:error, reason} ->
         error = "LLM call failed: #{inspect(reason)}"
         Logger.error("Assembler LLM error (visit=#{visit.id} domain=#{domain}): #{error}")
+
         record_run(%{
           visit_id: visit.id,
           client_id: nil,
@@ -221,8 +223,11 @@ defmodule Florina.Services.Assembler do
             updated_visit =
               if updates != [] do
                 attrs = Map.new(updates)
+
                 case TenantRepo.update(Visit.changeset(visit, attrs)) do
-                  {:ok, v} -> v
+                  {:ok, v} ->
+                    v
+
                   {:error, cs} ->
                     Logger.error("Assembler failed to save visit fields: #{inspect(cs.errors)}")
                     visit
@@ -276,7 +281,9 @@ defmodule Florina.Services.Assembler do
               else
                 stripped
               end
-            _ -> stripped
+
+            _ ->
+              stripped
           end
 
         stripped
@@ -339,7 +346,8 @@ defmodule Florina.Services.Assembler do
         {:error, "`body` exceeds #{@max_body_chars} chars (#{byte_size(body)})"}
 
       byte_size(first_message) > @max_first_message_chars ->
-        {:error, "`first_message` exceeds #{@max_first_message_chars} chars (#{byte_size(first_message)})"}
+        {:error,
+         "`first_message` exceeds #{@max_first_message_chars} chars (#{byte_size(first_message)})"}
 
       true ->
         {:ok, body, first_message}

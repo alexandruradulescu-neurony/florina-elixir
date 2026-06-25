@@ -65,17 +65,35 @@ defmodule Florina.Integrations.Pipedrive.Stub do
   def set_list_organizations(response), do: Process.put(:pd_stub_list_organizations, response)
   def set_get_organization(response), do: Process.put(:pd_stub_get_organization, response)
   def set_search_organizations(response), do: Process.put(:pd_stub_search_organizations, response)
-  def set_get_organization_deals(response), do: Process.put(:pd_stub_get_organization_deals, response)
+
+  def set_get_organization_deals(response),
+    do: Process.put(:pd_stub_get_organization_deals, response)
+
   def set_get_deal(response), do: Process.put(:pd_stub_get_deal, response)
-  def set_get_organization_persons(response), do: Process.put(:pd_stub_get_organization_persons, response)
-  def set_get_organization_notes(response), do: Process.put(:pd_stub_get_organization_notes, response)
-  def set_get_organization_activities(response), do: Process.put(:pd_stub_get_organization_activities, response)
+
+  def set_get_organization_persons(response),
+    do: Process.put(:pd_stub_get_organization_persons, response)
+
+  def set_get_organization_notes(response),
+    do: Process.put(:pd_stub_get_organization_notes, response)
+
+  def set_get_organization_activities(response),
+    do: Process.put(:pd_stub_get_organization_activities, response)
+
   def set_create_note(response), do: Process.put(:pd_stub_create_note, response)
 
   def reset do
-    [:pd_stub_list_organizations, :pd_stub_get_organization, :pd_stub_search_organizations,
-     :pd_stub_get_organization_deals, :pd_stub_get_deal, :pd_stub_get_organization_persons,
-     :pd_stub_get_organization_notes, :pd_stub_get_organization_activities, :pd_stub_create_note]
+    [
+      :pd_stub_list_organizations,
+      :pd_stub_get_organization,
+      :pd_stub_search_organizations,
+      :pd_stub_get_organization_deals,
+      :pd_stub_get_deal,
+      :pd_stub_get_organization_persons,
+      :pd_stub_get_organization_notes,
+      :pd_stub_get_organization_activities,
+      :pd_stub_create_note
+    ]
     |> Enum.each(&Process.delete/1)
   end
 end

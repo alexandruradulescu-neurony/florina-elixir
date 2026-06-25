@@ -66,6 +66,7 @@ defmodule Florina.Workers.SyncPendingCalls do
         Logger.warning(
           "[SyncPendingCalls] failed to fetch conversation #{ext_id}: #{inspect(reason)}"
         )
+
         :error
     end
   end
@@ -74,7 +75,9 @@ defmodule Florina.Workers.SyncPendingCalls do
     el_status = data["status"] || data["call_status"]
     transcript_raw = data["transcript"] || data["conversation_transcript"]
     transcript = format_transcript(transcript_raw)
-    summary = get_in(data, ["analysis", "transcript_summary"]) || get_in(data, ["analysis", "summary"])
+
+    summary =
+      get_in(data, ["analysis", "transcript_summary"]) || get_in(data, ["analysis", "summary"])
 
     new_status = map_el_status(el_status, transcript)
 
@@ -93,11 +96,21 @@ defmodule Florina.Workers.SyncPendingCalls do
   # Map ElevenLabs status strings to our CallStatus values
   defp map_el_status(status, transcript) do
     case to_string(status) |> String.upcase() do
-      "IN_PROGRESS" -> "IN_PROGRESS"
-      "RINGING" -> "IN_PROGRESS"
-      "FAILED" -> "FAILED"
-      "NO_ANSWER" -> "NO_ANSWER"
-      "DONE" -> "COMPLETED"
+      "IN_PROGRESS" ->
+        "IN_PROGRESS"
+
+      "RINGING" ->
+        "IN_PROGRESS"
+
+      "FAILED" ->
+        "FAILED"
+
+      "NO_ANSWER" ->
+        "NO_ANSWER"
+
+      "DONE" ->
+        "COMPLETED"
+
       _ ->
         if transcript not in [nil, ""], do: "COMPLETED", else: "FAILED"
     end

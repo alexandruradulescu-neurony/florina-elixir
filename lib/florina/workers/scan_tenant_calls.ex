@@ -65,7 +65,9 @@ defmodule Florina.Workers.ScanTenantCalls do
       |> TenantRepo.all()
 
     Enum.reduce(visits, 0, fn visit, acc ->
-      if phone_missing?(visit), do: acc, else: enqueue_pre_if_due(visit, now, half_window, tenant_slug, acc)
+      if phone_missing?(visit),
+        do: acc,
+        else: enqueue_pre_if_due(visit, now, half_window, tenant_slug, acc)
     end)
   end
 
@@ -79,6 +81,7 @@ defmodule Florina.Workers.ScanTenantCalls do
         Logger.info(
           "[ScanTenantCalls] visit=#{visit.id} PRE cap reached (#{total_dials}), skipping"
         )
+
         acc
       else
         enqueue_dial(visit.id, "PRE", tenant_slug)
@@ -103,7 +106,9 @@ defmodule Florina.Workers.ScanTenantCalls do
       |> TenantRepo.all()
 
     Enum.reduce(visits, 0, fn visit, acc ->
-      if phone_missing?(visit), do: acc, else: enqueue_post_if_due(visit, now, half_window, tenant_slug, acc)
+      if phone_missing?(visit),
+        do: acc,
+        else: enqueue_post_if_due(visit, now, half_window, tenant_slug, acc)
     end)
   end
 
@@ -117,6 +122,7 @@ defmodule Florina.Workers.ScanTenantCalls do
         Logger.info(
           "[ScanTenantCalls] visit=#{visit.id} POST cap reached (#{total_dials}), skipping"
         )
+
         acc
       else
         enqueue_dial(visit.id, "POST", tenant_slug)

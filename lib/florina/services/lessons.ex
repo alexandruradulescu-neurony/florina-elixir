@@ -40,14 +40,19 @@ defmodule Florina.Services.Lessons do
   the error). Returns `{:error, term}` only if the audit row itself cannot be
   persisted (database failure).
   """
-  def distill(%Client{} = client, new_post_call_summary, evaluation_outcome \\ "",
-              triggered_by \\ :END_OF_MEETING) do
+  def distill(
+        %Client{} = client,
+        new_post_call_summary,
+        evaluation_outcome \\ "",
+        triggered_by \\ :END_OF_MEETING
+      ) do
     domain = :LESSONS_DISTILL
     mega = Prompts.get_active(domain)
 
     if is_nil(mega) do
       error = "No active MegaPrompt for #{domain}"
       Logger.error("Lessons distiller aborted: #{error} (client=#{client.id})")
+
       record_run(%{
         visit_id: nil,
         client_id: client.id,
@@ -104,6 +109,7 @@ defmodule Florina.Services.Lessons do
       {:error, reason} ->
         error = "LLM call failed: #{inspect(reason)}"
         Logger.error("Lessons distill LLM error (client=#{client.id}): #{error}")
+
         record_run(%{
           visit_id: nil,
           client_id: client.id,
@@ -142,7 +148,9 @@ defmodule Florina.Services.Lessons do
           {:ok, new_lessons} ->
             # Update the client's lessons_learned
             case Clients.update(client, %{lessons_learned: new_lessons}) do
-              {:ok, _updated_client} -> :ok
+              {:ok, _updated_client} ->
+                :ok
+
               {:error, cs} ->
                 Logger.error("Lessons distill failed to save client: #{inspect(cs.errors)}")
             end

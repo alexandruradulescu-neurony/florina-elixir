@@ -22,7 +22,8 @@ defmodule FlorinaWeb.Plugs.ResolveTenant do
   def call(conn, _opts) do
     base = Application.get_env(:florina, :tenant_base_host, "localhost")
 
-    with slug when is_binary(slug) <- conn.path_params["tenant_slug"] || Subdomain.extract(conn.host, base),
+    with slug when is_binary(slug) <-
+           conn.path_params["tenant_slug"] || Subdomain.extract(conn.host, base),
          %Tenants.Tenant{active: true} = tenant <- Tenants.get_by_slug(slug),
          {:ok, pid} <- ConnectionManager.ensure_started(slug) do
       Florina.TenantRepo.put_dynamic_repo(pid)

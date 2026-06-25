@@ -55,7 +55,10 @@ defmodule Florina.Workers.DialCall do
   defp do_dial(visit, phase, _tenant_slug) do
     # Idempotency: skip if a blocking attempt already exists
     if active_attempt_exists?(visit.id, phase) do
-      Logger.info("[DialCall] visit=#{visit.id} phase=#{phase} already has active/completed attempt — skip")
+      Logger.info(
+        "[DialCall] visit=#{visit.id} phase=#{phase} already has active/completed attempt — skip"
+      )
+
       :ok
     else
       # Hard cap
@@ -182,7 +185,8 @@ defmodule Florina.Workers.DialCall do
   defp active_attempt_exists?(visit_id, phase) do
     TenantRepo.exists?(
       from ca in CallAttempt,
-        where: ca.visit_id == ^visit_id and ca.phase == ^phase and ca.status in ^@blocking_statuses
+        where:
+          ca.visit_id == ^visit_id and ca.phase == ^phase and ca.status in ^@blocking_statuses
     )
   end
 

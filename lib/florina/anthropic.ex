@@ -22,7 +22,8 @@ defmodule Florina.Anthropic do
   Options: `:model`, `:max_tokens`, `:system`.
   """
   @callback complete([map()], keyword()) ::
-              {:ok, %{text: String.t(), input_tokens: non_neg_integer, output_tokens: non_neg_integer}}
+              {:ok,
+               %{text: String.t(), input_tokens: non_neg_integer, output_tokens: non_neg_integer}}
               | {:error, term()}
 
   alias Florina.Anthropic.SSE

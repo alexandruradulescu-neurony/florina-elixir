@@ -44,9 +44,14 @@ defmodule Florina.Services.VisitPipeline do
         updated_visit =
           if run.success and visit.status == :PLANNED do
             case Visits.update(visit, %{status: :PRE_CALL_DONE}) do
-              {:ok, v} -> v
+              {:ok, v} ->
+                v
+
               {:error, cs} ->
-                Logger.warning("VisitPipeline: could not advance status to PRE_CALL_DONE: #{inspect(cs.errors)}")
+                Logger.warning(
+                  "VisitPipeline: could not advance status to PRE_CALL_DONE: #{inspect(cs.errors)}"
+                )
+
                 visit
             end
           else
@@ -80,9 +85,14 @@ defmodule Florina.Services.VisitPipeline do
         updated_visit =
           if run.success and visit.status in [:IN_PROGRESS, :PRE_CALL_DONE, :PLANNED] do
             case Visits.update(visit, %{status: :POST_CALL_DONE}) do
-              {:ok, v} -> v
+              {:ok, v} ->
+                v
+
               {:error, cs} ->
-                Logger.warning("VisitPipeline: could not advance status to POST_CALL_DONE: #{inspect(cs.errors)}")
+                Logger.warning(
+                  "VisitPipeline: could not advance status to POST_CALL_DONE: #{inspect(cs.errors)}"
+                )
+
                 visit
             end
           else
@@ -128,7 +138,9 @@ defmodule Florina.Services.VisitPipeline do
              "",
              :END_OF_MEETING
            ) do
-        {:ok, run} -> run
+        {:ok, run} ->
+          run
+
         {:error, reason} ->
           Logger.warning("VisitPipeline: lessons distill failed: #{inspect(reason)}")
           nil

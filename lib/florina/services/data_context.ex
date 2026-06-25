@@ -125,13 +125,17 @@ defmodule Florina.Services.DataContext do
 
     scenario_name =
       case visit do
-        %{scenario: %{name: n}} -> n
+        %{scenario: %{name: n}} ->
+          n
+
         %{scenario_id: id} when not is_nil(id) ->
           case TenantRepo.get(Florina.Scenarios.Scenario, id) do
             nil -> ""
             s -> s.name
           end
-        _ -> ""
+
+        _ ->
+          ""
       end
 
     raw = %{
