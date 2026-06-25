@@ -92,6 +92,21 @@ defmodule FlorinaWeb.Admin.TenantsLive do
      |> assign(:tenants, Tenants.list())}
   end
 
+  def handle_event("save_domains", %{"slug" => slug, "domains" => raw}, socket) do
+    domains = String.split(raw, [",", " ", "\n"], trim: true)
+
+    case Tenants.set_allowed_domains(slug, domains) do
+      {:ok, _} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, "Updated allowed domains for #{slug}.")
+         |> assign(:tenants, Tenants.list())}
+
+      {:error, _} ->
+        {:noreply, put_flash(socket, :error, "Could not update domains for #{slug}.")}
+    end
+  end
+
   def handle_event("retry", %{"slug" => slug}, socket) do
     case Tenants.get_by_slug(slug) do
       nil ->
@@ -147,6 +162,7 @@ defmodule FlorinaWeb.Admin.TenantsLive do
               <th class="px-4 py-3">Database</th>
               <th class="px-4 py-3">Status</th>
               <th class="px-4 py-3">Active</th>
+              <th class="px-4 py-3">Domains</th>
               <th class="px-4 py-3">Actions</th>
             </tr>
           </thead>
@@ -173,6 +189,19 @@ defmodule FlorinaWeb.Admin.TenantsLive do
                 ]}>
                   {if tenant.active, do: "yes", else: "no"}
                 </span>
+              </td>
+              <td class="px-4 py-3">
+                <form id={"domains-#{tenant.slug}"} phx-submit="save_domains" class="flex gap-1">
+                  <input type="hidden" name="slug" value={tenant.slug} />
+                  <input
+                    type="text"
+                    name="domains"
+                    value={Enum.join(tenant.allowed_email_domains || [], ", ")}
+                    placeholder="leadder.com, acme.io"
+                    class="border rounded px-2 py-1 text-xs font-mono w-48"
+                  />
+                  <button class="text-xs text-blue-600 hover:underline">Save</button>
+                </form>
               </td>
               <td class="px-4 py-3">
                 <button
@@ -204,7 +233,7 @@ defmodule FlorinaWeb.Admin.TenantsLive do
               </td>
             </tr>
             <tr :if={@tenants == []}>
-              <td colspan="6" class="px-4 py-6 text-center text-gray-400 text-sm">
+              <td colspan="7" class="px-4 py-6 text-center text-gray-400 text-sm">
                 No tenants yet.
               </td>
             </tr>
