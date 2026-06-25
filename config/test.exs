@@ -53,7 +53,8 @@ config :florina, :anthropic_api_key, "test-key"
 # External integration stubs — no real HTTP calls in tests
 config :florina,
   elevenlabs_client: Florina.Integrations.ElevenLabs.Stub,
-  google_calendar_client: Florina.Integrations.GoogleCalendar.Stub,
+  oauth_provider_google: Florina.Integrations.Providers.Stub,
+  oauth_provider_microsoft: Florina.Integrations.Providers.Stub,
   pipedrive_client: Florina.Integrations.Pipedrive.Stub
 
 # Placeholder keys — ensure config keys exist (stubs don't use them)
@@ -63,6 +64,8 @@ config :florina,
   elevenlabs_phone_number_id: nil,
   google_client_id: nil,
   google_client_secret: nil,
+  microsoft_client_id: nil,
+  microsoft_client_secret: nil,
   pipedrive_api_token: nil,
   pipedrive_domain: nil
 

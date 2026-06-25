@@ -1,6 +1,8 @@
 defmodule FlorinaWeb.Router do
   use FlorinaWeb, :router
 
+  import FlorinaWeb.AgentAuth, only: [fetch_current_agent: 2, require_authenticated_agent: 2]
+
   pipeline :browser do
     plug :accepts, ["html"]
     plug :fetch_session
@@ -30,6 +32,11 @@ defmodule FlorinaWeb.Router do
     plug FlorinaWeb.Plugs.ResolveTenant
   end
 
+  pipeline :agent_auth do
+    plug :fetch_current_agent
+    plug :require_authenticated_agent
+  end
+
   # Writes the resolved tenant's slug into the session so a LiveView's on_mount
   # hook can re-resolve it for the websocket connection. Only used on browser
   # routes (which fetch the session); never on the sessionless webhook.
@@ -57,19 +64,21 @@ defmodule FlorinaWeb.Router do
     get "/", PageController, :home
   end
 
+  # Per-tenant sign-in (no agent gate — these establish the session)
   scope "/t/:tenant_slug", FlorinaWeb do
-    pipe_through [:browser, :dashboard_auth, :resolve_tenant, :tenant_session]
-    live "/calls", CallsLive
-    live "/chat", TenantChatLive
-    # Operator-triggered: start the Google Calendar OAuth flow for an agent.
-    get "/calendar/connect", GoogleOAuthController, :connect
+    pipe_through [:browser, :resolve_tenant, :tenant_session]
+    get "/login", AuthController, :login
+    get "/auth/:provider/start", AuthController, :start
+    get "/auth/:provider/callback", AuthController, :callback
+    delete "/logout", AuthController, :logout
   end
 
-  # Google's redirect lands here — no Basic-Auth header sent by Google.
-  # Security is the signed Phoenix.Token in the `state` param (verified in the controller).
+  # Per-tenant agent pages (require an agent session)
   scope "/t/:tenant_slug", FlorinaWeb do
-    pipe_through [:browser, :resolve_tenant]
-    get "/calendar/callback", GoogleOAuthController, :callback
+    pipe_through [:browser, :resolve_tenant, :tenant_session, :agent_auth]
+    live "/calls", CallsLive
+    live "/chat", TenantChatLive
+    live "/calendar", CalendarLive
   end
 
   scope "/", FlorinaWeb do

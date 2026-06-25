@@ -55,4 +55,12 @@ defmodule Florina.Tenants do
         |> Repo.update()
     end
   end
+
+  @doc "Replace a tenant's allowed email-domain list."
+  def set_allowed_domains(slug, domains) when is_list(domains) do
+    case get_by_slug(slug) do
+      nil -> {:error, :not_found}
+      tenant -> tenant |> Tenant.changeset(%{allowed_email_domains: domains}) |> Repo.update()
+    end
+  end
 end

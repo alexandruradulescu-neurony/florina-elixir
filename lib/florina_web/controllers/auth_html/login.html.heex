@@ -1,0 +1,27 @@
+<div class="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+  <div class="w-full max-w-sm bg-white border rounded-lg p-8 shadow-sm">
+    <h1 class="text-xl font-semibold text-center">Sign in to Florina</h1>
+    <p class="text-sm text-gray-500 text-center mt-1 mb-6">{@tenant.name}</p>
+
+    <div :if={@error} class="mb-4 rounded bg-red-50 text-red-700 text-sm px-3 py-2">
+      {@error}
+    </div>
+
+    <a
+      href={~p"/t/#{@tenant.slug}/auth/google/start"}
+      class="flex items-center justify-center gap-2 w-full border rounded px-4 py-2 text-sm font-medium hover:bg-gray-50"
+    >
+      Sign in with Google
+    </a>
+    <a
+      href={~p"/t/#{@tenant.slug}/auth/microsoft/start"}
+      class="flex items-center justify-center gap-2 w-full border rounded px-4 py-2 text-sm font-medium hover:bg-gray-50 mt-3"
+    >
+      Sign in with Microsoft
+    </a>
+
+    <p class="text-xs text-gray-400 text-center mt-6">
+      Use your company email. Accounts are created automatically.
+    </p>
+  </div>
+</div>

@@ -1,25 +1,11 @@
 defmodule Florina.Calendar do
   @moduledoc """
-  Context for Google Calendar integration state: per-user OAuth credentials
-  (`voice_googleoauthcredential`) and push-notification watch channels
+  Context for Google Calendar push-notification watch channels
   (`voice_googlecalendarwatch`). Per-tenant.
   """
   import Ecto.Query
   alias Florina.TenantRepo
-  alias Florina.Calendar.{GoogleCalendarWatch, GoogleOauthCredential}
-
-  # --- OAuth credentials (one per user) -----------------------------------
-
-  def get_credential_for_user(user_id),
-    do: TenantRepo.get_by(GoogleOauthCredential, user_id: user_id)
-
-  def create_credential(attrs),
-    do: %GoogleOauthCredential{} |> GoogleOauthCredential.changeset(attrs) |> TenantRepo.insert()
-
-  def update_credential(%GoogleOauthCredential{} = cred, attrs),
-    do: cred |> GoogleOauthCredential.changeset(attrs) |> TenantRepo.update()
-
-  def delete_credential(%GoogleOauthCredential{} = cred), do: TenantRepo.delete(cred)
+  alias Florina.Calendar.GoogleCalendarWatch
 
   # --- Watch channels -----------------------------------------------------
 

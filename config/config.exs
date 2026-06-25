@@ -119,7 +119,8 @@ config :florina,
 # External integration clients (real impls; overridden to stubs in test.exs)
 config :florina,
   elevenlabs_client: Florina.Integrations.ElevenLabs,
-  google_calendar_client: Florina.Integrations.GoogleCalendar,
+  oauth_provider_google: Florina.Integrations.Providers.Google,
+  oauth_provider_microsoft: Florina.Integrations.Providers.Microsoft,
   pipedrive_client: Florina.Integrations.Pipedrive
 
 # ElevenLabs — global keys (set in runtime.exs for prod from env)
@@ -132,6 +133,15 @@ config :florina,
 config :florina,
   google_client_id: nil,
   google_client_secret: nil
+
+# Microsoft (Entra ID) OAuth — global client credentials (set in runtime.exs for prod).
+# Default audience is "organizations" (work/school accounts only) — personal
+# Microsoft accounts are excluded, so the email/UPN used by the sign-in gate is
+# always an org-controlled (DNS-verified) address. Override via MICROSOFT_TENANT.
+config :florina,
+  microsoft_client_id: nil,
+  microsoft_client_secret: nil,
+  microsoft_tenant: "organizations"
 
 # Pipedrive — global keys (set in runtime.exs for prod from env)
 config :florina,
