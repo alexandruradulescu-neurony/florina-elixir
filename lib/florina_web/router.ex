@@ -22,6 +22,10 @@ defmodule FlorinaWeb.Router do
     plug :basic_auth_dashboard
   end
 
+  pipeline :require_admin do
+    plug FlorinaWeb.Plugs.RequireAdmin
+  end
+
   pipeline :resolve_tenant do
     plug FlorinaWeb.Plugs.ResolveTenant
   end
@@ -63,8 +67,17 @@ defmodule FlorinaWeb.Router do
     live "/chat", ChatLive
   end
 
+  # Admin login / logout — browser only, no auth gate (these ARE the gate)
   scope "/admin", FlorinaWeb.Admin do
-    pipe_through [:browser, :dashboard_auth]
+    pipe_through [:browser]
+    get "/login", SessionController, :new
+    post "/login", SessionController, :create
+    delete "/logout", SessionController, :delete
+  end
+
+  # Protected operator admin area — requires a valid admin session
+  scope "/admin", FlorinaWeb.Admin do
+    pipe_through [:browser, :require_admin]
     live "/", IndexLive
     live "/tenants", TenantsLive
     live "/config", ConfigLive

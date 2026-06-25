@@ -47,6 +47,19 @@ defmodule Florina.Release do
     Florina.Tenants.Migrator.migrate_all()
   end
 
+  @doc """
+  Create an operator admin account in production. Run against the RUNNING release node:
+
+      bin/florina rpc 'Florina.Release.create_admin("admin@example.com", "s3cur3p@ss")'
+
+  Returns `{:ok, admin}` on success or `{:error, changeset}` if validation fails
+  (e.g. duplicate email, password too short).
+  """
+  def create_admin(email, password) do
+    load_app()
+    Florina.Admins.create_admin(%{email: email, password: password})
+  end
+
   defp repos do
     Application.fetch_env!(@app, :ecto_repos)
   end

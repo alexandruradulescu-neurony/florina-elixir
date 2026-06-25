@@ -6,6 +6,8 @@ defmodule FlorinaWeb.Admin.ConfigLive do
   """
   use FlorinaWeb, :live_view
 
+  on_mount FlorinaWeb.Admin.AdminAuth
+
   alias Florina.CentralConfig
 
   @impl true

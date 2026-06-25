@@ -1,0 +1,53 @@
+<div class="min-h-screen flex items-center justify-center bg-gray-50">
+  <div class="w-full max-w-sm">
+    <div class="bg-white border rounded-lg px-8 py-10 shadow-sm">
+      <h1 class="text-xl font-semibold text-gray-900 mb-2">Operator Login</h1>
+      <p class="text-sm text-gray-500 mb-6">Florina admin area</p>
+
+      <%= if @error do %>
+        <div class="mb-4 px-3 py-2 rounded bg-red-50 border border-red-200 text-sm text-red-700">
+          <%= @error %>
+        </div>
+      <% end %>
+
+      <form method="post" action={~p"/admin/login"} class="space-y-4">
+        <input type="hidden" name="_csrf_token" value={Phoenix.Controller.get_csrf_token()} />
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1" for="admin_email">
+            Email
+          </label>
+          <input
+            type="email"
+            id="admin_email"
+            name="admin[email]"
+            autocomplete="email"
+            required
+            class="w-full border rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1" for="admin_password">
+            Password
+          </label>
+          <input
+            type="password"
+            id="admin_password"
+            name="admin[password]"
+            autocomplete="current-password"
+            required
+            class="w-full border rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+        </div>
+
+        <button
+          type="submit"
+          class="w-full px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          Sign in
+        </button>
+      </form>
+    </div>
+  </div>
+</div>

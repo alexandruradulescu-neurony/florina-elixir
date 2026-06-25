@@ -25,7 +25,13 @@ defmodule Florina.Application do
     # See https://elixir.hexdocs.pm/Supervisor.html
     # for other strategies and supported options
     opts = [strategy: :one_for_one, name: Florina.Supervisor]
-    Supervisor.start_link(children, opts)
+    result = Supervisor.start_link(children, opts)
+
+    # If ADMIN_EMAIL + ADMIN_PASSWORD env vars are set and no admin row exists,
+    # seed the first operator account automatically. Runs after the repo is up.
+    Florina.Admins.ensure_seed_from_env()
+
+    result
   end
 
   # Tell Phoenix to update the endpoint configuration

@@ -7,6 +7,8 @@ defmodule FlorinaWeb.Admin.TenantsLive do
   """
   use FlorinaWeb, :live_view
 
+  on_mount FlorinaWeb.Admin.AdminAuth
+
   alias Florina.Tenants
   alias Florina.Workers.ProvisionTenant
 
