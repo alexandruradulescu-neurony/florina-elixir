@@ -190,6 +190,115 @@ defmodule Florina.Services.DataContext do
   end
 
   # ---------------------------------------------------------------------------
+  # Chat grounding context
+  # ---------------------------------------------------------------------------
+
+  @doc """
+  Assembles a bounded text summary of the current tenant's data suitable for
+  use as a system-prompt grounding string.
+
+  Must be called from a process that already has a TenantRepo pinned
+  (e.g. a LiveView that mounted via `FlorinaWeb.TenantHook`). Do NOT call this
+  from inside a spawned Task — build the context first in the pinned process,
+  then hand the resulting string to the Task.
+
+  Caps:
+  - clients: up to 20
+  - upcoming visits: up to 10
+  - recent calls: up to 5
+  """
+  def build_chat_context do
+    clients = list_clients_for_chat()
+    upcoming = list_upcoming_for_chat()
+    recent_calls = list_recent_calls_for_chat()
+
+    clients_text =
+      if clients == [] do
+        "No clients on record."
+      else
+        clients
+        |> Enum.map(fn c ->
+          status = c.status |> to_string()
+          "- #{c.name} (status: #{status})"
+        end)
+        |> Enum.join("\n")
+      end
+
+    visits_text =
+      if upcoming == [] do
+        "No upcoming visits scheduled."
+      else
+        upcoming
+        |> Enum.map(fn v ->
+          client_name = if v.client, do: v.client.name, else: "unknown client"
+          agent_name = if v.agent, do: v.agent.first_name || v.agent.username, else: "unknown agent"
+          dt = fmt_local_datetime(v.start_time)
+          "- #{dt}: \"#{v.title}\" with #{client_name} (agent: #{agent_name})"
+        end)
+        |> Enum.join("\n")
+      end
+
+    calls_text =
+      if recent_calls == [] do
+        "No recent calls on record."
+      else
+        recent_calls
+        |> Enum.map(fn ca ->
+          summary = (ca.summary || ca.summary_title || "(no summary)") |> String.slice(0, 200)
+          "- [#{ca.status}] #{summary}"
+        end)
+        |> Enum.join("\n")
+      end
+
+    """
+    You are an assistant for a sales manager. Use the information below to answer questions
+    about their clients, upcoming visits, and recent calls. Be concise and helpful.
+    If you don't know something that isn't in this data, say so.
+
+    ## Clients (up to 20)
+    #{clients_text}
+
+    ## Upcoming visits (next 10)
+    #{visits_text}
+
+    ## Recent calls (last 5)
+    #{calls_text}
+    """
+    |> String.trim()
+  end
+
+  defp list_clients_for_chat do
+    import Ecto.Query, only: [from: 2]
+
+    from(c in Client, order_by: :name, limit: 20)
+    |> TenantRepo.all()
+  end
+
+  defp list_upcoming_for_chat do
+    now = DateTime.utc_now()
+
+    import Ecto.Query, only: [from: 2]
+
+    from(v in Visit,
+      where: v.start_time > ^now,
+      preload: [:agent, :client],
+      order_by: [asc: :start_time],
+      limit: 10
+    )
+    |> TenantRepo.all()
+  end
+
+  defp list_recent_calls_for_chat do
+    import Ecto.Query, only: [from: 2]
+
+    from(ca in Florina.Calls.CallAttempt,
+      order_by: [desc: :updated_at],
+      limit: 5
+    )
+    |> TenantRepo.all()
+  end
+
+  # ---------------------------------------------------------------------------
   # Association helpers
   # ---------------------------------------------------------------------------
 

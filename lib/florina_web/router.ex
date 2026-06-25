@@ -60,6 +60,7 @@ defmodule FlorinaWeb.Router do
   scope "/t/:tenant_slug", FlorinaWeb do
     pipe_through [:browser, :dashboard_auth, :resolve_tenant, :tenant_session]
     live "/calls", CallsLive
+    live "/chat", TenantChatLive
   end
 
   scope "/", FlorinaWeb do
