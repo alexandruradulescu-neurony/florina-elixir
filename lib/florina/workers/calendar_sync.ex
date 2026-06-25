@@ -35,6 +35,7 @@ defmodule Florina.Workers.CalendarSync do
   alias Florina.Accounts
   alias Florina.OAuth
   alias Florina.Integrations.Provider
+  alias Florina.CalendarEvents
   alias Florina.Clients
   alias Florina.Visits
   alias Florina.Visits.Visit
@@ -83,6 +84,16 @@ defmodule Florina.Workers.CalendarSync do
       cred ->
         case Provider.for_credential(cred).list_events(cred, today_start, today_end) do
           {:ok, events} ->
+            Enum.each(events, fn ev ->
+              case CalendarEvents.upsert_event(agent.id, cred.provider, ev) do
+                {:ok, _} ->
+                  :ok
+
+                {:error, cs} ->
+                  Logger.warning("[CalendarSync] event upsert failed: #{inspect(cs.errors)}")
+              end
+            end)
+
             Enum.reduce(events, acc, fn event, a ->
               case process_event(agent, event) do
                 {:created, _} -> %{a | created: a.created + 1}

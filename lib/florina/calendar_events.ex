@@ -15,7 +15,7 @@ defmodule Florina.CalendarEvents do
       location: event[:location],
       start_time: trunc_dt(event.start_time),
       end_time: trunc_dt(event.end_time),
-      attendees: Enum.map(event[:attendees] || [], &%{"email" => &1}),
+      attendees: normalize_attendees(event[:attendees]),
       status: event[:status],
       raw: event[:raw],
       synced_at: now()
@@ -36,6 +36,16 @@ defmodule Florina.CalendarEvents do
     from(e in Event, where: e.start_time >= ^from and e.start_time <= ^to, order_by: e.start_time)
     |> TenantRepo.all()
     |> TenantRepo.preload(:user)
+  end
+
+  defp normalize_attendees(nil), do: []
+
+  defp normalize_attendees(list) when is_list(list) do
+    Enum.map(list, fn
+      email when is_binary(email) -> %{"email" => email}
+      %{} = m -> m
+      other -> %{"email" => to_string(other)}
+    end)
   end
 
   defp now, do: DateTime.utc_now() |> DateTime.truncate(:second)
