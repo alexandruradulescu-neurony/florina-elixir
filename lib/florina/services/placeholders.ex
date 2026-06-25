@@ -79,19 +79,38 @@ defmodule Florina.Services.Placeholders do
 
   def fence(_key, _value), do: ""
 
+  # Short, CRM-derived scalar identifiers (company name, industry) used inline in
+  # sentences — sentinel-fencing them reads awkwardly, but they're still
+  # attacker-influenced (Pipedrive), so we defang/flatten them instead of fencing.
+  @sanitized_keys ~w(client_name client_industry)a
+
   @doc """
-  Apply sentinel fences to the fields in `values` that contain untrusted text.
-  Non-fenced fields pass through unchanged.
+  Apply sentinel fences to the untrusted-text fields in `values`, and lightly
+  sanitize short CRM scalar fields. Other fields pass through unchanged.
   """
   def apply_fences(values) when is_map(values) do
     Map.new(values, fn {k, v} ->
-      if k in @fenced_keys and is_binary(v) do
-        {k, fence(k, v)}
-      else
-        {k, v}
+      cond do
+        k in @fenced_keys and is_binary(v) -> {k, fence(k, v)}
+        k in @sanitized_keys and is_binary(v) -> {k, sanitize_scalar(v)}
+        true -> {k, v}
       end
     end)
   end
+
+  @doc false
+  # Neutralize injection vectors in short inline identifiers without fencing:
+  # flatten control chars/newlines (so a value can't inject multi-line
+  # instructions), defang fence-close sequences, and cap length.
+  def sanitize_scalar(value) when is_binary(value) do
+    value
+    |> String.replace(~r/[\x00-\x1f\x7f]/, " ")
+    |> String.replace("</", "< /")
+    |> String.slice(0, 200)
+    |> String.trim()
+  end
+
+  def sanitize_scalar(value), do: value
 
   # ---------------------------------------------------------------------------
   # Render
