@@ -97,3 +97,14 @@ config :florina, :anthropic_api_key, System.get_env("ANTHROPIC_API_KEY")
 
 # Tenancy: requests like acme.localhost resolve the tenant "acme".
 config :florina, :tenant_base_host, "localhost"
+
+# Field-level encryption (Cloak). Fixed dev key — NOT used in production.
+# A 32-byte key encoded as base64: :crypto.strong_rand_bytes(32) |> Base.encode64()
+config :florina, Florina.Vault,
+  ciphers: [
+    default:
+      {Cloak.Ciphers.AES.GCM,
+       tag: "AES.GCM.V1",
+       key: Base.decode64!("KGQMP7DDM19f9+/66Cox8ER8pOfEEthN1czT+iNTmHE="),
+       iv_length: 12}
+  ]

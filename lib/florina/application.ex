@@ -9,6 +9,7 @@ defmodule Florina.Application do
   def start(_type, _args) do
     children = [
       FlorinaWeb.Telemetry,
+      Florina.Vault,
       Florina.Repo,
       Florina.Tenants.ConnectionManager,
       {DNSCluster, query: Application.get_env(:florina, :dns_cluster_query) || :ignore},
