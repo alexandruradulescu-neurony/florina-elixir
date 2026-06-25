@@ -90,6 +90,25 @@ defmodule FlorinaWeb.Admin.TenantsLive do
      |> assign(:tenants, Tenants.list())}
   end
 
+  def handle_event("retry", %{"slug" => slug}, socket) do
+    case Tenants.get_by_slug(slug) do
+      nil ->
+        {:noreply, put_flash(socket, :error, "Tenant #{slug} not found.")}
+
+      tenant ->
+        Tenants.set_status(slug, "provisioning")
+
+        %{"slug" => tenant.slug, "name" => tenant.name, "database" => tenant.database}
+        |> ProvisionTenant.new()
+        |> Oban.insert()
+
+        {:noreply,
+         socket
+         |> put_flash(:info, "Re-provisioning #{slug}…")
+         |> assign(:tenants, Tenants.list())}
+    end
+  end
+
   @impl true
   def render(assigns) do
     ~H"""
@@ -170,6 +189,15 @@ defmodule FlorinaWeb.Admin.TenantsLive do
                   class="text-xs text-green-600 hover:underline"
                 >
                   Activate
+                </button>
+                <button
+                  :if={tenant.status == "failed"}
+                  phx-click="retry"
+                  phx-value-slug={tenant.slug}
+                  class="text-xs text-blue-600 hover:underline ml-2"
+                  data-confirm={"Retry provisioning #{tenant.slug}?"}
+                >
+                  Retry
                 </button>
               </td>
             </tr>
