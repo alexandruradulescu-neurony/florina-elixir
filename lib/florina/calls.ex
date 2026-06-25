@@ -46,10 +46,31 @@ defmodule Florina.Calls do
 
         with {:ok, updated} <- ca |> CallAttempt.webhook_changeset(attrs) |> TenantRepo.update() do
           Phoenix.PubSub.broadcast(Florina.PubSub, topic(tenant_slug), {:call_updated, updated})
+          maybe_enqueue_post_completion(updated, tenant_slug)
           {:ok, updated}
         end
     end
   end
+
+  @doc """
+  Enqueue the post-call pipeline (lessons distillation + visit → COMPLETE) when a
+  POST-phase call has completed. Oban-unique per (call_attempt_id, tenant_slug),
+  so the webhook and the polling fallback (`SyncPendingCalls`) can't double-run
+  it. No-op for any other phase/status.
+  """
+  def maybe_enqueue_post_completion(
+        %CallAttempt{phase: "POST", status: "COMPLETED", id: id},
+        tenant_slug
+      )
+      when is_binary(tenant_slug) do
+    %{"call_attempt_id" => id, "tenant_slug" => tenant_slug}
+    |> Florina.Workers.PostCallCompletion.new()
+    |> Oban.insert()
+
+    :ok
+  end
+
+  def maybe_enqueue_post_completion(_call_attempt, _tenant_slug), do: :ok
 
   defp find_call(conversation_id, nil), do: get_by_external_id(conversation_id)
 

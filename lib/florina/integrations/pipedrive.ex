@@ -28,6 +28,11 @@ defmodule Florina.Integrations.Pipedrive do
   - `update_deal/2`, `create_deal/1` — write-side deal ops not needed yet.
   """
 
+  require Logger
+
+  # Runaway guard for organization pagination (50 * 100 = 5000 orgs/run).
+  @max_pages 50
+
   @callback list_organizations() :: {:ok, [map()]} | {:error, term()}
   @callback get_organization(String.t() | integer()) :: {:ok, map()} | {:error, term()}
   @callback search_organizations(String.t()) :: {:ok, [map()]} | {:error, term()}
@@ -112,7 +117,8 @@ defmodule Florina.Integrations.Pipedrive do
     with {:ok, base_url} <- base_url(),
          {:ok, token} <- api_token() do
       case Req.get("#{base_url}/organizations/search",
-             params: [term: term, fields: "name", api_token: token],
+             headers: auth_headers(token),
+             params: [term: term, fields: "name"],
              receive_timeout: 15_000
            ) do
         {:ok, %{status: 200, body: body}} ->
@@ -209,7 +215,7 @@ defmodule Florina.Integrations.Pipedrive do
         end)
 
       case Req.post("#{base_url}/notes",
-             params: [api_token: token],
+             headers: auth_headers(token),
              json: body,
              receive_timeout: 15_000
            ) do
@@ -253,9 +259,14 @@ defmodule Florina.Integrations.Pipedrive do
     end
   end
 
+  # Pipedrive accepts the API token via the `x-api-token` header (documented
+  # alternative to the `?api_token=` query param) — keeps the secret out of URLs,
+  # access logs, and request traces.
+  defp auth_headers(token), do: [{"x-api-token", token}]
+
   # Simple GET that auto-unwraps Pipedrive's `{success: true, data: ...}` envelope.
   defp pipedrive_get(url, token) do
-    case Req.get(url, params: [api_token: token], receive_timeout: 15_000) do
+    case Req.get(url, headers: auth_headers(token), receive_timeout: 15_000) do
       {:ok, %{status: 200, body: %{"success" => true, "data" => data}}} ->
         {:ok, data}
 
@@ -274,13 +285,24 @@ defmodule Florina.Integrations.Pipedrive do
   end
 
   # Paginated fetch for /organizations (and any list endpoint that uses start/limit).
+  # Capped at @max_pages as a runaway guard; the cap is logged, never silent.
   defp fetch_all_pages(url, token) do
-    fetch_page(url, token, 0, 100, [])
+    fetch_page(url, token, 0, 100, [], 0)
   end
 
-  defp fetch_page(url, token, start, limit, acc) do
+  defp fetch_page(_url, _token, _start, _limit, acc, page) when page >= @max_pages do
+    Logger.warning(
+      "[Pipedrive] organization pagination hit the #{@max_pages}-page cap " <>
+        "(#{length(acc)} fetched) — remaining orgs skipped this run"
+    )
+
+    {:ok, acc}
+  end
+
+  defp fetch_page(url, token, start, limit, acc, page) do
     case Req.get(url,
-           params: [api_token: token, start: start, limit: limit],
+           headers: auth_headers(token),
+           params: [start: start, limit: limit],
            receive_timeout: 30_000
          ) do
       {:ok, %{status: 200, body: body}} when is_map(body) ->
@@ -292,7 +314,7 @@ defmodule Florina.Integrations.Pipedrive do
             get_in(body, ["additional_data", "pagination", "more_items_in_collection"]) || false
 
           if more do
-            fetch_page(url, token, start + limit, limit, all)
+            fetch_page(url, token, start + limit, limit, all, page + 1)
           else
             {:ok, all}
           end

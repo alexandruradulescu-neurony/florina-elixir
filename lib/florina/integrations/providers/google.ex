@@ -76,26 +76,46 @@ defmodule Florina.Integrations.Providers.Google do
         timeMin: DateTime.to_iso8601(time_min),
         timeMax: DateTime.to_iso8601(time_max),
         singleEvents: true,
-        orderBy: "startTime"
+        orderBy: "startTime",
+        maxResults: 250
       }
 
-      case Req.get("#{@calendar_api}/calendars/primary/events",
-             headers: bearer(token),
-             params: params,
-             receive_timeout: 30_000
-           ) do
-        {:ok, %{status: 200, body: b}} ->
-          {:ok, b |> Map.get("items", []) |> Enum.map(&normalize/1) |> Enum.reject(&is_nil/1)}
+      fetch_pages(token, params, nil, [], 0)
+    end
+  end
 
-        {:ok, %{status: 401}} ->
-          {:error, :unauthorized}
+  # Follow Google Calendar's nextPageToken, accumulating events across pages.
+  # Capped at 20 pages (~5000 events) as a runaway guard.
+  defp fetch_pages(_token, _params, _page_token, acc, page) when page >= 20, do: {:ok, acc}
 
-        {:ok, %{status: s, body: b}} ->
-          {:error, {:http, s, b}}
+  defp fetch_pages(token, params, page_token, acc, page) do
+    params = if page_token, do: Map.put(params, :pageToken, page_token), else: params
 
-        {:error, r} ->
-          {:error, r}
-      end
+    case Req.get("#{@calendar_api}/calendars/primary/events",
+           headers: bearer(token),
+           params: params,
+           receive_timeout: 30_000
+         ) do
+      {:ok, %{status: 200, body: b}} ->
+        events = b |> Map.get("items", []) |> Enum.map(&normalize/1) |> Enum.reject(&is_nil/1)
+        acc = acc ++ events
+
+        case b["nextPageToken"] do
+          next when is_binary(next) and next != "" ->
+            fetch_pages(token, params, next, acc, page + 1)
+
+          _ ->
+            {:ok, acc}
+        end
+
+      {:ok, %{status: 401}} ->
+        {:error, :unauthorized}
+
+      {:ok, %{status: s, body: b}} ->
+        {:error, {:http, s, b}}
+
+      {:error, r} ->
+        {:error, r}
     end
   end
 

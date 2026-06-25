@@ -44,30 +44,46 @@ defmodule Florina.Workers.CalendarSync do
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"tenant_slug" => slug}}) do
-    Tenant.pin!(slug)
+    with :ok <- Tenant.pin_active(slug) do
+      agents = Accounts.list_agents()
+      {window_start, window_end} = sync_window(DateTime.utc_now())
 
-    agents = Accounts.list_agents()
-    now = DateTime.utc_now()
-    today_start = %{now | hour: 0, minute: 0, second: 0, microsecond: {0, 0}}
-    today_end = %{now | hour: 23, minute: 59, second: 59, microsecond: {0, 0}}
+      results =
+        Enum.map(agents, fn agent ->
+          {agent.username, sync_agent(agent, window_start, window_end)}
+        end)
 
-    results =
-      Enum.map(agents, fn agent ->
-        {agent.username, sync_agent(agent, today_start, today_end)}
-      end)
+      total_created = results |> Enum.map(fn {_, r} -> r.created end) |> Enum.sum()
+      total_updated = results |> Enum.map(fn {_, r} -> r.updated end) |> Enum.sum()
+      total_skipped = results |> Enum.map(fn {_, r} -> r.skipped end) |> Enum.sum()
+      total_errors = results |> Enum.flat_map(fn {_, r} -> r.errors end)
 
-    total_created = results |> Enum.map(fn {_, r} -> r.created end) |> Enum.sum()
-    total_updated = results |> Enum.map(fn {_, r} -> r.updated end) |> Enum.sum()
-    total_skipped = results |> Enum.map(fn {_, r} -> r.skipped end) |> Enum.sum()
-    total_errors = results |> Enum.flat_map(fn {_, r} -> r.errors end)
+      Logger.info(
+        "[CalendarSync] tenant=#{slug} created=#{total_created} updated=#{total_updated} " <>
+          "skipped=#{total_skipped} errors=#{length(total_errors)}"
+      )
 
-    Logger.info(
-      "[CalendarSync] tenant=#{slug} created=#{total_created} updated=#{total_updated} " <>
-        "skipped=#{total_skipped} errors=#{length(total_errors)}"
-    )
-
-    :ok
+      :ok
+    else
+      :skip ->
+        Logger.info("[CalendarSync] tenant=#{slug} not active — skipping")
+        :ok
+    end
   end
+
+  # Sync window: from start of yesterday (UTC) through +14 days ahead, so
+  # meetings created for upcoming days — and same-day meetings in tenants whose
+  # local day is ahead of/behind UTC — are picked up well before their call
+  # offsets fire. (Was previously only the current UTC day, which could miss
+  # meetings near the UTC midnight boundary or scheduled further out.)
+  defp sync_window(now) do
+    start = now |> DateTime.add(-1 * 86_400, :second) |> beginning_of_day()
+    finish = now |> DateTime.add(14 * 86_400, :second) |> end_of_day()
+    {start, finish}
+  end
+
+  defp beginning_of_day(dt), do: %{dt | hour: 0, minute: 0, second: 0, microsecond: {0, 0}}
+  defp end_of_day(dt), do: %{dt | hour: 23, minute: 59, second: 59, microsecond: {0, 0}}
 
   # ---------------------------------------------------------------------------
   # Per-agent sync

@@ -6,7 +6,7 @@ defmodule FlorinaWeb.TenantHook do
 
   def on_mount(:default, _params, session, socket) do
     with slug when is_binary(slug) <- session["tenant_slug"],
-         %Tenants.Tenant{active: true} = tenant <- Tenants.get_by_slug(slug),
+         %Tenants.Tenant{active: true, status: "active"} = tenant <- Tenants.get_by_slug(slug),
          {:ok, pid} <- ConnectionManager.ensure_started(slug) do
       Florina.TenantRepo.put_dynamic_repo(pid)
       {:cont, assign(socket, :tenant, tenant)}

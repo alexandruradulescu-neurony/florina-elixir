@@ -36,19 +36,23 @@ defmodule Florina.Workers.ScanTenantCalls do
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"tenant_slug" => slug}}) do
-    Tenant.pin!(slug)
+    with :ok <- Tenant.pin_active(slug) do
+      now = DateTime.utc_now()
+      half_window = div(@scheduler_window_minutes, 2)
 
-    now = DateTime.utc_now()
-    half_window = div(@scheduler_window_minutes, 2)
+      pre_enqueued = scan_pre_calls(now, half_window, slug)
+      post_enqueued = scan_post_calls(now, half_window, slug)
 
-    pre_enqueued = scan_pre_calls(now, half_window, slug)
-    post_enqueued = scan_post_calls(now, half_window, slug)
+      Logger.info(
+        "[ScanTenantCalls] tenant=#{slug} pre=#{pre_enqueued} post=#{post_enqueued} enqueued"
+      )
 
-    Logger.info(
-      "[ScanTenantCalls] tenant=#{slug} pre=#{pre_enqueued} post=#{post_enqueued} enqueued"
-    )
-
-    :ok
+      :ok
+    else
+      :skip ->
+        Logger.info("[ScanTenantCalls] tenant=#{slug} not active — skipping")
+        :ok
+    end
   end
 
   # ---------------------------------------------------------------------------

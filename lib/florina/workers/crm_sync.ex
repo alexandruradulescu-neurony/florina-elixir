@@ -18,21 +18,27 @@ defmodule Florina.Workers.CrmSync do
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"tenant_slug" => slug}}) do
-    Tenant.pin!(slug)
+    with :ok <- Tenant.pin_active(slug) do
+      case ClientSync.sync_all() do
+        {:ok, %{created: c, updated: u, errors: errors}} ->
+          Logger.info(
+            "[CrmSync] tenant=#{slug} created=#{c} updated=#{u} errors=#{length(errors)}"
+          )
 
-    case ClientSync.sync_all() do
-      {:ok, %{created: c, updated: u, errors: errors}} ->
-        Logger.info("[CrmSync] tenant=#{slug} created=#{c} updated=#{u} errors=#{length(errors)}")
+          if errors != [] do
+            Logger.warning("[CrmSync] tenant=#{slug} sync errors: #{inspect(errors)}")
+          end
 
-        if errors != [] do
-          Logger.warning("[CrmSync] tenant=#{slug} sync errors: #{inspect(errors)}")
-        end
+          :ok
 
+        {:error, reason} ->
+          Logger.error("[CrmSync] tenant=#{slug} sync failed: #{inspect(reason)}")
+          {:error, reason}
+      end
+    else
+      :skip ->
+        Logger.info("[CrmSync] tenant=#{slug} not active — skipping")
         :ok
-
-      {:error, reason} ->
-        Logger.error("[CrmSync] tenant=#{slug} sync failed: #{inspect(reason)}")
-        {:error, reason}
     end
   end
 end

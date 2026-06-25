@@ -16,6 +16,22 @@ defmodule Florina.Tenants do
   def get_by_slug(slug) when is_binary(slug), do: Repo.get_by(Tenant, slug: slug)
   def get_by_slug(_), do: nil
 
+  @doc """
+  True only if the tenant exists, is enabled (`active: true`) AND fully
+  provisioned (`status: "active"`). This is the gate for serving any request or
+  running any operational background job for a tenant — a `provisioning`/`failed`
+  tenant is never reachable even if `active` happens to be true. (Provisioning
+  itself uses `Workers.Tenant.pin!/1` directly, so it is exempt.)
+  """
+  def accessible?(slug) when is_binary(slug) do
+    case get_by_slug(slug) do
+      %Tenant{active: true, status: "active"} -> true
+      _ -> false
+    end
+  end
+
+  def accessible?(_), do: false
+
   @doc "Insert a tenant. Idempotent on slug: an existing slug is left unchanged."
   def register(attrs) do
     slug = attrs[:slug] || attrs["slug"]
