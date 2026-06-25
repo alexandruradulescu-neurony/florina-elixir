@@ -33,7 +33,6 @@ defmodule Florina.Calls.VoicePrompt do
     |> cast(attrs, @required_fields ++ @optional_fields)
     |> validate_required(@required_fields)
     |> validate_length(:name, max: 100)
-    |> validate_length(:prompt_type, max: 20)
     # DB enforces: only one active prompt per prompt_type (partial unique index)
     |> unique_constraint(:prompt_type,
       name: "unique_active_prompt",
