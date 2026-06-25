@@ -227,6 +227,19 @@ An internal pass surfaced these. They are **leads, not verdicts** — verify eac
 > - **[FIXED]** Per-tenant migrations on deploy — now auto-applied at boot in prod (`:migrate_tenants_on_boot`).
 >
 > **Still open (not yet addressed):** dev/test share a hardcoded Cloak key; CI does not run the test suite; the session cookie is signed but not encrypted; `oauth_credentials` needs a partial unique index for nullable `user_id` (Phase-2 mailbox).
+>
+> **Resolution status (2026-06-25, after the second external review round).** Fixed on
+> `develop` (commits `6520071`..`2bc21dd`, not yet deployed); `mix precommit` green (328 tests).
+> - **[FIXED]** Agent sessions are bound to their login tenant — `log_in_agent` stores a sticky `:agent_tenant_slug`; `AgentAuth.fetch_current_agent`/`on_mount` reject when it ≠ the pinned tenant (closes the cross-tenant session reuse).
+> - **[FIXED]** Boot tenant-migrations now run in a **blocking, fail-loud** supervised step (`Florina.Tenants.BootMigrator`) before Oban + the Endpoint, not an async Task that swallowed failures.
+> - **[FIXED]** Multi-provider calendar — `list_calendar_credentials_for_user/1` + per-credential sync (no more `MultipleResultsError`); visits carry a `:provider` column for per-provider event matching.
+> - **[FIXED]** OAuth token refresh is persisted (access token, expiry, and rotated refresh token) in `Provider.ensure_valid_token`.
+> - **[FIXED]** Pipedrive deal sort (`sort_deals/1`) no longer crashes on string `update_time`.
+> - **[FIXED]** `PostCallCompletion` uses `pin_active/1` (was `pin!/1`, bypassing the active-tenant gate).
+> - **[FIXED]** ElevenLabs webhook conv-id fallback is guarded so a mismatched `conversation_id` can't bind to the wrong call.
+> - **[FIXED]** Encrypt migration corruption — corrective migration + tested `GenerationRunReencryptor` re-encrypts any raw-cast plaintext rows (no-op on the empty tables every env had).
+> - **[FIXED]** `RawBodyReader` handles `{:more, …}`/`{:error, …}` (was a `MatchError` → 500 on oversized bodies).
+> - **[FIXED]** Agent LiveViews render `Layouts.flash_group` (flash + reconnect banners now show).
 
 **Auth / access control**
 - `GET /t/:slug/whoami` runs `[:browser, :resolve_tenant]` with **no auth** and returns tenant marker labels — confirm it's harmless/diagnostic and consider removing in prod.
