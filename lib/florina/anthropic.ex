@@ -68,6 +68,8 @@ defmodule Florina.Anthropic do
             {"content-type", "application/json"}
           ],
           json: body,
+          receive_timeout: 120_000,
+          connect_options: [timeout: 15_000],
           into: fn {:data, data}, {req, resp} ->
             buffer = (resp.private[:sse_buf] || "") <> data
             {deltas, rest} = SSE.parse(buffer)
@@ -118,7 +120,9 @@ defmodule Florina.Anthropic do
                {"anthropic-version", @version},
                {"content-type", "application/json"}
              ],
-             json: body
+             json: body,
+             receive_timeout: 120_000,
+             connect_options: [timeout: 15_000]
            ) do
         {:ok, %{status: 200, body: %{"content" => [%{"text" => text} | _], "usage" => usage}}} ->
           {:ok,
