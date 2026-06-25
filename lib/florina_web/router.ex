@@ -88,6 +88,10 @@ defmodule FlorinaWeb.Router do
     live "/manage/dashboard", Manage.DashboardLive
     live "/manage/meetings", Manage.MeetingsLive
     live "/manage/meetings/:id", Manage.MeetingLive
+    live "/manage/clients", Manage.ClientsLive
+    live "/manage/clients/:id", Manage.ClientLive
+    live "/manage/agents", Manage.AgentsLive
+    live "/manage/methodologies", Manage.MethodologiesLive
   end
 
   scope "/", FlorinaWeb do

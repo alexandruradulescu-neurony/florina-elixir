@@ -59,10 +59,9 @@ defmodule Florina.Methodologies do
   Returns `{:ok, methodology}` or `{:error, changeset}`.
   """
   def create(attrs \\ %{}) do
-    attrs = Map.put(attrs, :is_overridden, true)
-
     %Methodology{}
     |> Methodology.changeset(attrs)
+    |> Ecto.Changeset.put_change(:is_overridden, true)
     |> TenantRepo.insert()
   end
 
@@ -75,10 +74,9 @@ defmodule Florina.Methodologies do
   Returns `{:ok, methodology}` or `{:error, changeset}`.
   """
   def update(%Methodology{} = methodology, attrs) do
-    attrs = Map.put(attrs, :is_overridden, true)
-
     methodology
     |> Methodology.changeset(attrs)
+    |> Ecto.Changeset.put_change(:is_overridden, true)
     |> TenantRepo.update()
   end
 

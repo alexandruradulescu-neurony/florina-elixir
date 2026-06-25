@@ -205,6 +205,24 @@ defmodule FlorinaWeb.Layouts do
                 href={"/t/#{@tenant.slug}/manage/meetings"}
                 active={@active == :meetings}
               />
+              <.nav_item
+                label="Clients"
+                icon="hero-building-office-2"
+                href={"/t/#{@tenant.slug}/manage/clients"}
+                active={@active == :clients}
+              />
+              <.nav_item
+                label="People"
+                icon="hero-users"
+                href={"/t/#{@tenant.slug}/manage/agents"}
+                active={@active == :agents}
+              />
+              <.nav_item
+                label="Methodologies"
+                icon="hero-academic-cap"
+                href={"/t/#{@tenant.slug}/manage/methodologies"}
+                active={@active == :methodologies}
+              />
             </ul>
           </li>
         </ul>
