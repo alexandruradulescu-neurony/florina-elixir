@@ -2,6 +2,8 @@ defmodule FlorinaWeb.Admin.IndexLive do
   @moduledoc "Admin root — just links to the two sub-pages."
   use FlorinaWeb, :live_view
 
+  on_mount FlorinaWeb.Admin.AdminAuth
+
   @impl true
   def mount(_params, _session, socket), do: {:ok, socket}
 

@@ -28,6 +28,21 @@ config :florina, FlorinaWeb.Endpoint,
   http: [port: String.to_integer(System.get_env("PORT", "4000"))]
 
 if config_env() == :prod do
+  field_encryption_key =
+    System.get_env("FIELD_ENCRYPTION_KEY") ||
+      raise """
+      environment variable FIELD_ENCRYPTION_KEY is missing.
+      Generate one with: :crypto.strong_rand_bytes(32) |> Base.encode64()
+      then set it in your deployment environment (e.g. Railway).
+      """
+
+  config :florina, Florina.Vault,
+    ciphers: [
+      default:
+        {Cloak.Ciphers.AES.GCM,
+         tag: "AES.GCM.V1", key: Base.decode64!(field_encryption_key), iv_length: 12}
+    ]
+
   config :florina, :anthropic_api_key, System.get_env("ANTHROPIC_API_KEY")
 
   # ElevenLabs outbound calling

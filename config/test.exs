@@ -67,3 +67,13 @@ config :florina,
   pipedrive_domain: nil
 
 config :florina, :tenant_base_host, "localhost"
+
+# Field-level encryption (Cloak). Fixed test key — NOT used in production.
+config :florina, Florina.Vault,
+  ciphers: [
+    default:
+      {Cloak.Ciphers.AES.GCM,
+       tag: "AES.GCM.V1",
+       key: Base.decode64!("KGQMP7DDM19f9+/66Cox8ER8pOfEEthN1czT+iNTmHE="),
+       iv_length: 12}
+  ]

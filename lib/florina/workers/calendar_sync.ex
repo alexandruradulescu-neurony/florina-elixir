@@ -198,6 +198,10 @@ defmodule Florina.Workers.CalendarSync do
     end
   end
 
+  # Resolves the most recent open CRM deal for the given client.
+  # Called only when CREATING a new visit — not on re-syncs of existing visits —
+  # to avoid hammering Pipedrive on every calendar sync cycle.
+  # Returns a deal ID string, or nil if none found / any error occurs.
   defp resolve_crm_deal(client) do
     if is_nil(client.crm_id) or client.crm_id == "" do
       nil
@@ -205,12 +209,32 @@ defmodule Florina.Workers.CalendarSync do
       pd = Application.get_env(:florina, :pipedrive_client, Florina.Integrations.Pipedrive)
 
       case pd.do_get_organization_deals(client.crm_id) do
-        {:ok, [%{"id" => deal_id} | _]} -> to_string(deal_id)
-        _ -> nil
+        {:ok, deals} when is_list(deals) ->
+          # Prefer an open deal; fall back to the most-recent deal of any status.
+          # The Pipedrive impl already sorts open/won first, then by update_time desc.
+          open_deal = Enum.find(deals, fn d -> d["status"] == "open" end)
+          best = open_deal || List.first(deals)
+
+          case best do
+            %{"id" => deal_id} -> to_string(deal_id)
+            _ -> nil
+          end
+
+        {:error, reason} ->
+          Logger.warning(
+            "[CalendarSync] resolve_crm_deal failed for client=#{client.name}: #{inspect(reason)}"
+          )
+
+          nil
+
+        _ ->
+          nil
       end
     end
   rescue
-    _ -> nil
+    e ->
+      Logger.warning("[CalendarSync] resolve_crm_deal error: #{Exception.message(e)}")
+      nil
   end
 
   defp maybe_change(map, old, new, key) when old != new, do: Map.put(map, key, new)

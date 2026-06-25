@@ -43,6 +43,20 @@ defmodule Florina.Integrations.GoogleCalendar.Stub do
     Process.get(:gcal_stub_refresh_token, default)
   end
 
+  def do_exchange_code(_code, _redirect_uri) do
+    default =
+      {:ok,
+       %{
+         access_token: "stub_access_token",
+         refresh_token: "stub_refresh_token",
+         expires_in: 3600,
+         scope: "https://www.googleapis.com/auth/calendar.readonly",
+         token_type: "Bearer"
+       }}
+
+    Process.get(:gcal_stub_exchange_code, default)
+  end
+
   # ---------------------------------------------------------------------------
   # Helpers for tests
   # ---------------------------------------------------------------------------
@@ -51,11 +65,13 @@ defmodule Florina.Integrations.GoogleCalendar.Stub do
   def set_create_watch(response), do: Process.put(:gcal_stub_create_watch, response)
   def set_stop_watch(response), do: Process.put(:gcal_stub_stop_watch, response)
   def set_refresh_token(response), do: Process.put(:gcal_stub_refresh_token, response)
+  def set_exchange_code(response), do: Process.put(:gcal_stub_exchange_code, response)
 
   def reset do
     Process.delete(:gcal_stub_list_events)
     Process.delete(:gcal_stub_create_watch)
     Process.delete(:gcal_stub_stop_watch)
     Process.delete(:gcal_stub_refresh_token)
+    Process.delete(:gcal_stub_exchange_code)
   end
 end

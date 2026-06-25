@@ -45,6 +45,17 @@ defmodule Florina.Integrations.GoogleCalendar do
               {:ok, %{access_token: String.t(), expires_at: DateTime.t() | nil}}
               | {:error, term()}
 
+  @callback exchange_code(String.t(), String.t()) ::
+              {:ok,
+               %{
+                 access_token: String.t(),
+                 refresh_token: String.t(),
+                 expires_in: integer() | nil,
+                 scope: String.t(),
+                 token_type: String.t()
+               }}
+              | {:error, term()}
+
   # ---------------------------------------------------------------------------
   # Resolve the configured implementation
   # ---------------------------------------------------------------------------
@@ -87,6 +98,14 @@ defmodule Florina.Integrations.GoogleCalendar do
 
   @doc "Refresh an expired OAuth access token. Returns the new access token and expiry."
   def refresh_token(cred), do: impl().do_refresh_token(cred)
+
+  @doc """
+  Exchange an authorization code for OAuth tokens.
+
+  Called during the OAuth callback after the user grants consent.
+  Returns the access token, refresh token, expiry, scope, and token type.
+  """
+  def exchange_code(code, redirect_uri), do: impl().do_exchange_code(code, redirect_uri)
 
   # ---------------------------------------------------------------------------
   # Real implementation (called via do_* wrappers to avoid name collision with
@@ -228,6 +247,40 @@ defmodule Florina.Integrations.GoogleCalendar do
   end
 
   def do_refresh_token(_cred), do: {:error, :no_refresh_token}
+
+  @doc false
+  def do_exchange_code(code, redirect_uri) when is_binary(code) and is_binary(redirect_uri) do
+    client_id = Application.get_env(:florina, :google_client_id, "")
+    client_secret = Application.get_env(:florina, :google_client_secret, "")
+
+    form = %{
+      "grant_type" => "authorization_code",
+      "code" => code,
+      "redirect_uri" => redirect_uri,
+      "client_id" => client_id,
+      "client_secret" => client_secret
+    }
+
+    case Req.post(@token_uri, form: form, receive_timeout: 15_000) do
+      {:ok, %{status: 200, body: resp}} ->
+        {:ok,
+         %{
+           access_token: resp["access_token"],
+           refresh_token: resp["refresh_token"],
+           expires_in: resp["expires_in"],
+           scope: resp["scope"] || "",
+           token_type: resp["token_type"] || "Bearer"
+         }}
+
+      {:ok, %{status: status, body: body}} ->
+        {:error, {:http, status, body}}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  def do_exchange_code(_code, _redirect_uri), do: {:error, :invalid_args}
 
   # ---------------------------------------------------------------------------
   # Private helpers

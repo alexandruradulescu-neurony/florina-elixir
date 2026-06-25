@@ -6,9 +6,13 @@ defmodule Florina.Prompts.GenerationRun do
 
   Fields context_bundle, claude_request, claude_response, parsed_outputs, error
   carry PII (transcripts, manager notes, CRM history, generated prompts) and are
-  encrypted at rest in Django via Fernet. For now they are stored as plain
-  `:text`/`:map` columns.
-  # TODO: encrypt at rest (Cloak) — same fields as GoogleOauthCredential secrets.
+  encrypted at rest using Cloak (AES-GCM-256 via Florina.Vault). They are stored
+  as :binary (bytea) columns in PostgreSQL and decrypted transparently on read.
+
+  Note on defaults: Cloak.Ecto types validate defaults at schema load time, which
+  requires the vault process to be running. Defaults for encrypted fields are
+  therefore applied in the changeset via put_change/3 rather than inline in the
+  schema definition.
 
   Table: `voice_generationrun`
   """
@@ -28,19 +32,17 @@ defmodule Florina.Prompts.GenerationRun do
     field :domain, Ecto.Enum, values: Enums.mega_prompt_domain_values()
     field :triggered_by, Ecto.Enum, values: Enums.triggered_by_values()
 
-    # TODO: encrypt at rest (Cloak)
-    field :context_bundle, :map, default: %{}
-    # TODO: encrypt at rest (Cloak)
-    field :claude_request, :string, default: ""
-    # TODO: encrypt at rest (Cloak)
-    field :claude_response, :string, default: ""
-    # TODO: encrypt at rest (Cloak)
-    field :parsed_outputs, :map, default: %{}
+    # Encrypted fields — no schema-level default (Cloak validates defaults at
+    # compile time against a running vault; defaults are set in the changeset).
+    field :context_bundle, Florina.Encrypted.Map
+    field :claude_request, Florina.Encrypted.Binary
+    field :claude_response, Florina.Encrypted.Binary
+    field :parsed_outputs, Florina.Encrypted.Map
+    field :error, Florina.Encrypted.Binary
+
     field :input_tokens, :integer, default: 0
     field :output_tokens, :integer, default: 0
     field :success, :boolean, default: false
-    # TODO: encrypt at rest (Cloak)
-    field :error, :string, default: ""
 
     field :created_at, :utc_datetime, autogenerate: false
   end
@@ -67,9 +69,28 @@ defmodule Florina.Prompts.GenerationRun do
     run
     |> cast(attrs, @required_fields ++ @optional_fields)
     |> validate_required(@required_fields)
+    |> put_encrypted_defaults()
     |> foreign_key_constraint(:visit_id)
     |> foreign_key_constraint(:client_id)
     |> foreign_key_constraint(:mega_prompt_id)
     |> foreign_key_constraint(:created_by_id)
+  end
+
+  # Apply defaults for encrypted fields only when the field is nil after cast.
+  # This mirrors the schema-level defaults the original non-encrypted fields had.
+  defp put_encrypted_defaults(changeset) do
+    changeset
+    |> put_default(:context_bundle, %{})
+    |> put_default(:claude_request, "")
+    |> put_default(:claude_response, "")
+    |> put_default(:parsed_outputs, %{})
+    |> put_default(:error, "")
+  end
+
+  defp put_default(changeset, field, default) do
+    case get_field(changeset, field) do
+      nil -> put_change(changeset, field, default)
+      _ -> changeset
+    end
   end
 end

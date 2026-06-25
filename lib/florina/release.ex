@@ -31,6 +31,35 @@ defmodule Florina.Release do
     Florina.Tenants.Provisioner.provision(%{slug: slug, name: name, database: database})
   end
 
+  @doc """
+  Apply any pending per-tenant migrations to ALL already-provisioned tenants.
+
+  Run after deploying a release that adds new tenant migrations (e.g. the
+  encrypt_sensitive_fields migration that converts text/jsonb columns to bytea):
+
+      bin/florina rpc 'Florina.Release.migrate_tenants()'
+
+  This is equivalent to running `Florina.Tenants.Migrator.migrate_all/0` and
+  is safe to call multiple times (Ecto's migrator is idempotent).
+  """
+  def migrate_tenants do
+    load_app()
+    Florina.Tenants.Migrator.migrate_all()
+  end
+
+  @doc """
+  Create an operator admin account in production. Run against the RUNNING release node:
+
+      bin/florina rpc 'Florina.Release.create_admin("admin@example.com", "s3cur3p@ss")'
+
+  Returns `{:ok, admin}` on success or `{:error, changeset}` if validation fails
+  (e.g. duplicate email, password too short).
+  """
+  def create_admin(email, password) do
+    load_app()
+    Florina.Admins.create_admin(%{email: email, password: password})
+  end
+
   defp repos do
     Application.fetch_env!(@app, :ecto_repos)
   end

@@ -2,9 +2,9 @@ defmodule Florina.Calendar.GoogleOauthCredential do
   @moduledoc """
   Stores Google OAuth credentials for users to enable background calendar sync.
 
-  `token`, `refresh_token`, and `client_secret` are stored as plain `:text`
-  for now. They carry sensitive secrets and should be encrypted at rest.
-  # TODO: encrypt at rest (Cloak) — token, refresh_token, client_secret fields.
+  `token`, `refresh_token`, and `client_secret` are encrypted at rest using
+  Cloak (AES-GCM-256 via Florina.Vault). They are stored as :binary (bytea)
+  columns in PostgreSQL and decrypted transparently on read.
 
   Table: `voice_googleoauthcredential`
   """
@@ -16,14 +16,11 @@ defmodule Florina.Calendar.GoogleOauthCredential do
   schema "voice_googleoauthcredential" do
     belongs_to :user, Florina.Accounts.User
 
-    # TODO: encrypt at rest (Cloak)
-    field :token, :string
-    # TODO: encrypt at rest (Cloak)
-    field :refresh_token, :string
+    field :token, Florina.Encrypted.Binary
+    field :refresh_token, Florina.Encrypted.Binary
     field :token_uri, :string, default: "https://oauth2.googleapis.com/token"
     field :client_id, :string
-    # TODO: encrypt at rest (Cloak)
-    field :client_secret, :string
+    field :client_secret, Florina.Encrypted.Binary
     field :scopes, {:array, :string}, default: []
     field :expires_at, :utc_datetime
 
