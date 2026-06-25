@@ -185,7 +185,13 @@ defmodule FlorinaWeb.Admin.TenantsLive do
       <%!-- Add tenant form --%>
       <div class="border rounded-lg p-6 max-w-lg">
         <h2 class="text-lg font-medium mb-4">Add tenant</h2>
-        <.form for={@form} id="add-tenant-form" phx-submit="add_tenant" phx-change="validate" class="space-y-4">
+        <.form
+          for={@form}
+          id="add-tenant-form"
+          phx-submit="add_tenant"
+          phx-change="validate"
+          class="space-y-4"
+        >
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Display name</label>
             <input

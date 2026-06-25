@@ -23,7 +23,8 @@ defmodule Florina.Tenants do
   end
 
   @doc "Set the status of a tenant (provisioning | active | failed)."
-  def set_status(slug, status) when is_binary(slug) and status in ~w(provisioning active failed) do
+  def set_status(slug, status)
+      when is_binary(slug) and status in ~w(provisioning active failed) do
     case get_by_slug(slug) do
       nil ->
         {:error, :not_found}

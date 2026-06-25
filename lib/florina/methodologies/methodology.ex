@@ -27,7 +27,14 @@ defmodule Florina.Methodologies.Methodology do
   end
 
   @required_fields [:name]
-  @optional_fields [:description, :source_material, :ai_summary, :is_active, :is_overridden, :created_by_id]
+  @optional_fields [
+    :description,
+    :source_material,
+    :ai_summary,
+    :is_active,
+    :is_overridden,
+    :created_by_id
+  ]
 
   @doc "Changeset for creating/updating a methodology."
   def changeset(methodology, attrs) do

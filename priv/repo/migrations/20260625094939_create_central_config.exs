@@ -110,6 +110,7 @@ defmodule Florina.Repo.Migrations.CreateCentralConfig do
       add :post_call_offset_minutes, :integer, null: false, default: 15
       add :retry_interval_minutes, :integer, null: false, default: 5
       add :max_context_tokens_warn, :integer, null: false, default: 50_000
+
       add :default_methodology_id,
           references(:voice_methodology, on_delete: :nilify_all),
           null: true

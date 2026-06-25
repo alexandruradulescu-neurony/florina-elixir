@@ -30,8 +30,7 @@ defmodule FlorinaWeb.Admin.ConfigLive do
         {:noreply, put_flash(socket, :info, "Config published to all active tenants.")}
 
       {:error, reason} ->
-        {:noreply,
-         put_flash(socket, :error, "Publish failed: #{inspect(reason)}")}
+        {:noreply, put_flash(socket, :error, "Publish failed: #{inspect(reason)}")}
     end
   end
 
@@ -108,7 +107,11 @@ defmodule FlorinaWeb.Admin.ConfigLive do
 
     form =
       to_form(
-        %{"name" => m.name, "description" => m.description, "source_material" => m.source_material},
+        %{
+          "name" => m.name,
+          "description" => m.description,
+          "source_material" => m.source_material
+        },
         as: :methodology
       )
 

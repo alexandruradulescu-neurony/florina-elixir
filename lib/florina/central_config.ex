@@ -400,9 +400,16 @@ defmodule Florina.CentralConfig do
       }
 
       TenantRepo.insert_all(TenantGlobalSettings, [row],
-        on_conflict: {:replace, [:pre_call_offset_minutes, :post_call_offset_minutes,
-                                  :retry_interval_minutes, :max_context_tokens_warn,
-                                  :default_methodology_id, :updated_at]},
+        on_conflict:
+          {:replace,
+           [
+             :pre_call_offset_minutes,
+             :post_call_offset_minutes,
+             :retry_interval_minutes,
+             :max_context_tokens_warn,
+             :default_methodology_id,
+             :updated_at
+           ]},
         conflict_target: :id
       )
     end
@@ -451,5 +458,4 @@ defmodule Florina.CentralConfig do
 
     :ok
   end
-
 end
