@@ -24,7 +24,7 @@ defmodule FlorinaWeb.Plugs.ResolveTenant do
 
     with slug when is_binary(slug) <-
            conn.path_params["tenant_slug"] || Subdomain.extract(conn.host, base),
-         %Tenants.Tenant{active: true} = tenant <- Tenants.get_by_slug(slug),
+         %Tenants.Tenant{active: true, status: "active"} = tenant <- Tenants.get_by_slug(slug),
          {:ok, pid} <- ConnectionManager.ensure_started(slug) do
       Florina.TenantRepo.put_dynamic_repo(pid)
       assign(conn, :tenant, tenant)

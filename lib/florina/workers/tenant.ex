@@ -26,4 +26,22 @@ defmodule Florina.Workers.Tenant do
         raise "Workers.Tenant.pin!/1 — could not start tenant #{inspect(slug)}: #{inspect(reason)}"
     end
   end
+
+  @doc """
+  For operational (non-provisioning) workers: pin the tenant ONLY if it is
+  currently accessible (`Tenants.accessible?/1` — `active: true` AND
+  `status: "active"`). Returns `:ok` when pinned, or `:skip` when the tenant is
+  no longer accessible (e.g. deactivated/failed between job enqueue and
+  execution) so the worker can no-op instead of acting on a disabled tenant.
+  Raises only if an accessible tenant's pool cannot start (genuine infra
+  failure → Oban retry). Provisioning uses `pin!/1` directly and is exempt.
+  """
+  def pin_active(slug) when is_binary(slug) do
+    if Florina.Tenants.accessible?(slug) do
+      pin!(slug)
+      :ok
+    else
+      :skip
+    end
+  end
 end

@@ -39,16 +39,20 @@ defmodule Florina.Workers.DialCall do
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"visit_id" => visit_id, "phase" => phase, "tenant_slug" => slug}}) do
-    Tenant.pin!(slug)
+    with :ok <- Tenant.pin_active(slug) do
+      case TenantRepo.get(Visit, visit_id) do
+        nil ->
+          Logger.warning("[DialCall] visit #{visit_id} not found — discarding job")
+          :ok
 
-    case TenantRepo.get(Visit, visit_id) do
-      nil ->
-        Logger.warning("[DialCall] visit #{visit_id} not found — discarding job")
+        visit ->
+          visit = TenantRepo.preload(visit, [:agent, :client])
+          do_dial(visit, phase, slug)
+      end
+    else
+      :skip ->
+        Logger.info("[DialCall] tenant=#{slug} not active — skipping")
         :ok
-
-      visit ->
-        visit = TenantRepo.preload(visit, [:agent, :client])
-        do_dial(visit, phase, slug)
     end
   end
 

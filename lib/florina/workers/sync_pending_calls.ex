@@ -26,32 +26,36 @@ defmodule Florina.Workers.SyncPendingCalls do
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"tenant_slug" => slug}}) do
-    Tenant.pin!(slug)
+    with :ok <- Tenant.pin_active(slug) do
+      cutoff = DateTime.add(DateTime.utc_now(), -@cutoff_minutes * 60, :second)
 
-    cutoff = DateTime.add(DateTime.utc_now(), -@cutoff_minutes * 60, :second)
+      pending =
+        from(ca in CallAttempt,
+          where:
+            ca.status in ^@pending_statuses and
+              not is_nil(ca.external_call_id) and
+              ca.updated_at < ^cutoff
+        )
+        |> TenantRepo.all()
 
-    pending =
-      from(ca in CallAttempt,
-        where:
-          ca.status in ^@pending_statuses and
-            not is_nil(ca.external_call_id) and
-            ca.updated_at < ^cutoff
+      synced =
+        Enum.reduce(pending, 0, fn ca, acc ->
+          case sync_one(ca) do
+            :synced -> acc + 1
+            _other -> acc
+          end
+        end)
+
+      Logger.info(
+        "[SyncPendingCalls] tenant=#{slug} synced=#{synced} of #{length(pending)} pending"
       )
-      |> TenantRepo.all()
 
-    synced =
-      Enum.reduce(pending, 0, fn ca, acc ->
-        case sync_one(ca) do
-          :synced -> acc + 1
-          _other -> acc
-        end
-      end)
-
-    Logger.info(
-      "[SyncPendingCalls] tenant=#{slug} synced=#{synced} of #{length(pending)} pending"
-    )
-
-    :ok
+      :ok
+    else
+      :skip ->
+        Logger.info("[SyncPendingCalls] tenant=#{slug} not active — skipping")
+        :ok
+    end
   end
 
   defp sync_one(%CallAttempt{external_call_id: ext_id} = ca) do
