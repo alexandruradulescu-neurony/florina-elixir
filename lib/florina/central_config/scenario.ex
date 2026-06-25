@@ -1,8 +1,10 @@
-defmodule Florina.Scenarios.Scenario do
+defmodule Florina.CentralConfig.Scenario do
   @moduledoc """
-  Visit scenario type (discovery / follow-up / closing / debrief / other).
+  Canonical (control-plane) copy of a scenario.
 
-  Table: `voice_scenario`
+  Lives in the main `Florina.Repo` database — not per-tenant.
+
+  Table: `voice_scenario` (in the control-plane DB)
   """
   use Ecto.Schema
   import Ecto.Changeset
@@ -14,15 +16,13 @@ defmodule Florina.Scenarios.Scenario do
     field :slug, :string
     field :description, :string, default: ""
     field :is_active, :boolean, default: true
-    field :is_overridden, :boolean, default: false
 
     timestamps()
   end
 
   @required_fields [:name, :slug]
-  @optional_fields [:description, :is_active, :is_overridden]
+  @optional_fields [:description, :is_active]
 
-  @doc "Changeset for creating/updating a scenario."
   def changeset(scenario, attrs) do
     scenario
     |> cast(attrs, @required_fields ++ @optional_fields)

@@ -63,6 +63,13 @@ defmodule FlorinaWeb.Router do
     live "/chat", ChatLive
   end
 
+  scope "/admin", FlorinaWeb.Admin do
+    pipe_through [:browser, :dashboard_auth]
+    live "/", IndexLive
+    live "/tenants", TenantsLive
+    live "/config", ConfigLive
+  end
+
   scope "/t/:tenant_slug", FlorinaWeb do
     pipe_through [:browser, :resolve_tenant]
     get "/whoami", WhoamiController, :show

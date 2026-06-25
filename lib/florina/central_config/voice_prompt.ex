@@ -1,11 +1,11 @@
-defmodule Florina.Calls.VoicePrompt do
+defmodule Florina.CentralConfig.VoicePrompt do
   @moduledoc """
-  Editable system prompts for the AI voice agent (ElevenLabs).
+  Canonical (control-plane) copy of a voice prompt.
 
-  Only one active prompt per `prompt_type` (PRE/POST) is allowed at a time,
-  enforced by a partial unique index on the DB layer.
+  Lives in the main `Florina.Repo` database — not per-tenant.
+  Only one active prompt per prompt_type (PRE/POST) enforced by partial unique index.
 
-  Table: `voice_voiceprompt`
+  Table: `voice_voiceprompt` (in the control-plane DB)
   """
   use Ecto.Schema
   import Ecto.Changeset
@@ -17,24 +17,20 @@ defmodule Florina.Calls.VoicePrompt do
     field :name, :string
     field :system_prompt, :string
     field :first_message, :string
-    # stored "PRE" or "POST"
     field :prompt_type, Ecto.Enum, values: Enums.call_phase_values()
     field :is_active, :boolean, default: true
-    field :is_overridden, :boolean, default: false
 
     timestamps()
   end
 
   @required_fields [:name, :system_prompt, :prompt_type]
-  @optional_fields [:first_message, :is_active, :is_overridden]
+  @optional_fields [:first_message, :is_active]
 
-  @doc "Changeset for creating/updating a voice prompt."
   def changeset(voice_prompt, attrs) do
     voice_prompt
     |> cast(attrs, @required_fields ++ @optional_fields)
     |> validate_required(@required_fields)
     |> validate_length(:name, max: 100)
-    # DB enforces: only one active prompt per prompt_type (partial unique index)
     |> unique_constraint(:prompt_type,
       name: "unique_active_prompt",
       message: "an active prompt for this type already exists"
