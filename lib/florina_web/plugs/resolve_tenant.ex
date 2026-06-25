@@ -7,6 +7,12 @@ defmodule FlorinaWeb.Plugs.ResolveTenant do
   calls in this request hit that tenant's schema, and assigns the tenant on the
   conn. Fails closed (404, halted) when the tenant cannot be resolved.
 
+  Defense in depth: the prefix is cleared in a `before_send` callback, so a
+  keep-alive connection process that gets reused for a later request can never
+  carry a stale prefix — the next request must re-resolve its own tenant or any
+  `TenantRepo` call fails closed. (LiveView and Oban run in per-connection /
+  per-job processes that die after use, so they don't need this.)
+
   Primary resolution: `conn.path_params["tenant_slug"]` — works on any domain,
   including the default Railway domain with no custom domain configured.
 
@@ -27,7 +33,13 @@ defmodule FlorinaWeb.Plugs.ResolveTenant do
            conn.path_params["tenant_slug"] || Subdomain.extract(conn.host, base),
          %Tenants.Tenant{active: true, status: "active"} = tenant <- Tenants.get_by_slug(slug) do
       Process.put(:tenant_prefix, Tenants.schema_prefix(tenant))
-      assign(conn, :tenant, tenant)
+
+      conn
+      |> register_before_send(fn conn ->
+        Process.delete(:tenant_prefix)
+        conn
+      end)
+      |> assign(:tenant, tenant)
     else
       _ ->
         conn
