@@ -225,197 +225,198 @@ defmodule FlorinaWeb.Admin.ConfigLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="px-4 py-8 max-w-5xl mx-auto">
-      <Layouts.flash_group flash={@flash} />
-      <div class="flex items-center justify-between mb-6">
-        <div>
-          <h1 class="text-2xl font-semibold">Central Config</h1>
-          <p class="text-sm text-gray-500 mt-1">
-            <a href="/admin" class="hover:underline">Admin</a> &rsaquo; Config
-          </p>
+    <Layouts.app flash={@flash}>
+      <div class="max-w-5xl mx-auto">
+        <div class="flex items-center justify-between mb-6">
+          <div>
+            <h1 class="text-2xl font-semibold">Central Config</h1>
+            <p class="text-sm text-gray-500 mt-1">
+              <a href="/admin" class="hover:underline">Admin</a> &rsaquo; Config
+            </p>
+          </div>
+          <div class="flex gap-2">
+            <a href="/admin/tenants" class="px-3 py-1.5 text-sm border rounded hover:bg-gray-50">
+              Tenants
+            </a>
+            <button
+              phx-click="publish_all"
+              data-confirm="Publish canonical config to ALL active tenants? Rows marked as overridden will be skipped."
+              class="px-4 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+            >
+              Publish to all tenants
+            </button>
+          </div>
         </div>
-        <div class="flex gap-2">
-          <a href="/admin/tenants" class="px-3 py-1.5 text-sm border rounded hover:bg-gray-50">
-            Tenants
-          </a>
-          <button
-            phx-click="publish_all"
-            data-confirm="Publish canonical config to ALL active tenants? Rows marked as overridden will be skipped."
-            class="px-4 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
-          >
-            Publish to all tenants
-          </button>
+
+        <%!-- Edit panel (inline, shown when editing != nil) --%>
+        <div :if={@editing} class="border rounded-lg p-6 mb-8 bg-gray-50">
+          <%= case @editing do %>
+            <% {:mega_prompt, mp} -> %>
+              <h2 class="text-base font-medium mb-4">Edit mega prompt — {mp.domain}</h2>
+              <.form for={@edit_form} phx-submit="save_mega_prompt" class="space-y-3">
+                <.text_field label="Name" name="mega_prompt[name]" form={@edit_form} field={:name} />
+                <.textarea_field
+                  label="Meta prompt"
+                  name="mega_prompt[meta_prompt]"
+                  form={@edit_form}
+                  field={:meta_prompt}
+                />
+                <.form_buttons />
+              </.form>
+            <% {:voice_prompt, vp} -> %>
+              <h2 class="text-base font-medium mb-4">Edit voice prompt — {vp.prompt_type}</h2>
+              <.form for={@edit_form} phx-submit="save_voice_prompt" class="space-y-3">
+                <.text_field label="Name" name="voice_prompt[name]" form={@edit_form} field={:name} />
+                <.textarea_field
+                  label="System prompt"
+                  name="voice_prompt[system_prompt]"
+                  form={@edit_form}
+                  field={:system_prompt}
+                />
+                <.textarea_field
+                  label="First message"
+                  name="voice_prompt[first_message]"
+                  form={@edit_form}
+                  field={:first_message}
+                />
+                <.form_buttons />
+              </.form>
+            <% {:methodology, m} -> %>
+              <h2 class="text-base font-medium mb-4">Edit methodology — {m.name}</h2>
+              <.form for={@edit_form} phx-submit="save_methodology" class="space-y-3">
+                <.text_field
+                  label="Name"
+                  name="methodology[name]"
+                  form={@edit_form}
+                  field={:name}
+                />
+                <.textarea_field
+                  label="Description"
+                  name="methodology[description]"
+                  form={@edit_form}
+                  field={:description}
+                />
+                <.textarea_field
+                  label="Source material"
+                  name="methodology[source_material]"
+                  form={@edit_form}
+                  field={:source_material}
+                />
+                <.form_buttons />
+              </.form>
+            <% {:scenario, s} -> %>
+              <h2 class="text-base font-medium mb-4">Edit scenario — {s.name}</h2>
+              <.form for={@edit_form} phx-submit="save_scenario" class="space-y-3">
+                <.text_field label="Name" name="scenario[name]" form={@edit_form} field={:name} />
+                <.textarea_field
+                  label="Description"
+                  name="scenario[description]"
+                  form={@edit_form}
+                  field={:description}
+                />
+                <.form_buttons />
+              </.form>
+            <% {:settings, _s} -> %>
+              <h2 class="text-base font-medium mb-4">Edit global settings</h2>
+              <.form for={@edit_form} phx-submit="save_settings" class="space-y-3">
+                <.text_field
+                  label="Pre-call offset (min)"
+                  name="settings[pre_call_offset_minutes]"
+                  form={@edit_form}
+                  field={:pre_call_offset_minutes}
+                  type="number"
+                />
+                <.text_field
+                  label="Post-call offset (min)"
+                  name="settings[post_call_offset_minutes]"
+                  form={@edit_form}
+                  field={:post_call_offset_minutes}
+                  type="number"
+                />
+                <.text_field
+                  label="Retry interval (min)"
+                  name="settings[retry_interval_minutes]"
+                  form={@edit_form}
+                  field={:retry_interval_minutes}
+                  type="number"
+                />
+                <.text_field
+                  label="Max context tokens (warn)"
+                  name="settings[max_context_tokens_warn]"
+                  form={@edit_form}
+                  field={:max_context_tokens_warn}
+                  type="number"
+                />
+                <.form_buttons />
+              </.form>
+          <% end %>
         </div>
+
+        <%!-- Global settings --%>
+        <.section_header title="Global settings">
+          <button phx-click="edit_settings" class="text-xs text-blue-600 hover:underline">Edit</button>
+        </.section_header>
+        <div class="border rounded-lg divide-y mb-8 text-sm">
+          <.kv_row label="Pre-call offset" value={"#{@settings.pre_call_offset_minutes} min"} />
+          <.kv_row label="Post-call offset" value={"#{@settings.post_call_offset_minutes} min"} />
+          <.kv_row label="Retry interval" value={"#{@settings.retry_interval_minutes} min"} />
+          <.kv_row
+            label="Max context tokens (warn)"
+            value={to_string(@settings.max_context_tokens_warn)}
+          />
+        </div>
+
+        <%!-- Mega prompts --%>
+        <.section_header title={"Mega prompts (#{length(@mega_prompts)})"} />
+        <.config_table rows={@mega_prompts} event="edit_mega_prompt">
+          <:col label="Domain"></:col>
+          <:col label="Name"></:col>
+          <:col label="Active"></:col>
+          <:row_render :let={mp}>
+            <td class="px-4 py-2 font-mono text-xs">{mp.domain}</td>
+            <td class="px-4 py-2">{mp.name}</td>
+            <td class="px-4 py-2">{if mp.is_active, do: "yes", else: "no"}</td>
+          </:row_render>
+        </.config_table>
+
+        <%!-- Voice prompts --%>
+        <.section_header title={"Voice prompts (#{length(@voice_prompts)})"} />
+        <.config_table rows={@voice_prompts} event="edit_voice_prompt">
+          <:col label="Type"></:col>
+          <:col label="Name"></:col>
+          <:col label="Active"></:col>
+          <:row_render :let={vp}>
+            <td class="px-4 py-2 font-mono text-xs">{vp.prompt_type}</td>
+            <td class="px-4 py-2">{vp.name}</td>
+            <td class="px-4 py-2">{if vp.is_active, do: "yes", else: "no"}</td>
+          </:row_render>
+        </.config_table>
+
+        <%!-- Methodologies --%>
+        <.section_header title={"Methodologies (#{length(@methodologies)})"} />
+        <.config_table rows={@methodologies} event="edit_methodology">
+          <:col label="Name"></:col>
+          <:col label="Active"></:col>
+          <:row_render :let={m}>
+            <td class="px-4 py-2">{m.name}</td>
+            <td class="px-4 py-2">{if m.is_active, do: "yes", else: "no"}</td>
+          </:row_render>
+        </.config_table>
+
+        <%!-- Scenarios --%>
+        <.section_header title={"Scenarios (#{length(@scenarios)})"} />
+        <.config_table rows={@scenarios} event="edit_scenario">
+          <:col label="Name"></:col>
+          <:col label="Slug"></:col>
+          <:col label="Active"></:col>
+          <:row_render :let={s}>
+            <td class="px-4 py-2">{s.name}</td>
+            <td class="px-4 py-2 font-mono text-xs">{s.slug}</td>
+            <td class="px-4 py-2">{if s.is_active, do: "yes", else: "no"}</td>
+          </:row_render>
+        </.config_table>
       </div>
-
-      <%!-- Edit panel (inline, shown when editing != nil) --%>
-      <div :if={@editing} class="border rounded-lg p-6 mb-8 bg-gray-50">
-        <%= case @editing do %>
-          <% {:mega_prompt, mp} -> %>
-            <h2 class="text-base font-medium mb-4">Edit mega prompt — {mp.domain}</h2>
-            <.form for={@edit_form} phx-submit="save_mega_prompt" class="space-y-3">
-              <.text_field label="Name" name="mega_prompt[name]" form={@edit_form} field={:name} />
-              <.textarea_field
-                label="Meta prompt"
-                name="mega_prompt[meta_prompt]"
-                form={@edit_form}
-                field={:meta_prompt}
-              />
-              <.form_buttons />
-            </.form>
-          <% {:voice_prompt, vp} -> %>
-            <h2 class="text-base font-medium mb-4">Edit voice prompt — {vp.prompt_type}</h2>
-            <.form for={@edit_form} phx-submit="save_voice_prompt" class="space-y-3">
-              <.text_field label="Name" name="voice_prompt[name]" form={@edit_form} field={:name} />
-              <.textarea_field
-                label="System prompt"
-                name="voice_prompt[system_prompt]"
-                form={@edit_form}
-                field={:system_prompt}
-              />
-              <.textarea_field
-                label="First message"
-                name="voice_prompt[first_message]"
-                form={@edit_form}
-                field={:first_message}
-              />
-              <.form_buttons />
-            </.form>
-          <% {:methodology, m} -> %>
-            <h2 class="text-base font-medium mb-4">Edit methodology — {m.name}</h2>
-            <.form for={@edit_form} phx-submit="save_methodology" class="space-y-3">
-              <.text_field
-                label="Name"
-                name="methodology[name]"
-                form={@edit_form}
-                field={:name}
-              />
-              <.textarea_field
-                label="Description"
-                name="methodology[description]"
-                form={@edit_form}
-                field={:description}
-              />
-              <.textarea_field
-                label="Source material"
-                name="methodology[source_material]"
-                form={@edit_form}
-                field={:source_material}
-              />
-              <.form_buttons />
-            </.form>
-          <% {:scenario, s} -> %>
-            <h2 class="text-base font-medium mb-4">Edit scenario — {s.name}</h2>
-            <.form for={@edit_form} phx-submit="save_scenario" class="space-y-3">
-              <.text_field label="Name" name="scenario[name]" form={@edit_form} field={:name} />
-              <.textarea_field
-                label="Description"
-                name="scenario[description]"
-                form={@edit_form}
-                field={:description}
-              />
-              <.form_buttons />
-            </.form>
-          <% {:settings, _s} -> %>
-            <h2 class="text-base font-medium mb-4">Edit global settings</h2>
-            <.form for={@edit_form} phx-submit="save_settings" class="space-y-3">
-              <.text_field
-                label="Pre-call offset (min)"
-                name="settings[pre_call_offset_minutes]"
-                form={@edit_form}
-                field={:pre_call_offset_minutes}
-                type="number"
-              />
-              <.text_field
-                label="Post-call offset (min)"
-                name="settings[post_call_offset_minutes]"
-                form={@edit_form}
-                field={:post_call_offset_minutes}
-                type="number"
-              />
-              <.text_field
-                label="Retry interval (min)"
-                name="settings[retry_interval_minutes]"
-                form={@edit_form}
-                field={:retry_interval_minutes}
-                type="number"
-              />
-              <.text_field
-                label="Max context tokens (warn)"
-                name="settings[max_context_tokens_warn]"
-                form={@edit_form}
-                field={:max_context_tokens_warn}
-                type="number"
-              />
-              <.form_buttons />
-            </.form>
-        <% end %>
-      </div>
-
-      <%!-- Global settings --%>
-      <.section_header title="Global settings">
-        <button phx-click="edit_settings" class="text-xs text-blue-600 hover:underline">Edit</button>
-      </.section_header>
-      <div class="border rounded-lg divide-y mb-8 text-sm">
-        <.kv_row label="Pre-call offset" value={"#{@settings.pre_call_offset_minutes} min"} />
-        <.kv_row label="Post-call offset" value={"#{@settings.post_call_offset_minutes} min"} />
-        <.kv_row label="Retry interval" value={"#{@settings.retry_interval_minutes} min"} />
-        <.kv_row
-          label="Max context tokens (warn)"
-          value={to_string(@settings.max_context_tokens_warn)}
-        />
-      </div>
-
-      <%!-- Mega prompts --%>
-      <.section_header title={"Mega prompts (#{length(@mega_prompts)})"} />
-      <.config_table rows={@mega_prompts} event="edit_mega_prompt">
-        <:col label="Domain"></:col>
-        <:col label="Name"></:col>
-        <:col label="Active"></:col>
-        <:row_render :let={mp}>
-          <td class="px-4 py-2 font-mono text-xs">{mp.domain}</td>
-          <td class="px-4 py-2">{mp.name}</td>
-          <td class="px-4 py-2">{if mp.is_active, do: "yes", else: "no"}</td>
-        </:row_render>
-      </.config_table>
-
-      <%!-- Voice prompts --%>
-      <.section_header title={"Voice prompts (#{length(@voice_prompts)})"} />
-      <.config_table rows={@voice_prompts} event="edit_voice_prompt">
-        <:col label="Type"></:col>
-        <:col label="Name"></:col>
-        <:col label="Active"></:col>
-        <:row_render :let={vp}>
-          <td class="px-4 py-2 font-mono text-xs">{vp.prompt_type}</td>
-          <td class="px-4 py-2">{vp.name}</td>
-          <td class="px-4 py-2">{if vp.is_active, do: "yes", else: "no"}</td>
-        </:row_render>
-      </.config_table>
-
-      <%!-- Methodologies --%>
-      <.section_header title={"Methodologies (#{length(@methodologies)})"} />
-      <.config_table rows={@methodologies} event="edit_methodology">
-        <:col label="Name"></:col>
-        <:col label="Active"></:col>
-        <:row_render :let={m}>
-          <td class="px-4 py-2">{m.name}</td>
-          <td class="px-4 py-2">{if m.is_active, do: "yes", else: "no"}</td>
-        </:row_render>
-      </.config_table>
-
-      <%!-- Scenarios --%>
-      <.section_header title={"Scenarios (#{length(@scenarios)})"} />
-      <.config_table rows={@scenarios} event="edit_scenario">
-        <:col label="Name"></:col>
-        <:col label="Slug"></:col>
-        <:col label="Active"></:col>
-        <:row_render :let={s}>
-          <td class="px-4 py-2">{s.name}</td>
-          <td class="px-4 py-2 font-mono text-xs">{s.slug}</td>
-          <td class="px-4 py-2">{if s.is_active, do: "yes", else: "no"}</td>
-        </:row_render>
-      </.config_table>
-    </div>
+    </Layouts.app>
     """
   end
 

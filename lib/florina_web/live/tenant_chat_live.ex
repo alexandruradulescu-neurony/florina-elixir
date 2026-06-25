@@ -63,33 +63,38 @@ defmodule FlorinaWeb.TenantChatLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="mb-6">
-      <h1 class="text-2xl font-semibold">Assistant — {@tenant.name}</h1>
-      <p class="text-sm text-base-content/60">
-        Grounded in {@tenant.name}'s clients, visits and calls.
-      </p>
-    </div>
-    <div id="messages" class="space-y-3 mb-4">
-      <div :for={m <- @messages} class={["p-3 rounded", m.role == "user" && "bg-base-200"]}>
-        <span class="font-medium">{m.role}:</span> {m.content}
+    <Layouts.app flash={@flash}>
+      <div class="mb-6">
+        <h1 class="text-2xl font-semibold">Assistant — {@tenant.name}</h1>
+        <p class="text-sm text-base-content/60">
+          Grounded in {@tenant.name}'s clients, visits and calls.
+        </p>
       </div>
-      <div :if={@streaming != nil} class="p-3 rounded">
-        <span class="font-medium">assistant:</span> {@streaming}
+      <div id="messages" class="space-y-3 mb-4">
+        <div :for={m <- @messages} class={["p-3 rounded", m.role == "user" && "bg-base-200"]}>
+          <span class="font-medium">{m.role}:</span> {m.content}
+        </div>
+        <div :if={@streaming != nil} class="p-3 rounded">
+          <span class="font-medium">assistant:</span> {@streaming}
+        </div>
       </div>
-    </div>
-    <form id="chat-form" phx-submit="send">
-      <input
-        type="text"
-        name="message"
-        value={@input}
-        autocomplete="off"
-        placeholder={"Ask about #{@tenant.name}'s clients, visits or calls…"}
-        class="input input-bordered w-full"
-      />
-      <button type="submit" class="btn btn-primary mt-2">Send</button>
-    </form>
-
-    <Layouts.flash_group flash={@flash} />
+      <form id="chat-form" phx-submit="send">
+        <input
+          type="text"
+          name="message"
+          value={@input}
+          autocomplete="off"
+          placeholder={"Ask about #{@tenant.name}'s clients, visits or calls…"}
+          class="w-full rounded-md border border-base-300 bg-base-100 px-3 py-2 text-sm text-base-content focus:outline-none focus:ring-2 focus:ring-primary/50"
+        />
+        <button
+          type="submit"
+          class="mt-2 inline-flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-content hover:opacity-90 disabled:opacity-50 cursor-pointer"
+        >
+          Send
+        </button>
+      </form>
+    </Layouts.app>
     """
   end
 end

@@ -129,174 +129,174 @@ defmodule FlorinaWeb.Admin.TenantsLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="px-4 py-8 max-w-5xl mx-auto">
-      <div class="flex items-center justify-between mb-6">
-        <div>
-          <h1 class="text-2xl font-semibold">Tenants</h1>
-          <p class="text-sm text-gray-500 mt-1">
-            <a href="/admin" class="hover:underline">Admin</a> &rsaquo; Tenants
-          </p>
+    <Layouts.app flash={@flash}>
+      <div class="max-w-5xl mx-auto">
+        <div class="flex items-center justify-between mb-6">
+          <div>
+            <h1 class="text-2xl font-semibold">Tenants</h1>
+            <p class="text-sm text-gray-500 mt-1">
+              <a href="/admin" class="hover:underline">Admin</a> &rsaquo; Tenants
+            </p>
+          </div>
+          <div class="flex gap-2">
+            <a href="/admin/config" class="px-3 py-1.5 text-sm border rounded hover:bg-gray-50">
+              Config
+            </a>
+            <button
+              phx-click="refresh"
+              class="px-3 py-1.5 text-sm border rounded hover:bg-gray-50"
+            >
+              Refresh
+            </button>
+          </div>
         </div>
-        <div class="flex gap-2">
-          <a href="/admin/config" class="px-3 py-1.5 text-sm border rounded hover:bg-gray-50">
-            Config
-          </a>
-          <button
-            phx-click="refresh"
-            class="px-3 py-1.5 text-sm border rounded hover:bg-gray-50"
+
+        <%!-- Tenant table --%>
+        <div class="overflow-hidden border rounded-lg mb-10">
+          <table class="w-full text-sm text-left">
+            <thead class="bg-gray-50 text-xs uppercase tracking-wider text-gray-500">
+              <tr>
+                <th class="px-4 py-3">Name</th>
+                <th class="px-4 py-3">Slug</th>
+                <th class="px-4 py-3">Database</th>
+                <th class="px-4 py-3">Status</th>
+                <th class="px-4 py-3">Active</th>
+                <th class="px-4 py-3">Domains</th>
+                <th class="px-4 py-3">Actions</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y">
+              <tr :for={tenant <- @tenants} class="hover:bg-gray-50">
+                <td class="px-4 py-3 font-medium">{tenant.name}</td>
+                <td class="px-4 py-3 font-mono text-xs">{tenant.slug}</td>
+                <td class="px-4 py-3 font-mono text-xs">{tenant.database}</td>
+                <td class="px-4 py-3">
+                  <span class={[
+                    "inline-flex items-center px-2 py-0.5 rounded text-xs font-medium",
+                    tenant.status == "active" && "bg-green-100 text-green-800",
+                    tenant.status == "provisioning" && "bg-yellow-100 text-yellow-800",
+                    tenant.status == "failed" && "bg-red-100 text-red-800"
+                  ]}>
+                    {tenant.status}
+                  </span>
+                </td>
+                <td class="px-4 py-3">
+                  <span class={[
+                    "inline-flex items-center px-2 py-0.5 rounded text-xs font-medium",
+                    tenant.active && "bg-blue-100 text-blue-800",
+                    !tenant.active && "bg-gray-100 text-gray-500"
+                  ]}>
+                    {if tenant.active, do: "yes", else: "no"}
+                  </span>
+                </td>
+                <td class="px-4 py-3">
+                  <form id={"domains-#{tenant.slug}"} phx-submit="save_domains" class="flex gap-1">
+                    <input type="hidden" name="slug" value={tenant.slug} />
+                    <input
+                      type="text"
+                      name="domains"
+                      value={Enum.join(tenant.allowed_email_domains || [], ", ")}
+                      placeholder="leadder.com, acme.io"
+                      class="border rounded px-2 py-1 text-xs font-mono w-48"
+                    />
+                    <button class="text-xs text-blue-600 hover:underline">Save</button>
+                  </form>
+                </td>
+                <td class="px-4 py-3">
+                  <button
+                    :if={tenant.active}
+                    phx-click="deactivate"
+                    phx-value-slug={tenant.slug}
+                    class="text-xs text-red-600 hover:underline"
+                    data-confirm={"Deactivate #{tenant.slug}?"}
+                  >
+                    Deactivate
+                  </button>
+                  <button
+                    :if={!tenant.active}
+                    phx-click="activate"
+                    phx-value-slug={tenant.slug}
+                    class="text-xs text-green-600 hover:underline"
+                  >
+                    Activate
+                  </button>
+                  <button
+                    :if={tenant.status == "failed"}
+                    phx-click="retry"
+                    phx-value-slug={tenant.slug}
+                    class="text-xs text-blue-600 hover:underline ml-2"
+                    data-confirm={"Retry provisioning #{tenant.slug}?"}
+                  >
+                    Retry
+                  </button>
+                </td>
+              </tr>
+              <tr :if={@tenants == []}>
+                <td colspan="7" class="px-4 py-6 text-center text-gray-400 text-sm">
+                  No tenants yet.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <%!-- Add tenant form --%>
+        <div class="border rounded-lg p-6 max-w-lg">
+          <h2 class="text-lg font-medium mb-4">Add tenant</h2>
+          <.form
+            for={@form}
+            id="add-tenant-form"
+            phx-submit="add_tenant"
+            phx-change="validate"
+            class="space-y-4"
           >
-            Refresh
-          </button>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Display name</label>
+              <input
+                type="text"
+                name="tenant[name]"
+                value={@form[:name] && @form[:name].value}
+                placeholder="Acme Corp"
+                class="w-full border rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                required
+              />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Slug</label>
+              <input
+                type="text"
+                name="tenant[slug]"
+                value={@form[:slug] && @form[:slug].value}
+                placeholder="acme"
+                pattern="[a-z0-9_-]+"
+                title="Lowercase letters, digits, hyphens and underscores only"
+                class="w-full border rounded px-3 py-2 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-blue-500"
+                required
+              />
+              <p class="text-xs text-gray-400 mt-1">Lowercase, URL-safe (a-z, 0-9, -, _)</p>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Database name</label>
+              <input
+                type="text"
+                name="tenant[database]"
+                value={@form[:database] && @form[:database].value}
+                placeholder="florina_tenant_acme"
+                class="w-full border rounded px-3 py-2 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-blue-500"
+                required
+              />
+              <p class="text-xs text-gray-400 mt-1">Auto-suggested from slug; edit if needed.</p>
+            </div>
+            <button
+              type="submit"
+              class="px-4 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 focus:outline-none"
+            >
+              Register &amp; provision
+            </button>
+          </.form>
         </div>
       </div>
-
-      <Layouts.flash_group flash={@flash} />
-
-      <%!-- Tenant table --%>
-      <div class="overflow-hidden border rounded-lg mb-10">
-        <table class="w-full text-sm text-left">
-          <thead class="bg-gray-50 text-xs uppercase tracking-wider text-gray-500">
-            <tr>
-              <th class="px-4 py-3">Name</th>
-              <th class="px-4 py-3">Slug</th>
-              <th class="px-4 py-3">Database</th>
-              <th class="px-4 py-3">Status</th>
-              <th class="px-4 py-3">Active</th>
-              <th class="px-4 py-3">Domains</th>
-              <th class="px-4 py-3">Actions</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y">
-            <tr :for={tenant <- @tenants} class="hover:bg-gray-50">
-              <td class="px-4 py-3 font-medium">{tenant.name}</td>
-              <td class="px-4 py-3 font-mono text-xs">{tenant.slug}</td>
-              <td class="px-4 py-3 font-mono text-xs">{tenant.database}</td>
-              <td class="px-4 py-3">
-                <span class={[
-                  "inline-flex items-center px-2 py-0.5 rounded text-xs font-medium",
-                  tenant.status == "active" && "bg-green-100 text-green-800",
-                  tenant.status == "provisioning" && "bg-yellow-100 text-yellow-800",
-                  tenant.status == "failed" && "bg-red-100 text-red-800"
-                ]}>
-                  {tenant.status}
-                </span>
-              </td>
-              <td class="px-4 py-3">
-                <span class={[
-                  "inline-flex items-center px-2 py-0.5 rounded text-xs font-medium",
-                  tenant.active && "bg-blue-100 text-blue-800",
-                  !tenant.active && "bg-gray-100 text-gray-500"
-                ]}>
-                  {if tenant.active, do: "yes", else: "no"}
-                </span>
-              </td>
-              <td class="px-4 py-3">
-                <form id={"domains-#{tenant.slug}"} phx-submit="save_domains" class="flex gap-1">
-                  <input type="hidden" name="slug" value={tenant.slug} />
-                  <input
-                    type="text"
-                    name="domains"
-                    value={Enum.join(tenant.allowed_email_domains || [], ", ")}
-                    placeholder="leadder.com, acme.io"
-                    class="border rounded px-2 py-1 text-xs font-mono w-48"
-                  />
-                  <button class="text-xs text-blue-600 hover:underline">Save</button>
-                </form>
-              </td>
-              <td class="px-4 py-3">
-                <button
-                  :if={tenant.active}
-                  phx-click="deactivate"
-                  phx-value-slug={tenant.slug}
-                  class="text-xs text-red-600 hover:underline"
-                  data-confirm={"Deactivate #{tenant.slug}?"}
-                >
-                  Deactivate
-                </button>
-                <button
-                  :if={!tenant.active}
-                  phx-click="activate"
-                  phx-value-slug={tenant.slug}
-                  class="text-xs text-green-600 hover:underline"
-                >
-                  Activate
-                </button>
-                <button
-                  :if={tenant.status == "failed"}
-                  phx-click="retry"
-                  phx-value-slug={tenant.slug}
-                  class="text-xs text-blue-600 hover:underline ml-2"
-                  data-confirm={"Retry provisioning #{tenant.slug}?"}
-                >
-                  Retry
-                </button>
-              </td>
-            </tr>
-            <tr :if={@tenants == []}>
-              <td colspan="7" class="px-4 py-6 text-center text-gray-400 text-sm">
-                No tenants yet.
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <%!-- Add tenant form --%>
-      <div class="border rounded-lg p-6 max-w-lg">
-        <h2 class="text-lg font-medium mb-4">Add tenant</h2>
-        <.form
-          for={@form}
-          id="add-tenant-form"
-          phx-submit="add_tenant"
-          phx-change="validate"
-          class="space-y-4"
-        >
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Display name</label>
-            <input
-              type="text"
-              name="tenant[name]"
-              value={@form[:name] && @form[:name].value}
-              placeholder="Acme Corp"
-              class="w-full border rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-              required
-            />
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Slug</label>
-            <input
-              type="text"
-              name="tenant[slug]"
-              value={@form[:slug] && @form[:slug].value}
-              placeholder="acme"
-              pattern="[a-z0-9_-]+"
-              title="Lowercase letters, digits, hyphens and underscores only"
-              class="w-full border rounded px-3 py-2 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-blue-500"
-              required
-            />
-            <p class="text-xs text-gray-400 mt-1">Lowercase, URL-safe (a-z, 0-9, -, _)</p>
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Database name</label>
-            <input
-              type="text"
-              name="tenant[database]"
-              value={@form[:database] && @form[:database].value}
-              placeholder="florina_tenant_acme"
-              class="w-full border rounded px-3 py-2 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-blue-500"
-              required
-            />
-            <p class="text-xs text-gray-400 mt-1">Auto-suggested from slug; edit if needed.</p>
-          </div>
-          <button
-            type="submit"
-            class="px-4 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 focus:outline-none"
-          >
-            Register &amp; provision
-          </button>
-        </.form>
-      </div>
-    </div>
+    </Layouts.app>
     """
   end
 
