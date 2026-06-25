@@ -119,7 +119,8 @@ config :florina,
 # External integration clients (real impls; overridden to stubs in test.exs)
 config :florina,
   elevenlabs_client: Florina.Integrations.ElevenLabs,
-  google_calendar_client: Florina.Integrations.GoogleCalendar,
+  oauth_provider_google: Florina.Integrations.Providers.Google,
+  oauth_provider_microsoft: Florina.Integrations.Providers.Microsoft,
   pipedrive_client: Florina.Integrations.Pipedrive
 
 # ElevenLabs — global keys (set in runtime.exs for prod from env)

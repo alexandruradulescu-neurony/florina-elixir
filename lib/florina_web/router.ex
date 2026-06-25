@@ -61,15 +61,6 @@ defmodule FlorinaWeb.Router do
     pipe_through [:browser, :dashboard_auth, :resolve_tenant, :tenant_session]
     live "/calls", CallsLive
     live "/chat", TenantChatLive
-    # Operator-triggered: start the Google Calendar OAuth flow for an agent.
-    get "/calendar/connect", GoogleOAuthController, :connect
-  end
-
-  # Google's redirect lands here — no Basic-Auth header sent by Google.
-  # Security is the signed Phoenix.Token in the `state` param (verified in the controller).
-  scope "/t/:tenant_slug", FlorinaWeb do
-    pipe_through [:browser, :resolve_tenant]
-    get "/calendar/callback", GoogleOAuthController, :callback
   end
 
   scope "/", FlorinaWeb do

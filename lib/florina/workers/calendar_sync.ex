@@ -5,7 +5,7 @@ defmodule Florina.Workers.CalendarSync do
   Enqueued by `CalendarSyncScheduler`. For each sales agent with stored
   Google OAuth credentials:
 
-    1. Lists today's calendar events via `Florina.Integrations.GoogleCalendar`.
+    1. Lists today's calendar events via the configured calendar provider.
     2. For each event, tries to match attendee email domains against known
        `Client` records in the tenant DB.
     3. If a match is found: creates a new `Visit` (or updates times if the
@@ -33,7 +33,8 @@ defmodule Florina.Workers.CalendarSync do
 
   alias Florina.TenantRepo
   alias Florina.Accounts
-  alias Florina.Calendar
+  alias Florina.OAuth
+  alias Florina.Integrations.Provider
   alias Florina.Clients
   alias Florina.Visits
   alias Florina.Visits.Visit
@@ -74,20 +75,13 @@ defmodule Florina.Workers.CalendarSync do
   defp sync_agent(agent, today_start, today_end) do
     acc = %{created: 0, updated: 0, skipped: 0, errors: []}
 
-    case Calendar.get_credential_for_user(agent.id) do
+    case OAuth.get_calendar_credential_for_user(agent.id) do
       nil ->
-        Logger.debug("[CalendarSync] agent=#{agent.username} has no Google credential — skip")
+        Logger.debug("[CalendarSync] agent=#{agent.username} has no calendar credential — skip")
         acc
 
       cred ->
-        gc =
-          Application.get_env(
-            :florina,
-            :google_calendar_client,
-            Florina.Integrations.GoogleCalendar
-          )
-
-        case gc.do_list_events(cred, today_start, today_end) do
+        case Provider.for_credential(cred).list_events(cred, today_start, today_end) do
           {:ok, events} ->
             Enum.reduce(events, acc, fn event, a ->
               case process_event(agent, event) do
