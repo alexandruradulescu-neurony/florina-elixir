@@ -20,8 +20,12 @@ defmodule Florina.Repo.Migrations.CreateOauthCredentials do
 
     create index(:oauth_credentials, [:user_id])
 
-    create unique_index(:oauth_credentials, [:provider, :purpose, :user_id, :email],
-             name: :oauth_credentials_provider_purpose_user_email_index
+    # One calendar credential per (user, provider). `email` is intentionally NOT
+    # part of the key — it's the agent's incidental address, and the upsert keys on
+    # user+provider+purpose. (Phase-2 florina_mailbox rows have user_id = NULL and
+    # will get their own partial unique index then.)
+    create unique_index(:oauth_credentials, [:provider, :purpose, :user_id],
+             name: :oauth_credentials_provider_purpose_user_index
            )
   end
 end

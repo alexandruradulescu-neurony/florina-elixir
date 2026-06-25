@@ -32,6 +32,7 @@ defmodule Florina.OAuth.Credential do
 
   @required [:provider, :purpose, :access_token]
   @optional [
+    # user_id is nullable: future florina_mailbox credentials have no agent user
     :user_id,
     :email,
     :refresh_token,
@@ -46,13 +47,9 @@ defmodule Florina.OAuth.Credential do
     cred
     |> cast(attrs, @required ++ @optional)
     |> validate_required(@required)
-    |> validate_inclusion(:provider, @providers)
-    |> validate_inclusion(:purpose, @purposes)
     |> foreign_key_constraint(:user_id)
-    |> unique_constraint([:provider, :purpose, :user_id, :email],
-      name: :oauth_credentials_provider_purpose_user_email_index
+    |> unique_constraint([:provider, :purpose, :user_id],
+      name: :oauth_credentials_provider_purpose_user_index
     )
   end
-
-  def providers, do: @providers
 end
