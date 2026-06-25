@@ -32,7 +32,12 @@ defmodule Florina.Tenants.BootMigrator do
   end
 
   defp migrate_all! do
-    for tenant <- Florina.Tenants.list() do
+    # Only fully-provisioned tenants (status == "active" AND active == true). A
+    # tenant still in `provisioning` or marked `failed` may have a half-created or
+    # absent database; migrating it could raise and — since this step is
+    # fail-loud — abort the whole app boot. Those tenants get migrated when their
+    # provisioning completes (Provisioner.provision runs the migrator).
+    for tenant <- Florina.Tenants.list_active() do
       {:ok, pid} = Florina.Tenants.ConnectionManager.ensure_started(tenant.slug)
       Florina.Tenants.Migrator.migrate_one(pid)
       Logger.info("[boot] per-tenant migrations applied for #{tenant.slug}")
