@@ -134,6 +134,12 @@ config :florina,
   google_client_id: nil,
   google_client_secret: nil
 
+# Microsoft (Entra ID) OAuth — global client credentials (set in runtime.exs for prod)
+config :florina,
+  microsoft_client_id: nil,
+  microsoft_client_secret: nil,
+  microsoft_tenant: "common"
+
 # Pipedrive — global keys (set in runtime.exs for prod from env)
 config :florina,
   pipedrive_api_token: nil,

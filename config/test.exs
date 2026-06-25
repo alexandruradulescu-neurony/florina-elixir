@@ -64,6 +64,8 @@ config :florina,
   elevenlabs_phone_number_id: nil,
   google_client_id: nil,
   google_client_secret: nil,
+  microsoft_client_id: nil,
+  microsoft_client_secret: nil,
   pipedrive_api_token: nil,
   pipedrive_domain: nil
 
