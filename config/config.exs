@@ -21,7 +21,9 @@ config :florina, Oban,
     # Outbound call workers (rate-limited)
     calls: 5,
     # Sync jobs (calendar + CRM + call status polling)
-    sync: 10
+    sync: 10,
+    # Tenant provisioning (creates databases; intentionally low concurrency)
+    provisioning: 2
   ],
   plugins: [
     # Periodically delete jobs that finished more than 7 days ago.
