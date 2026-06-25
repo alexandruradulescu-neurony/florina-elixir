@@ -5,6 +5,8 @@ defmodule FlorinaWeb.Layouts do
   """
   use FlorinaWeb, :html
 
+  alias Florina.Authz
+
   # Embed all files in layouts/* within this module.
   # The default root.html.heex file contains the HTML
   # skeleton of your application, namely HTML headers
@@ -77,7 +79,7 @@ defmodule FlorinaWeb.Layouts do
               <.icon name="hero-x-mark" class="size-6 text-white" />
             </button>
           </div>
-          <.sidebar tenant={@tenant} active={@active} />
+          <.sidebar tenant={@tenant} active={@active} manager?={Authz.manager?(@current_agent)} />
         </div>
       </div>
     </div>
@@ -154,6 +156,7 @@ defmodule FlorinaWeb.Layouts do
   # Sidebar inner (shared by the desktop + mobile variants).
   attr :tenant, :map, required: true
   attr :active, :atom, default: nil
+  attr :manager?, :boolean, default: false
 
   defp sidebar(assigns) do
     ~H"""
@@ -179,6 +182,7 @@ defmodule FlorinaWeb.Layouts do
                 active={@active == :calls}
               />
               <.nav_item
+                :if={@manager?}
                 label="Assistant"
                 icon="hero-chat-bubble-left-right"
                 href={"/t/#{@tenant.slug}/chat"}

@@ -103,6 +103,7 @@ defmodule FlorinaWeb.Router do
     pipe_through [:browser, :require_admin]
     live "/", IndexLive
     live "/tenants", TenantsLive
+    live "/tenants/:tenant_slug/agents", AgentsLive
     live "/config", ConfigLive
   end
 

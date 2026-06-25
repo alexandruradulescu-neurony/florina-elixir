@@ -31,12 +31,25 @@ defmodule Florina.CalendarEvents do
     end
   end
 
-  @doc "All events whose start falls within [from, to], ordered, with the agent preloaded."
-  def list_events_between(%DateTime{} = from, %DateTime{} = to) do
-    from(e in Event, where: e.start_time >= ^from and e.start_time <= ^to, order_by: e.start_time)
+  @doc """
+  All events whose start falls within `[from_dt, to_dt]`, ordered, with the
+  agent preloaded.
+
+  `scope` is `Florina.Authz.scope/1`: `:all` (managers see every agent's events)
+  or `{:own, user_id}` (agents see only their own). The owner filter is applied
+  in SQL so it can't be bypassed.
+  """
+  def list_events_between(%DateTime{} = from_dt, %DateTime{} = to_dt, scope \\ :all) do
+    Event
+    |> where([e], e.start_time >= ^from_dt and e.start_time <= ^to_dt)
+    |> scope_events(scope)
+    |> order_by([e], e.start_time)
     |> TenantRepo.all()
     |> TenantRepo.preload(:user)
   end
+
+  defp scope_events(query, :all), do: query
+  defp scope_events(query, {:own, user_id}), do: where(query, [e], e.user_id == ^user_id)
 
   defp normalize_attendees(nil), do: []
 

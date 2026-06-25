@@ -24,6 +24,10 @@ defmodule Florina.Accounts.User do
     field :is_sales_agent, :boolean, default: false
     field :active, :boolean, default: true
 
+    # Permission role (independent of is_sales_agent, which means "is dialable").
+    # Managers see the whole tenant; agents see only their own data. See Florina.Authz.
+    field :role, Ecto.Enum, values: [:manager, :agent], default: :agent
+
     # FK to voice_methodology — added after methodology table exists (circular ref).
     # nil until methodology table created.
     belongs_to :default_methodology, Florina.Methodologies.Methodology
@@ -40,6 +44,7 @@ defmodule Florina.Accounts.User do
     :phone_number,
     :is_sales_agent,
     :active,
+    :role,
     :default_methodology_id
   ]
 

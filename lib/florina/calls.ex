@@ -1,18 +1,48 @@
 defmodule Florina.Calls do
   @moduledoc "Context for the call real-time edge."
-  import Ecto.Query, only: [order_by: 2, limit: 2]
+  import Ecto.Query, only: [from: 2, order_by: 2, limit: 2]
   alias Florina.TenantRepo
   alias Florina.Calls.CallAttempt
+  alias Florina.Visits.Visit
 
   @doc "PubSub topic scoped to a single tenant."
   def topic(tenant_slug), do: "calls:" <> tenant_slug
 
-  @doc "Recent calls, most-recently-updated first."
-  def list_recent(max \\ 50) do
+  @doc """
+  Recent calls, most-recently-updated first.
+
+  `scope` is `Florina.Authz.scope/1`: `:all` (managers see every call) or
+  `{:own, agent_id}` (agents see only calls whose visit they own). The owner
+  filter is applied in SQL via a join on the visit, so it can't be bypassed.
+  """
+  def list_recent(scope \\ :all, max \\ 50) do
     CallAttempt
+    |> scope_calls(scope)
     |> order_by(desc: :updated_at)
     |> limit(^max)
     |> TenantRepo.all()
+  end
+
+  defp scope_calls(query, :all), do: query
+
+  defp scope_calls(query, {:own, agent_id}) do
+    from c in query,
+      join: v in Visit,
+      on: c.visit_id == v.id,
+      where: v.agent_id == ^agent_id
+  end
+
+  @doc """
+  True if `call`'s visit is owned by `agent_id`. Used to decide whether a
+  realtime `:call_updated` broadcast should reach a given agent's live view.
+  """
+  def owned_by_agent?(%CallAttempt{visit_id: nil}, _agent_id), do: false
+
+  def owned_by_agent?(%CallAttempt{visit_id: visit_id}, agent_id) do
+    case TenantRepo.get(Visit, visit_id) do
+      %Visit{agent_id: ^agent_id} -> true
+      _ -> false
+    end
   end
 
   def get_by_external_id(nil), do: nil

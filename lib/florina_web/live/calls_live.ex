@@ -2,19 +2,30 @@ defmodule FlorinaWeb.CallsLive do
   use FlorinaWeb, :live_view
   on_mount FlorinaWeb.TenantHook
   on_mount {FlorinaWeb.AgentAuth, :ensure_authenticated}
-  alias Florina.Calls
+  alias Florina.{Authz, Calls}
 
   @impl true
   def mount(_params, _session, socket) do
     if connected?(socket),
       do: Phoenix.PubSub.subscribe(Florina.PubSub, Calls.topic(socket.assigns.tenant.slug))
 
-    {:ok, stream(socket, :calls, Calls.list_recent())}
+    agent = socket.assigns.current_agent
+
+    {:ok,
+     socket
+     |> assign(:manager?, Authz.manager?(agent))
+     |> assign(:agent_id, agent.id)
+     |> stream(:calls, Calls.list_recent(Authz.scope(agent)))}
   end
 
+  # Managers see every call; agents only see realtime updates for calls they own.
   @impl true
   def handle_info({:call_updated, call}, socket) do
-    {:noreply, stream_insert(socket, :calls, call, at: 0)}
+    if socket.assigns.manager? or Calls.owned_by_agent?(call, socket.assigns.agent_id) do
+      {:noreply, stream_insert(socket, :calls, call, at: 0)}
+    else
+      {:noreply, socket}
+    end
   end
 
   @impl true

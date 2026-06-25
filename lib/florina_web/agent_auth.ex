@@ -12,7 +12,7 @@ defmodule FlorinaWeb.AgentAuth do
   # Phoenix.Component.assign/3 is called fully-qualified below (for LiveView sockets)
   # to avoid the compile-time ambiguity between the two arities.
 
-  alias Florina.Accounts
+  alias Florina.{Accounts, Authz}
 
   def log_in_agent(conn, agent) do
     conn
@@ -77,6 +77,21 @@ defmodule FlorinaWeb.AgentAuth do
     else
       _ ->
         {:halt, Phoenix.LiveView.redirect(socket, to: "/t/#{session["tenant_slug"]}/login")}
+    end
+  end
+
+  # on_mount(:require_manager, ...) — gate a route to managers only. Must run
+  # AFTER :ensure_authenticated (which assigns :current_agent). Non-managers are
+  # bounced to their calendar with a flash, so an agent can't open a manager
+  # LiveView by typing its URL.
+  def on_mount(:require_manager, _params, _session, socket) do
+    if Authz.manager?(socket.assigns[:current_agent]) do
+      {:cont, socket}
+    else
+      {:halt,
+       socket
+       |> Phoenix.LiveView.put_flash(:error, "That area is for managers only.")
+       |> Phoenix.LiveView.redirect(to: "/t/#{socket.assigns.tenant.slug}/calendar")}
     end
   end
 

@@ -71,6 +71,23 @@ defmodule Florina.Accounts do
     |> TenantRepo.update()
   end
 
+  @doc "Sets a user's permission role (`:manager` or `:agent`)."
+  def set_role(%User{} = user, role) when role in [:manager, :agent] do
+    update_user(user, %{role: role})
+  end
+
+  @doc "Activates or deactivates a user (deactivated users can't sign in)."
+  def set_active(%User{} = user, active) when is_boolean(active) do
+    update_user(user, %{active: active})
+  end
+
+  @doc "Number of active managers in the current tenant (guards last-manager removal)."
+  def manager_count do
+    User
+    |> where(role: :manager, active: true)
+    |> TenantRepo.aggregate(:count)
+  end
+
   # ---------------------------------------------------------------------------
   # Identity helpers
   # ---------------------------------------------------------------------------

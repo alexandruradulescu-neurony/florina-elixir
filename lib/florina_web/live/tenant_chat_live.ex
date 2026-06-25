@@ -8,6 +8,7 @@ defmodule FlorinaWeb.TenantChatLive do
   use FlorinaWeb, :live_view
   on_mount FlorinaWeb.TenantHook
   on_mount {FlorinaWeb.AgentAuth, :ensure_authenticated}
+  on_mount {FlorinaWeb.AgentAuth, :require_manager}
 
   alias Florina.Services.DataContext
 

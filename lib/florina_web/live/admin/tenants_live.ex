@@ -203,6 +203,12 @@ defmodule FlorinaWeb.Admin.TenantsLive do
                   </form>
                 </td>
                 <td class="px-4 py-3">
+                  <a
+                    href={"/admin/tenants/#{tenant.slug}/agents"}
+                    class="text-xs text-blue-600 hover:underline mr-2"
+                  >
+                    Agents
+                  </a>
                   <button
                     :if={tenant.active}
                     phx-click="deactivate"

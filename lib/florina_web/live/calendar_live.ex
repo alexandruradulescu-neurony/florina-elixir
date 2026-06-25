@@ -1,19 +1,26 @@
 defmodule FlorinaWeb.CalendarLive do
-  @moduledoc "Merged calendar: every agent's appointments for a week, filterable by agent."
+  @moduledoc """
+  Calendar of appointments for a week. Managers see every agent's events and can
+  filter by agent; agents see only their own (scoped in SQL via `Florina.Authz`).
+  """
   use FlorinaWeb, :live_view
 
   on_mount FlorinaWeb.TenantHook
   on_mount {FlorinaWeb.AgentAuth, :ensure_authenticated}
 
-  alias Florina.{Accounts, CalendarEvents}
+  alias Florina.{Accounts, Authz, CalendarEvents}
 
   @impl true
   def mount(_params, _session, socket) do
     monday = week_monday(Date.utc_today())
+    agent = socket.assigns.current_agent
+    manager? = Authz.manager?(agent)
 
     {:ok,
      socket
-     |> assign(:agents, Accounts.list_agents())
+     |> assign(:manager?, manager?)
+     |> assign(:scope, Authz.scope(agent))
+     |> assign(:agents, (manager? && Accounts.list_agents()) || [])
      |> assign(:filter_agent_id, nil)
      |> load_week(monday)}
   end
@@ -41,7 +48,7 @@ defmodule FlorinaWeb.CalendarLive do
       <div class="flex items-center justify-between mb-4">
         <h1 class="text-2xl font-semibold">Calendar</h1>
         <div class="flex items-center gap-2">
-          <form phx-change="filter">
+          <form :if={@manager?} phx-change="filter">
             <select name="agent_id" class="border rounded px-2 py-1 text-sm">
               <option value="">All agents</option>
               <option :for={a <- @agents} value={a.id} selected={@filter_agent_id == a.id}>
@@ -85,7 +92,7 @@ defmodule FlorinaWeb.CalendarLive do
     socket
     |> assign(:monday, monday)
     |> assign(:days, Enum.map(0..6, &Date.add(monday, &1)))
-    |> assign(:events, CalendarEvents.list_events_between(from, to))
+    |> assign(:events, CalendarEvents.list_events_between(from, to, socket.assigns.scope))
   end
 
   defp events_for(events, day, filter) do
