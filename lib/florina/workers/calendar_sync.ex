@@ -142,22 +142,45 @@ defmodule Florina.Workers.CalendarSync do
   # ---------------------------------------------------------------------------
 
   defp process_event(agent, provider, %{id: event_id, attendees: attendees} = event) do
-    case match_client_by_attendees(attendees) do
-      nil ->
-        :skipped
+    cond do
+      Map.get(event, :status) == "cancelled" ->
+        cancel_existing_visit(event_id, agent.id, provider)
 
-      client ->
-        case find_existing_visit(event_id, agent.id, provider) do
-          %Visit{} = existing ->
-            update_visit_if_changed(existing, event)
-
+      true ->
+        case match_client_by_attendees(attendees) do
           nil ->
-            create_visit(agent, provider, client, event)
+            :skipped
+
+          client ->
+            case find_existing_visit(event_id, agent.id, provider) do
+              %Visit{} = existing ->
+                update_visit_if_changed(existing, event)
+
+              nil ->
+                create_visit(agent, provider, client, event)
+            end
         end
     end
   rescue
     e ->
       {:error, "event=#{Map.get(event, :id, "?")} error: #{Exception.message(e)}"}
+  end
+
+  # A cancelled meeting must not spawn a visit. If one already exists for this
+  # event and hasn't completed, retire it to COMPLETE so the call scheduler
+  # (which only dials :PLANNED) stops — there is no dedicated CANCELLED status.
+  defp cancel_existing_visit(event_id, agent_id, provider) do
+    case find_existing_visit(event_id, agent_id, provider) do
+      %Visit{status: status} = existing
+      when status in [:PLANNED, :PRE_CALL_DONE, :IN_PROGRESS] ->
+        case Visits.update(existing, %{status: :COMPLETE}) do
+          {:ok, _v} -> :skipped
+          {:error, cs} -> {:error, "cancel failed: #{inspect(cs.errors)}"}
+        end
+
+      _ ->
+        :skipped
+    end
   end
 
   # ---------------------------------------------------------------------------
@@ -227,8 +250,15 @@ defmodule Florina.Workers.CalendarSync do
         Logger.info("[CalendarSync] created visit=#{v.id} client=#{client.name}")
         {:created, v}
 
-      {:error, cs} ->
-        {:error, "create failed: #{inspect(cs.errors)}"}
+      {:error, %Ecto.Changeset{errors: errors} = cs} ->
+        if Keyword.has_key?(errors, :calendar_event_id) do
+          # Lost a race with a concurrent sync — the unique index rejected the
+          # duplicate. The visit already exists, so treat this as a no-op.
+          Logger.debug("[CalendarSync] duplicate visit for event=#{event.id} — skipping")
+          :skipped
+        else
+          {:error, "create failed: #{inspect(cs.errors)}"}
+        end
     end
   end
 

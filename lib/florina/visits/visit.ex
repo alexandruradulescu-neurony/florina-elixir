@@ -82,5 +82,8 @@ defmodule Florina.Visits.Visit do
     |> foreign_key_constraint(:client_id)
     |> foreign_key_constraint(:methodology_id)
     |> foreign_key_constraint(:scenario_id)
+    # Backstop against concurrent calendar syncs creating the same visit twice.
+    # Error attributed to :calendar_event_id so CalendarSync can detect the race.
+    |> unique_constraint(:calendar_event_id, name: :voice_visit_agent_provider_event_uidx)
   end
 end
