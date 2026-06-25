@@ -86,7 +86,7 @@ defmodule FlorinaWeb.Layouts do
 
     <%!-- Desktop sidebar (fixed) --%>
     <div class="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-72 lg:flex-col">
-      <.sidebar tenant={@tenant} active={@active} />
+      <.sidebar tenant={@tenant} active={@active} manager?={Authz.manager?(@current_agent)} />
     </div>
 
     <div class="lg:pl-72">
