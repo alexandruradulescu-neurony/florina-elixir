@@ -128,6 +128,34 @@ defmodule Florina.Visits do
     |> TenantRepo.all()
   end
 
+  @doc """
+  All visits, newest first, with full associations. Manager-only view (no agent
+  scope) — used by the manager meetings list.
+  """
+  def list_all(limit \\ 100) do
+    Visit
+    |> preload(^@full_preloads)
+    |> order_by(desc: :start_time)
+    |> limit(^limit)
+    |> TenantRepo.all()
+  end
+
+  @doc """
+  Visits whose `start_time` falls on `date` (UTC), every agent, ascending, with
+  agent + client preloaded. Powers the manager dashboard's "today" list.
+  """
+  def list_for_day(%Date{} = date) do
+    day_start = DateTime.new!(date, ~T[00:00:00], "Etc/UTC")
+    day_end = DateTime.new!(date, ~T[23:59:59], "Etc/UTC")
+
+    from(v in Visit,
+      where: v.start_time >= ^day_start and v.start_time <= ^day_end,
+      preload: [:agent, :client],
+      order_by: [asc: :start_time]
+    )
+    |> TenantRepo.all()
+  end
+
   # ---------------------------------------------------------------------------
   # Effective-methodology lookup
   # ---------------------------------------------------------------------------

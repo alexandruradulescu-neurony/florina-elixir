@@ -190,6 +190,23 @@ defmodule FlorinaWeb.Layouts do
               />
             </ul>
           </li>
+          <li :if={@manager?}>
+            <div class="text-xs font-semibold text-base-content/50">Management</div>
+            <ul role="list" class="-mx-2 mt-2 space-y-1">
+              <.nav_item
+                label="Dashboard"
+                icon="hero-chart-bar"
+                href={"/t/#{@tenant.slug}/manage/dashboard"}
+                active={@active == :dashboard}
+              />
+              <.nav_item
+                label="Meetings"
+                icon="hero-briefcase"
+                href={"/t/#{@tenant.slug}/manage/meetings"}
+                active={@active == :meetings}
+              />
+            </ul>
+          </li>
         </ul>
       </nav>
     </div>
