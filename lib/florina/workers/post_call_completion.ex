@@ -59,7 +59,11 @@ defmodule Florina.Workers.PostCallCompletion do
     end
   end
 
-  defp handle_completion(%CallAttempt{visit_id: visit_id, transcript: transcript} = _ca) do
+  defp handle_completion(%CallAttempt{
+         visit_id: visit_id,
+         transcript: transcript,
+         summary: summary
+       }) do
     case Visits.get_with_associations(visit_id) do
       nil ->
         Logger.error("[PostCallCompletion] Visit #{visit_id} not found")
@@ -73,6 +77,10 @@ defmodule Florina.Workers.PostCallCompletion do
         :ok
 
       visit ->
+        # Persist the debrief summary the webhook captured (CallAttempt.summary)
+        # onto the visit so lessons distillation — which gates on
+        # Visit.post_call_summary — actually runs. Nothing else writes this field.
+        visit = store_post_call_summary(visit, summary)
         transcript_text = transcript || ""
 
         case VisitPipeline.process_post_call(visit, transcript_text, :END_OF_MEETING) do
@@ -101,4 +109,21 @@ defmodule Florina.Workers.PostCallCompletion do
         end
     end
   end
+
+  defp store_post_call_summary(visit, summary) when is_binary(summary) and summary != "" do
+    case Visits.update(visit, %{post_call_summary: summary}) do
+      {:ok, v} ->
+        v
+
+      {:error, cs} ->
+        Logger.warning(
+          "[PostCallCompletion] could not store post_call_summary for visit=#{visit.id}: " <>
+            inspect(cs.errors)
+        )
+
+        visit
+    end
+  end
+
+  defp store_post_call_summary(visit, _summary), do: visit
 end
