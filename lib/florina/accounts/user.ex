@@ -22,6 +22,7 @@ defmodule Florina.Accounts.User do
     field :pipedrive_user_id, :integer
     field :phone_number, :string
     field :is_sales_agent, :boolean, default: false
+    field :active, :boolean, default: true
 
     # FK to voice_methodology — added after methodology table exists (circular ref).
     # nil until methodology table created.
@@ -38,6 +39,7 @@ defmodule Florina.Accounts.User do
     :pipedrive_user_id,
     :phone_number,
     :is_sales_agent,
+    :active,
     :default_methodology_id
   ]
 

@@ -8,7 +8,7 @@ defmodule Florina.Accounts do
   All queries hit `TenantRepo` (the pinned, per-tenant connection).
   """
 
-  import Ecto.Query, only: [order_by: 2, where: 2]
+  import Ecto.Query
   alias Florina.TenantRepo
   alias Florina.Accounts.User
 
@@ -69,5 +69,40 @@ defmodule Florina.Accounts do
     user
     |> User.changeset(attrs)
     |> TenantRepo.update()
+  end
+
+  # ---------------------------------------------------------------------------
+  # Identity helpers
+  # ---------------------------------------------------------------------------
+
+  @doc "Find a user by email (case-insensitive). Returns nil if not found."
+  def get_user_by_email(email) when is_binary(email) do
+    down = String.downcase(email)
+    User |> where([u], fragment("lower(?)", u.email) == ^down) |> TenantRepo.one()
+  end
+
+  @doc """
+  Create-or-find a sales agent from a verified OAuth identity.
+  Returns `{:ok, user}`, or `{:error, :inactive}` if a matching agent is deactivated.
+  """
+  def upsert_agent_from_identity(%{email: email} = identity) when is_binary(email) do
+    down = String.downcase(email)
+
+    case get_user_by_email(down) do
+      nil ->
+        create_user(%{
+          username: down,
+          email: down,
+          first_name: identity[:name],
+          is_sales_agent: true,
+          active: true
+        })
+
+      %User{active: false} ->
+        {:error, :inactive}
+
+      %User{} = user ->
+        update_user(user, %{is_sales_agent: true})
+    end
   end
 end
