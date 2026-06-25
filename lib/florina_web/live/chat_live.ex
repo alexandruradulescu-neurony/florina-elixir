@@ -67,6 +67,8 @@ defmodule FlorinaWeb.ChatLive do
       />
       <button type="submit" class="btn btn-primary mt-2">Send</button>
     </form>
+
+    <Layouts.flash_group flash={@flash} />
     """
   end
 end

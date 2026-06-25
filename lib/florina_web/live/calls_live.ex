@@ -37,6 +37,8 @@ defmodule FlorinaWeb.CallsLive do
         </tr>
       </tbody>
     </table>
+
+    <Layouts.flash_group flash={@flash} />
     """
   end
 end

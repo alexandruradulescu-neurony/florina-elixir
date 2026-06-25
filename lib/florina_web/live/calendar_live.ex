@@ -70,6 +70,8 @@ defmodule FlorinaWeb.CalendarLive do
         </div>
       </div>
     </div>
+
+    <Layouts.flash_group flash={@flash} />
     """
   end
 
