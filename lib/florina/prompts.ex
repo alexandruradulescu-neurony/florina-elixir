@@ -28,9 +28,19 @@ defmodule Florina.Prompts do
         from m in MegaPrompt, where: m.domain == ^domain and m.is_active == true, limit: 1
       )
 
-  @doc "Create the next version of a mega-prompt for its domain (auto-increments version)."
+  @doc """
+  Create the next version of a mega-prompt for its domain (auto-increments version).
+
+  Automatically sets `is_overridden: true` so publish won't overwrite this
+  tenant-local version. A fuller id-space partition (to avoid id collisions with
+  canonical rows) is deferred as future work.
+  """
   def create_version(%{domain: domain} = attrs) do
-    attrs = Map.put(attrs, :version, next_version(domain))
+    attrs =
+      attrs
+      |> Map.put(:version, next_version(domain))
+      |> Map.put(:is_overridden, true)
+
     %MegaPrompt{} |> MegaPrompt.changeset(attrs) |> TenantRepo.insert()
   end
 

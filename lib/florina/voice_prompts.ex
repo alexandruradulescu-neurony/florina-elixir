@@ -27,10 +27,28 @@ defmodule Florina.VoicePrompts do
         from p in VoicePrompt, where: p.prompt_type == ^type and p.is_active == true, limit: 1
       )
 
-  def create(attrs), do: %VoicePrompt{} |> VoicePrompt.changeset(attrs) |> TenantRepo.insert()
+  @doc """
+  Creates a voice prompt.
 
-  def update(%VoicePrompt{} = p, attrs),
-    do: p |> VoicePrompt.changeset(attrs) |> TenantRepo.update()
+  Automatically sets `is_overridden: true` so publish won't overwrite this
+  tenant-local row. A fuller id-space partition (to avoid id collisions with
+  canonical rows) is deferred as future work.
+  """
+  def create(attrs) do
+    attrs = Map.put(attrs, :is_overridden, true)
+    %VoicePrompt{} |> VoicePrompt.changeset(attrs) |> TenantRepo.insert()
+  end
+
+  @doc """
+  Updates a voice prompt.
+
+  Automatically sets `is_overridden: true` so publish won't overwrite this
+  tenant-local edit.
+  """
+  def update(%VoicePrompt{} = p, attrs) do
+    attrs = Map.put(attrs, :is_overridden, true)
+    p |> VoicePrompt.changeset(attrs) |> TenantRepo.update()
+  end
 
   def delete(%VoicePrompt{} = p), do: TenantRepo.delete(p)
 

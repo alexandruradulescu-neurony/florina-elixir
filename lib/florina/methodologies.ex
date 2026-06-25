@@ -52,9 +52,15 @@ defmodule Florina.Methodologies do
   @doc """
   Creates a methodology.
 
+  Automatically sets `is_overridden: true` so publish won't overwrite this
+  tenant-local row. A fuller id-space partition (to avoid id collisions with
+  canonical rows) is deferred as future work.
+
   Returns `{:ok, methodology}` or `{:error, changeset}`.
   """
   def create(attrs \\ %{}) do
+    attrs = Map.put(attrs, :is_overridden, true)
+
     %Methodology{}
     |> Methodology.changeset(attrs)
     |> TenantRepo.insert()
@@ -63,9 +69,14 @@ defmodule Florina.Methodologies do
   @doc """
   Updates a methodology.
 
+  Automatically sets `is_overridden: true` so publish won't overwrite this
+  tenant-local edit.
+
   Returns `{:ok, methodology}` or `{:error, changeset}`.
   """
   def update(%Methodology{} = methodology, attrs) do
+    attrs = Map.put(attrs, :is_overridden, true)
+
     methodology
     |> Methodology.changeset(attrs)
     |> TenantRepo.update()

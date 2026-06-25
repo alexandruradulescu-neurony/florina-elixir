@@ -27,13 +27,25 @@ defmodule FlorinaWeb.Admin.ConfigLive do
   def handle_event("publish_all", _params, socket) do
     task = Task.async(fn -> CentralConfig.publish_all() end)
 
-    case Task.await(task, 30_000) do
-      :ok ->
-        {:noreply, put_flash(socket, :info, "Config published to all active tenants.")}
+    socket =
+      try do
+        case Task.await(task, 30_000) do
+          {:ok, %{published: n, failed: []}} ->
+            put_flash(socket, :info, "Config published to #{n} tenant(s).")
 
-      {:error, reason} ->
-        {:noreply, put_flash(socket, :error, "Publish failed: #{inspect(reason)}")}
-    end
+          {:ok, %{published: n, failed: failed}} ->
+            slugs = failed |> Enum.map(& &1.slug) |> Enum.join(", ")
+            put_flash(socket, :error, "Published to #{n} tenant(s); failed for: #{slugs}.")
+
+          {:error, reason} ->
+            put_flash(socket, :error, "Publish failed: #{inspect(reason)}")
+        end
+      catch
+        :exit, reason ->
+          put_flash(socket, :error, "Publish task crashed: #{inspect(reason)}")
+      end
+
+    {:noreply, socket}
   end
 
   # ---------------------------------------------------------------------------

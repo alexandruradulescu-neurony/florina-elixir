@@ -11,16 +11,24 @@ defmodule Florina.CentralConfig do
 
   - `seed_tenant/1`   — called by the Provisioner on new-tenant creation;
                         copies ALL canonical rows into the tenant DB preserving ids.
+                        Rows already marked `is_overridden: true` are left untouched.
   - `publish_to/1`    — upserts canonical rows into one tenant, skipping rows
                         where `is_overridden = true` (tenant's custom value wins).
   - `publish_all/0`   — calls `publish_to/1` for every active tenant.
+                        Returns a summary map `{:ok, %{published: n, failed: [...]}}`.
 
   ## Override semantics
 
-  A tenant row with `is_overridden: true` is never touched by `publish_to`.
-  The flag is `false` by default on all seed rows, so tenants start fully
-  in sync with central config and can opt out row-by-row.
+  A tenant row with `is_overridden: true` is never touched by `publish_to` or
+  `seed_tenant`. The per-tenant contexts (`Methodologies`, `Scenarios`, etc.)
+  automatically set `is_overridden: true` when a tenant edits or creates a local
+  row, so publish won't overwrite those tenant customisations.
+
+  The flag is `false` by default on seed rows for freshly provisioned tenants
+  (no existing rows), so new tenants start fully in sync with central config.
   """
+
+  require Logger
 
   import Ecto.Query, only: [from: 2]
 
@@ -159,9 +167,9 @@ defmodule Florina.CentralConfig do
   Copies all canonical config rows into the given tenant's database,
   preserving ids (so tenant data that references config by id stays consistent).
 
-  Uses `on_conflict: :replace_all` so calling this on an existing tenant is safe
-  (it re-syncs without caring about prior state).  `is_overridden` is always
-  reset to `false` on a seed — this is intentional: seed = "start from central".
+  Rows already marked `is_overridden: true` in the tenant DB are skipped, so
+  re-seeding an existing tenant (e.g. via Retry/re-provision) does NOT destroy
+  customisations the tenant has made. Fresh tenants (no rows yet) get everything.
   """
   def seed_tenant(slug) when is_binary(slug) do
     with {:ok, pid} <- ConnectionManager.ensure_started(slug) do
@@ -177,8 +185,14 @@ defmodule Florina.CentralConfig do
     # --- Methodologies ---
     methodologies = Repo.all(Methodology)
 
+    overridden_methodology_ids =
+      TenantRepo.all(from r in TenantMethodology, where: r.is_overridden == true, select: r.id)
+      |> MapSet.new()
+
     methodology_rows =
-      Enum.map(methodologies, fn m ->
+      methodologies
+      |> Enum.reject(fn m -> MapSet.member?(overridden_methodology_ids, m.id) end)
+      |> Enum.map(fn m ->
         %{
           id: m.id,
           name: m.name,
@@ -193,16 +207,24 @@ defmodule Florina.CentralConfig do
         }
       end)
 
-    TenantRepo.insert_all(TenantMethodology, methodology_rows,
-      on_conflict: :replace_all,
-      conflict_target: :id
-    )
+    if methodology_rows != [] do
+      TenantRepo.insert_all(TenantMethodology, methodology_rows,
+        on_conflict: :replace_all,
+        conflict_target: :id
+      )
+    end
 
     # --- Scenarios ---
     scenarios = Repo.all(Scenario)
 
+    overridden_scenario_ids =
+      TenantRepo.all(from r in TenantScenario, where: r.is_overridden == true, select: r.id)
+      |> MapSet.new()
+
     scenario_rows =
-      Enum.map(scenarios, fn s ->
+      scenarios
+      |> Enum.reject(fn s -> MapSet.member?(overridden_scenario_ids, s.id) end)
+      |> Enum.map(fn s ->
         %{
           id: s.id,
           name: s.name,
@@ -215,16 +237,24 @@ defmodule Florina.CentralConfig do
         }
       end)
 
-    TenantRepo.insert_all(TenantScenario, scenario_rows,
-      on_conflict: :replace_all,
-      conflict_target: :id
-    )
+    if scenario_rows != [] do
+      TenantRepo.insert_all(TenantScenario, scenario_rows,
+        on_conflict: :replace_all,
+        conflict_target: :id
+      )
+    end
 
     # --- VoicePrompts ---
     voice_prompts = Repo.all(VoicePrompt)
 
+    overridden_voice_prompt_ids =
+      TenantRepo.all(from r in TenantVoicePrompt, where: r.is_overridden == true, select: r.id)
+      |> MapSet.new()
+
     voice_prompt_rows =
-      Enum.map(voice_prompts, fn vp ->
+      voice_prompts
+      |> Enum.reject(fn vp -> MapSet.member?(overridden_voice_prompt_ids, vp.id) end)
+      |> Enum.map(fn vp ->
         %{
           id: vp.id,
           name: vp.name,
@@ -238,16 +268,24 @@ defmodule Florina.CentralConfig do
         }
       end)
 
-    TenantRepo.insert_all(TenantVoicePrompt, voice_prompt_rows,
-      on_conflict: :replace_all,
-      conflict_target: :id
-    )
+    if voice_prompt_rows != [] do
+      TenantRepo.insert_all(TenantVoicePrompt, voice_prompt_rows,
+        on_conflict: :replace_all,
+        conflict_target: :id
+      )
+    end
 
     # --- MegaPrompts ---
     mega_prompts = Repo.all(MegaPrompt)
 
+    overridden_mega_prompt_ids =
+      TenantRepo.all(from r in TenantMegaPrompt, where: r.is_overridden == true, select: r.id)
+      |> MapSet.new()
+
     mega_prompt_rows =
-      Enum.map(mega_prompts, fn mp ->
+      mega_prompts
+      |> Enum.reject(fn mp -> MapSet.member?(overridden_mega_prompt_ids, mp.id) end)
+      |> Enum.map(fn mp ->
         %{
           id: mp.id,
           domain: mp.domain,
@@ -262,29 +300,35 @@ defmodule Florina.CentralConfig do
         }
       end)
 
-    TenantRepo.insert_all(TenantMegaPrompt, mega_prompt_rows,
-      on_conflict: :replace_all,
-      conflict_target: :id
-    )
+    if mega_prompt_rows != [] do
+      TenantRepo.insert_all(TenantMegaPrompt, mega_prompt_rows,
+        on_conflict: :replace_all,
+        conflict_target: :id
+      )
+    end
 
     # --- GlobalSettings (singleton id=1) ---
     settings = get_settings()
 
-    settings_row = %{
-      id: settings.id,
-      pre_call_offset_minutes: settings.pre_call_offset_minutes,
-      post_call_offset_minutes: settings.post_call_offset_minutes,
-      retry_interval_minutes: settings.retry_interval_minutes,
-      max_context_tokens_warn: settings.max_context_tokens_warn,
-      default_methodology_id: settings.default_methodology_id,
-      is_overridden: false,
-      updated_at: now
-    }
+    tenant_settings = TenantRepo.get(TenantGlobalSettings, settings.id)
 
-    TenantRepo.insert_all(TenantGlobalSettings, [settings_row],
-      on_conflict: :replace_all,
-      conflict_target: :id
-    )
+    unless tenant_settings && tenant_settings.is_overridden do
+      settings_row = %{
+        id: settings.id,
+        pre_call_offset_minutes: settings.pre_call_offset_minutes,
+        post_call_offset_minutes: settings.post_call_offset_minutes,
+        retry_interval_minutes: settings.retry_interval_minutes,
+        max_context_tokens_warn: settings.max_context_tokens_warn,
+        default_methodology_id: settings.default_methodology_id,
+        is_overridden: false,
+        updated_at: now
+      }
+
+      TenantRepo.insert_all(TenantGlobalSettings, [settings_row],
+        on_conflict: :replace_all,
+        conflict_target: :id
+      )
+    end
 
     :ok
   end
@@ -306,8 +350,10 @@ defmodule Florina.CentralConfig do
   def publish_to(slug) when is_binary(slug) do
     with {:ok, pid} <- ConnectionManager.ensure_started(slug) do
       TenantRepo.put_dynamic_repo(pid)
-      do_publish()
-      :ok
+
+      TenantRepo.transaction(fn ->
+        do_publish()
+      end)
     end
   end
 
@@ -417,7 +463,10 @@ defmodule Florina.CentralConfig do
     :ok
   end
 
-  # Upserts canonical rows into a tenant table, skipping overridden rows.
+  # Upserts canonical rows into a tenant table, skipping rows the tenant has
+  # overridden. `:is_overridden` is explicitly excluded from replace_fields so
+  # that publish never clears a tenant's override flag, even if it appears in
+  # the source map.
   defp publish_table(canonical_rows, tenant_schema, row_builder) do
     # Fetch overridden ids in one query
     overridden_ids =
@@ -430,12 +479,12 @@ defmodule Florina.CentralConfig do
       |> Enum.map(row_builder)
 
     if rows_to_upsert != [] do
-      # Determine which fields to replace: all keys except :id and :is_overridden
+      # Replace all fields except :id (primary key) and :is_overridden (tenant owns it).
       replace_fields =
         rows_to_upsert
         |> List.first()
         |> Map.keys()
-        |> Enum.reject(&(&1 in [:id]))
+        |> Enum.reject(&(&1 in [:id, :is_overridden]))
 
       TenantRepo.insert_all(tenant_schema, rows_to_upsert,
         on_conflict: {:replace, replace_fields},
@@ -450,12 +499,48 @@ defmodule Florina.CentralConfig do
   # publish_all/0 — publish to every active tenant
   # ---------------------------------------------------------------------------
 
-  @doc "Publishes canonical config to all active tenants."
-  def publish_all do
-    Tenants.list()
-    |> Enum.filter(& &1.active)
-    |> Enum.each(fn tenant -> publish_to(tenant.slug) end)
+  @doc """
+  Publishes canonical config to all active tenants (status == "active" AND active == true).
 
-    :ok
+  Per-tenant failures are isolated: one tenant's error is logged and does not
+  abort publishing to the others. Returns a summary:
+
+      {:ok, %{published: n, failed: [%{slug: "...", reason: "..."}]}}
+  """
+  def publish_all do
+    tenants = Tenants.list_active()
+
+    results =
+      Enum.map(tenants, fn tenant ->
+        try do
+          case publish_to(tenant.slug) do
+            {:ok, _} ->
+              {:published, tenant.slug}
+
+            {:error, reason} ->
+              Logger.error("CentralConfig.publish_all: failed for #{tenant.slug}: #{inspect(reason)}")
+              {:failed, tenant.slug, inspect(reason)}
+          end
+        rescue
+          e ->
+            reason = Exception.message(e)
+            Logger.error("CentralConfig.publish_all: exception for #{tenant.slug}: #{reason}")
+            {:failed, tenant.slug, reason}
+        catch
+          kind, value ->
+            reason = "#{kind}: #{inspect(value)}"
+            Logger.error("CentralConfig.publish_all: throw for #{tenant.slug}: #{reason}")
+            {:failed, tenant.slug, reason}
+        end
+      end)
+
+    published = Enum.count(results, &match?({:published, _}, &1))
+
+    failed =
+      results
+      |> Enum.filter(&match?({:failed, _, _}, &1))
+      |> Enum.map(fn {:failed, slug, reason} -> %{slug: slug, reason: reason} end)
+
+    {:ok, %{published: published, failed: failed}}
   end
 end

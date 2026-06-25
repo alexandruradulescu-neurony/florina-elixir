@@ -52,9 +52,15 @@ defmodule Florina.Scenarios do
   @doc """
   Creates a scenario.
 
+  Automatically sets `is_overridden: true` so publish won't overwrite this
+  tenant-local row. A fuller id-space partition (to avoid id collisions with
+  canonical rows) is deferred as future work.
+
   Returns `{:ok, scenario}` or `{:error, changeset}`.
   """
   def create(attrs \\ %{}) do
+    attrs = Map.put(attrs, :is_overridden, true)
+
     %Scenario{}
     |> Scenario.changeset(attrs)
     |> TenantRepo.insert()
@@ -63,9 +69,14 @@ defmodule Florina.Scenarios do
   @doc """
   Updates a scenario.
 
+  Automatically sets `is_overridden: true` so publish won't overwrite this
+  tenant-local edit.
+
   Returns `{:ok, scenario}` or `{:error, changeset}`.
   """
   def update(%Scenario{} = scenario, attrs) do
+    attrs = Map.put(attrs, :is_overridden, true)
+
     scenario
     |> Scenario.changeset(attrs)
     |> TenantRepo.update()
