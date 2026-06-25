@@ -1,0 +1,44 @@
+defmodule Florina.CalendarEvents do
+  @moduledoc "Per-tenant synced calendar events — the merged-calendar source of truth."
+  import Ecto.Query
+  alias Florina.TenantRepo
+  alias Florina.Calendar.Event
+
+  @doc "Insert or update one normalized provider event (idempotent on user+provider+external id)."
+  def upsert_event(user_id, provider, event) when is_atom(provider) do
+    attrs = %{
+      user_id: user_id,
+      provider: provider,
+      external_event_id: event.id,
+      title: event[:title],
+      description: event[:description],
+      location: event[:location],
+      start_time: trunc_dt(event.start_time),
+      end_time: trunc_dt(event.end_time),
+      attendees: Enum.map(event[:attendees] || [], &%{"email" => &1}),
+      status: event[:status],
+      raw: event[:raw],
+      synced_at: now()
+    }
+
+    case TenantRepo.get_by(Event,
+           user_id: user_id,
+           provider: provider,
+           external_event_id: event.id
+         ) do
+      nil -> %Event{} |> Event.changeset(attrs) |> TenantRepo.insert()
+      existing -> existing |> Event.changeset(attrs) |> TenantRepo.update()
+    end
+  end
+
+  @doc "All events whose start falls within [from, to], ordered, with the agent preloaded."
+  def list_events_between(%DateTime{} = from, %DateTime{} = to) do
+    from(e in Event, where: e.start_time >= ^from and e.start_time <= ^to, order_by: e.start_time)
+    |> TenantRepo.all()
+    |> TenantRepo.preload(:user)
+  end
+
+  defp now, do: DateTime.utc_now() |> DateTime.truncate(:second)
+  defp trunc_dt(%DateTime{} = dt), do: DateTime.truncate(dt, :second)
+  defp trunc_dt(other), do: other
+end
