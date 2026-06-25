@@ -40,9 +40,7 @@ if config_env() == :prod do
     ciphers: [
       default:
         {Cloak.Ciphers.AES.GCM,
-         tag: "AES.GCM.V1",
-         key: Base.decode64!(field_encryption_key),
-         iv_length: 12}
+         tag: "AES.GCM.V1", key: Base.decode64!(field_encryption_key), iv_length: 12}
     ]
 
   config :florina, :anthropic_api_key, System.get_env("ANTHROPIC_API_KEY")

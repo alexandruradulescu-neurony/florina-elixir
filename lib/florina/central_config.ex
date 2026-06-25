@@ -518,7 +518,10 @@ defmodule Florina.CentralConfig do
               {:published, tenant.slug}
 
             {:error, reason} ->
-              Logger.error("CentralConfig.publish_all: failed for #{tenant.slug}: #{inspect(reason)}")
+              Logger.error(
+                "CentralConfig.publish_all: failed for #{tenant.slug}: #{inspect(reason)}"
+              )
+
               {:failed, tenant.slug, inspect(reason)}
           end
         rescue

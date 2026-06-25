@@ -231,7 +231,10 @@ defmodule Florina.Services.DataContext do
         upcoming
         |> Enum.map(fn v ->
           client_name = if v.client, do: v.client.name, else: "unknown client"
-          agent_name = if v.agent, do: v.agent.first_name || v.agent.username, else: "unknown agent"
+
+          agent_name =
+            if v.agent, do: v.agent.first_name || v.agent.username, else: "unknown agent"
+
           dt = fmt_local_datetime(v.start_time)
           "- #{dt}: \"#{v.title}\" with #{client_name} (agent: #{agent_name})"
         end)

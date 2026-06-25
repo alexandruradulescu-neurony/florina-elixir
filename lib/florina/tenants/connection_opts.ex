@@ -65,11 +65,14 @@ defmodule Florina.Tenants.ConnectionOpts do
 
     {user, pass} =
       case uri.userinfo do
-        nil -> {nil, nil}
-        ui -> case String.split(ui, ":", parts: 2) do
-                [u, p] -> {u, p}
-                [u] -> {u, nil}
-              end
+        nil ->
+          {nil, nil}
+
+        ui ->
+          case String.split(ui, ":", parts: 2) do
+            [u, p] -> {u, p}
+            [u] -> {u, nil}
+          end
       end
 
     [username: user, password: pass, hostname: uri.host, port: uri.port]
