@@ -92,38 +92,48 @@ defmodule Florina.Workers.CalendarSync do
   defp sync_agent(agent, today_start, today_end) do
     acc = %{created: 0, updated: 0, skipped: 0, errors: []}
 
-    case OAuth.get_calendar_credential_for_user(agent.id) do
-      nil ->
+    case OAuth.list_calendar_credentials_for_user(agent.id) do
+      [] ->
         Logger.debug("[CalendarSync] agent=#{agent.username} has no calendar credential — skip")
         acc
 
-      cred ->
-        case Provider.for_credential(cred).list_events(cred, today_start, today_end) do
-          {:ok, events} ->
-            Enum.each(events, fn ev ->
-              case CalendarEvents.upsert_event(agent.id, cred.provider, ev) do
-                {:ok, _} ->
-                  :ok
+      creds ->
+        # An agent may connect both Google and Microsoft — sync each provider and
+        # accumulate the counts across them.
+        Enum.reduce(creds, acc, fn cred, acc ->
+          sync_agent_credential(agent, cred, today_start, today_end, acc)
+        end)
+    end
+  end
 
-                {:error, cs} ->
-                  Logger.warning("[CalendarSync] event upsert failed: #{inspect(cs.errors)}")
-              end
-            end)
+  defp sync_agent_credential(agent, cred, today_start, today_end, acc) do
+    case Provider.for_credential(cred).list_events(cred, today_start, today_end) do
+      {:ok, events} ->
+        Enum.each(events, fn ev ->
+          case CalendarEvents.upsert_event(agent.id, cred.provider, ev) do
+            {:ok, _} ->
+              :ok
 
-            Enum.reduce(events, acc, fn event, a ->
-              case process_event(agent, event) do
-                {:created, _} -> %{a | created: a.created + 1}
-                {:updated, _} -> %{a | updated: a.updated + 1}
-                :skipped -> %{a | skipped: a.skipped + 1}
-                {:error, msg} -> %{a | errors: [msg | a.errors]}
-              end
-            end)
+            {:error, cs} ->
+              Logger.warning("[CalendarSync] event upsert failed: #{inspect(cs.errors)}")
+          end
+        end)
 
-          {:error, reason} ->
-            msg = "CalendarSync agent=#{agent.username} fetch error: #{inspect(reason)}"
-            Logger.error("[CalendarSync] #{msg}")
-            %{acc | errors: [msg]}
-        end
+        Enum.reduce(events, acc, fn event, a ->
+          case process_event(agent, cred.provider, event) do
+            {:created, _} -> %{a | created: a.created + 1}
+            {:updated, _} -> %{a | updated: a.updated + 1}
+            :skipped -> %{a | skipped: a.skipped + 1}
+            {:error, msg} -> %{a | errors: [msg | a.errors]}
+          end
+        end)
+
+      {:error, reason} ->
+        msg =
+          "CalendarSync agent=#{agent.username} provider=#{cred.provider} fetch error: #{inspect(reason)}"
+
+        Logger.error("[CalendarSync] #{msg}")
+        %{acc | errors: [msg | acc.errors]}
     end
   end
 
@@ -131,18 +141,18 @@ defmodule Florina.Workers.CalendarSync do
   # Per-event processing
   # ---------------------------------------------------------------------------
 
-  defp process_event(agent, %{id: event_id, attendees: attendees} = event) do
+  defp process_event(agent, provider, %{id: event_id, attendees: attendees} = event) do
     case match_client_by_attendees(attendees) do
       nil ->
         :skipped
 
       client ->
-        case find_existing_visit(event_id, agent.id) do
+        case find_existing_visit(event_id, agent.id, provider) do
           %Visit{} = existing ->
             update_visit_if_changed(existing, event)
 
           nil ->
-            create_visit(agent, client, event)
+            create_visit(agent, provider, client, event)
         end
     end
   rescue
@@ -170,9 +180,11 @@ defmodule Florina.Workers.CalendarSync do
   # Visit helpers
   # ---------------------------------------------------------------------------
 
-  defp find_existing_visit(event_id, agent_id) do
+  defp find_existing_visit(event_id, agent_id, provider) do
     from(v in Visit,
-      where: v.calendar_event_id == ^event_id and v.agent_id == ^agent_id
+      where:
+        v.calendar_event_id == ^event_id and v.agent_id == ^agent_id and
+          v.provider == ^provider
     )
     |> TenantRepo.one()
   end
@@ -194,13 +206,14 @@ defmodule Florina.Workers.CalendarSync do
     end
   end
 
-  defp create_visit(agent, client, event) do
+  defp create_visit(agent, provider, client, event) do
     crm_deal_id = resolve_crm_deal(client)
 
     attrs = %{
       agent_id: agent.id,
       client_id: client.id,
       calendar_event_id: event.id,
+      provider: provider,
       title: event.title,
       start_time: event.start_time,
       end_time: event.end_time,

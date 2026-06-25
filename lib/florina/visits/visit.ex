@@ -19,6 +19,10 @@ defmodule Florina.Visits.Visit do
     has_many :call_attempts, Florina.Calls.CallAttempt
 
     field :calendar_event_id, :string
+    # Which calendar the event came from (:google | :microsoft). Lets calendar
+    # sync match events per-provider so a Google and a Microsoft event id can't
+    # collide on the same visit. Null for manually-created visits.
+    field :provider, Ecto.Enum, values: [:google, :microsoft]
     field :title, :string
     field :start_time, :utc_datetime
     field :end_time, :utc_datetime
@@ -47,6 +51,7 @@ defmodule Florina.Visits.Visit do
   @required_fields [:agent_id, :client_id, :title, :start_time, :end_time]
   @optional_fields [
     :calendar_event_id,
+    :provider,
     :attendees,
     :crm_deal_id,
     :manager_notes,
