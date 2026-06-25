@@ -37,10 +37,30 @@ defmodule Florina.OAuth do
            provider: provider,
            purpose: :agent_calendar
          ) do
-      nil -> %Credential{} |> Credential.changeset(attrs) |> TenantRepo.insert()
-      existing -> existing |> Credential.changeset(attrs) |> TenantRepo.update()
+      nil ->
+        %Credential{} |> Credential.changeset(attrs) |> TenantRepo.insert()
+
+      existing ->
+        existing
+        |> Credential.changeset(preserve_refresh_token(attrs, existing))
+        |> TenantRepo.update()
     end
   end
+
+  # Providers commonly omit the refresh token on re-consent (Google without
+  # prompt=consent, Microsoft re-login). Don't let a missing/blank value blow away
+  # the refresh token we already stored — sync would break once the access token
+  # expires. Drop the key from the update attrs so the existing value is kept.
+  defp preserve_refresh_token(attrs, %Credential{refresh_token: existing})
+       when is_binary(existing) and existing != "" do
+    if Map.get(attrs, :refresh_token, Map.get(attrs, "refresh_token")) in [nil, ""] do
+      attrs |> Map.delete(:refresh_token) |> Map.delete("refresh_token")
+    else
+      attrs
+    end
+  end
+
+  defp preserve_refresh_token(attrs, _existing), do: attrs
 
   def update_credential(%Credential{} = c, attrs),
     do: c |> Credential.changeset(attrs) |> TenantRepo.update()
