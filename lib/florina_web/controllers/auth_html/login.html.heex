@@ -13,7 +13,12 @@
     >
       Sign in with Google
     </a>
-    <%!-- Microsoft button added in a later task --%>
+    <a
+      href={~p"/t/#{@tenant.slug}/auth/microsoft/start"}
+      class="flex items-center justify-center gap-2 w-full border rounded px-4 py-2 text-sm font-medium hover:bg-gray-50 mt-3"
+    >
+      Sign in with Microsoft
+    </a>
 
     <p class="text-xs text-gray-400 text-center mt-6">
       Use your company email. Accounts are created automatically.
