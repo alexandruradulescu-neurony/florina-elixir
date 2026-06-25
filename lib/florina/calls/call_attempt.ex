@@ -6,7 +6,7 @@ defmodule Florina.Calls.CallAttempt do
   @timestamps_opts [type: :utc_datetime, inserted_at: :created_at, updated_at: :updated_at]
 
   schema "voice_callattempt" do
-    field :visit_id, :integer
+    belongs_to :visit, Florina.Visits.Visit
     field :phase, :string
     field :external_call_id, :string
     field :status, :string
@@ -31,5 +31,22 @@ defmodule Florina.Calls.CallAttempt do
       :analysis
     ])
     |> validate_required([:status])
+  end
+
+  @doc "Changeset for creating a new CallAttempt row (used by Oban workers)."
+  def create_changeset(call_attempt, attrs) do
+    call_attempt
+    |> cast(attrs, [
+      :visit_id,
+      :phase,
+      :status,
+      :external_call_id,
+      :transcript,
+      :summary,
+      :summary_title,
+      :analysis
+    ])
+    |> validate_required([:visit_id, :phase, :status])
+    |> foreign_key_constraint(:visit_id)
   end
 end

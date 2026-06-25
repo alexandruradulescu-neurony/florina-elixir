@@ -1,26 +1,29 @@
 defmodule Florina.Calls do
   @moduledoc "Context for the call real-time edge."
   import Ecto.Query, only: [order_by: 2, limit: 2]
-  alias Florina.Repo
+  alias Florina.TenantRepo
   alias Florina.Calls.CallAttempt
+
+  @doc "PubSub topic scoped to a single tenant."
+  def topic(tenant_slug), do: "calls:" <> tenant_slug
 
   @doc "Recent calls, most-recently-updated first."
   def list_recent(max \\ 50) do
     CallAttempt
     |> order_by(desc: :updated_at)
     |> limit(^max)
-    |> Repo.all()
+    |> TenantRepo.all()
   end
 
   def get_by_external_id(nil), do: nil
 
   def get_by_external_id(external_id),
-    do: Repo.get_by(CallAttempt, external_call_id: external_id)
+    do: TenantRepo.get_by(CallAttempt, external_call_id: external_id)
 
-  def get(id), do: Repo.get(CallAttempt, id)
+  def get(id), do: TenantRepo.get(CallAttempt, id)
 
   @doc "Apply an ElevenLabs post-call webhook payload to the matching call row."
-  def apply_elevenlabs_webhook(%{} = payload) do
+  def apply_elevenlabs_webhook(%{} = payload, tenant_slug) do
     data = Map.get(payload, "data", payload)
     conversation_id = data["conversation_id"]
     call_attempt_id = get_in(data, ["metadata", "call_attempt_id"])
@@ -41,8 +44,8 @@ defmodule Florina.Calls do
           |> maybe_put(:transcript, transcript)
           |> maybe_put(:summary, summary)
 
-        with {:ok, updated} <- ca |> CallAttempt.webhook_changeset(attrs) |> Repo.update() do
-          Phoenix.PubSub.broadcast(Florina.PubSub, "calls", {:call_updated, updated})
+        with {:ok, updated} <- ca |> CallAttempt.webhook_changeset(attrs) |> TenantRepo.update() do
+          Phoenix.PubSub.broadcast(Florina.PubSub, topic(tenant_slug), {:call_updated, updated})
           {:ok, updated}
         end
     end

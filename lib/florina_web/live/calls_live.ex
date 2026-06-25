@@ -1,10 +1,13 @@
 defmodule FlorinaWeb.CallsLive do
   use FlorinaWeb, :live_view
+  on_mount FlorinaWeb.TenantHook
   alias Florina.Calls
 
   @impl true
   def mount(_params, _session, socket) do
-    if connected?(socket), do: Phoenix.PubSub.subscribe(Florina.PubSub, "calls")
+    if connected?(socket),
+      do: Phoenix.PubSub.subscribe(Florina.PubSub, Calls.topic(socket.assigns.tenant.slug))
+
     {:ok, stream(socket, :calls, Calls.list_recent())}
   end
 

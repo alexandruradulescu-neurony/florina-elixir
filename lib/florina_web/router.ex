@@ -26,13 +26,24 @@ defmodule FlorinaWeb.Router do
     plug FlorinaWeb.Plugs.ResolveTenant
   end
 
+  # Writes the resolved tenant's slug into the session so a LiveView's on_mount
+  # hook can re-resolve it for the websocket connection. Only used on browser
+  # routes (which fetch the session); never on the sessionless webhook.
+  pipeline :tenant_session do
+    plug :put_tenant_slug_in_session
+  end
+
+  defp put_tenant_slug_in_session(conn, _opts) do
+    Plug.Conn.put_session(conn, :tenant_slug, conn.assigns.tenant.slug)
+  end
+
   defp basic_auth_dashboard(conn, _opts) do
     creds = Application.fetch_env!(:florina, :dashboard_auth)
     Plug.BasicAuth.basic_auth(conn, username: creds[:username], password: creds[:password])
   end
 
-  scope "/webhooks", FlorinaWeb.Webhook do
-    pipe_through :webhook
+  scope "/t/:tenant_slug/webhooks", FlorinaWeb.Webhook do
+    pipe_through [:webhook, :resolve_tenant]
     post "/elevenlabs", ElevenLabsController, :create
   end
 
@@ -42,13 +53,17 @@ defmodule FlorinaWeb.Router do
     get "/", PageController, :home
   end
 
-  scope "/", FlorinaWeb do
-    pipe_through [:browser, :dashboard_auth]
+  scope "/t/:tenant_slug", FlorinaWeb do
+    pipe_through [:browser, :dashboard_auth, :resolve_tenant, :tenant_session]
     live "/calls", CallsLive
-    live "/chat", ChatLive
   end
 
   scope "/", FlorinaWeb do
+    pipe_through [:browser, :dashboard_auth]
+    live "/chat", ChatLive
+  end
+
+  scope "/t/:tenant_slug", FlorinaWeb do
     pipe_through [:browser, :resolve_tenant]
     get "/whoami", WhoamiController, :show
   end

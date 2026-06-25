@@ -24,7 +24,7 @@ defmodule FlorinaWeb.Webhook.ElevenLabsController do
   end
 
   defp handle(conn, params) do
-    case Calls.apply_elevenlabs_webhook(params) do
+    case Calls.apply_elevenlabs_webhook(params, conn.assigns.tenant.slug) do
       {:ok, _ca} ->
         json(conn, %{status: "ok"})
 

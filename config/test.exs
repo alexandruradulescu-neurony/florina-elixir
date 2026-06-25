@@ -50,4 +50,20 @@ config :florina, :dashboard_auth, username: "admin", password: "test-pass"
 config :florina, :anthropic_client, Florina.Anthropic.Stub
 config :florina, :anthropic_api_key, "test-key"
 
+# External integration stubs — no real HTTP calls in tests
+config :florina,
+  elevenlabs_client: Florina.Integrations.ElevenLabs.Stub,
+  google_calendar_client: Florina.Integrations.GoogleCalendar.Stub,
+  pipedrive_client: Florina.Integrations.Pipedrive.Stub
+
+# Placeholder keys — ensure config keys exist (stubs don't use them)
+config :florina,
+  elevenlabs_api_key: nil,
+  elevenlabs_agent_id: nil,
+  elevenlabs_phone_number_id: nil,
+  google_client_id: nil,
+  google_client_secret: nil,
+  pipedrive_api_token: nil,
+  pipedrive_domain: nil
+
 config :florina, :tenant_base_host, "localhost"
