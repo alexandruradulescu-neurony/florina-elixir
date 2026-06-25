@@ -62,6 +62,11 @@ defmodule FlorinaWeb.Router do
     pipe_through :browser
 
     get "/", PageController, :home
+
+    # OAuth callback — fixed path (no tenant slug, so ONE redirect URI per provider
+    # is registered with Google/Microsoft). The tenant is recovered from the signed
+    # `state`; AuthController.callback resolves + pins it.
+    get "/auth/:provider/callback", AuthController, :callback
   end
 
   # Per-tenant sign-in (no agent gate — these establish the session)
@@ -69,7 +74,6 @@ defmodule FlorinaWeb.Router do
     pipe_through [:browser, :resolve_tenant, :tenant_session]
     get "/login", AuthController, :login
     get "/auth/:provider/start", AuthController, :start
-    get "/auth/:provider/callback", AuthController, :callback
     delete "/logout", AuthController, :logout
   end
 

@@ -3,7 +3,7 @@ defmodule FlorinaWeb.AuthController do
   use FlorinaWeb, :controller
   require Logger
 
-  alias Florina.{Accounts, OAuth}
+  alias Florina.{Accounts, OAuth, Tenants}
   alias Florina.Integrations.Provider
   import FlorinaWeb.AgentAuth, only: [log_in_agent: 2, log_out_agent: 1]
 
@@ -24,7 +24,7 @@ defmodule FlorinaWeb.AuthController do
 
     url =
       Provider.impl(p).authorize_url(
-        Provider.redirect_uri(slug, provider),
+        Provider.redirect_uri(provider),
         Provider.sign_state(conn, slug, p)
       )
 
@@ -37,11 +37,45 @@ defmodule FlorinaWeb.AuthController do
   def callback(conn, %{"provider" => provider, "code" => code, "state" => state})
       when provider in @providers do
     p = String.to_existing_atom(provider)
-    slug = conn.assigns.tenant.slug
 
-    with {:ok, %{tenant_slug: ^slug, provider: ^provider}} <- Provider.verify_state(conn, state),
-         {:ok, tokens} <-
-           Provider.impl(p).exchange_code(code, Provider.redirect_uri(slug, provider)),
+    # Fixed callback path — the tenant is NOT in the URL. Recover it from the
+    # signed state (which proves we issued it at `start`), then pin that tenant's
+    # schema prefix and assign it so the rest of the flow works as before.
+    with {:ok, %{tenant_slug: slug, provider: ^provider}} <- Provider.verify_state(conn, state),
+         %Tenants.Tenant{active: true, status: "active"} = tenant <- Tenants.get_by_slug(slug) do
+      Process.put(:tenant_prefix, Tenants.schema_prefix(tenant))
+      complete_sign_in(assign(conn, :tenant, tenant), p, provider, code)
+    else
+      _ ->
+        Logger.warning("[AuthController] callback with invalid/forged state or unknown tenant")
+
+        conn
+        |> put_flash(:error, "Sign-in failed. Please try again.")
+        |> redirect(to: "/")
+    end
+  end
+
+  def callback(conn, %{"error" => error}) do
+    Logger.warning("[AuthController] provider error: #{error}")
+
+    conn
+    |> put_flash(:error, "Authorization was cancelled or failed.")
+    |> redirect(to: login_path(conn))
+  end
+
+  def callback(conn, _),
+    do:
+      conn
+      |> put_status(400)
+      |> put_flash(:error, "Invalid callback.")
+      |> redirect(to: login_path(conn))
+
+  def logout(conn, _params), do: log_out_agent(conn)
+
+  # Runs with the tenant assigned + its schema prefix pinned: exchange the code,
+  # gate by company email, upsert the agent + calendar credential, log in.
+  defp complete_sign_in(conn, p, provider, code) do
+    with {:ok, tokens} <- Provider.impl(p).exchange_code(code, Provider.redirect_uri(provider)),
          {:ok, identity} <- Provider.impl(p).fetch_identity(tokens),
          :ok <- gate(identity, conn.assigns.tenant),
          {:ok, agent} <- Accounts.upsert_agent_from_identity(identity),
@@ -66,23 +100,6 @@ defmodule FlorinaWeb.AuthController do
         |> redirect(to: login_path(conn))
     end
   end
-
-  def callback(conn, %{"error" => error}) do
-    Logger.warning("[AuthController] provider error: #{error}")
-
-    conn
-    |> put_flash(:error, "Authorization was cancelled or failed.")
-    |> redirect(to: login_path(conn))
-  end
-
-  def callback(conn, _),
-    do:
-      conn
-      |> put_status(400)
-      |> put_flash(:error, "Invalid callback.")
-      |> redirect(to: login_path(conn))
-
-  def logout(conn, _params), do: log_out_agent(conn)
 
   defp login_path(conn), do: "/t/#{conn.assigns.tenant.slug}/login"
 

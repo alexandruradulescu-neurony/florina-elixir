@@ -35,14 +35,20 @@ defmodule Florina.Integrations.Provider do
     Phoenix.Token.verify(endpoint_or_conn, @state_salt, state, max_age: max_age)
   end
 
-  def redirect_uri(tenant_slug, provider) do
+  @doc """
+  The fixed OAuth callback URL — one per provider, NOT per tenant. The tenant is
+  recovered from the signed `state` in the callback, so a single redirect URI
+  (`/auth/:provider/callback`) is registered once with Google/Microsoft and works
+  for every tenant.
+  """
+  def redirect_uri(provider) do
     base =
       System.get_env("OAUTH_REDIRECT_BASE") ||
         Application.get_env(:florina, :oauth_redirect_base) ||
         FlorinaWeb.Endpoint.url()
 
     base = String.trim_trailing(base, "/")
-    "#{base}/t/#{tenant_slug}/auth/#{provider}/callback"
+    "#{base}/auth/#{provider}/callback"
   end
 
   @doc """
