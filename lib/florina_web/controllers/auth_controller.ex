@@ -55,20 +55,19 @@ defmodule FlorinaWeb.AuthController do
     end
   end
 
-  def callback(conn, %{"error" => error}) do
+  def callback(conn, %{"error" => error} = params) do
     Logger.warning("[AuthController] provider error: #{error}")
 
     conn
     |> put_flash(:error, "Authorization was cancelled or failed.")
-    |> redirect(to: login_path(conn))
+    |> redirect(to: login_dest(conn, params))
   end
 
-  def callback(conn, _),
+  def callback(conn, params),
     do:
       conn
-      |> put_status(400)
       |> put_flash(:error, "Invalid callback.")
-      |> redirect(to: login_path(conn))
+      |> redirect(to: login_dest(conn, params))
 
   def logout(conn, _params), do: log_out_agent(conn)
 
@@ -102,6 +101,18 @@ defmodule FlorinaWeb.AuthController do
   end
 
   defp login_path(conn), do: "/t/#{conn.assigns.tenant.slug}/login"
+
+  # The callback has no tenant in the URL, so on error/cancel there's no
+  # assigns.tenant. Recover the tenant's login page from the signed state when
+  # present; otherwise fall back to the home page.
+  defp login_dest(conn, %{"state" => state}) do
+    case Provider.verify_state(conn, state) do
+      {:ok, %{tenant_slug: slug}} -> "/t/#{slug}/login"
+      _ -> "/"
+    end
+  end
+
+  defp login_dest(_conn, _params), do: "/"
 
   defp gate(%{email: email, email_verified: true}, tenant) when is_binary(email) do
     domain = email |> String.split("@") |> List.last() |> String.downcase()
