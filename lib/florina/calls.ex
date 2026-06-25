@@ -75,7 +75,20 @@ defmodule Florina.Calls do
   defp find_call(conversation_id, nil), do: get_by_external_id(conversation_id)
 
   defp find_call(conversation_id, call_attempt_id) do
-    get_by_external_id(conversation_id) || get(call_attempt_id)
+    get_by_external_id(conversation_id) || match_by_attempt_id(conversation_id, call_attempt_id)
+  end
+
+  # Fallback for the first webhook of a call, before its ElevenLabs
+  # conversation_id has been stored as `external_call_id`. Only trust the
+  # echoed-back `call_attempt_id` when the attempt isn't already bound to a
+  # *different* conversation — otherwise a mismatched conversation_id could bind
+  # the webhook payload to the wrong call.
+  defp match_by_attempt_id(conversation_id, call_attempt_id) do
+    case get(call_attempt_id) do
+      %CallAttempt{external_call_id: nil} = ca -> ca
+      %CallAttempt{external_call_id: ^conversation_id} = ca -> ca
+      _ -> nil
+    end
   end
 
   defp maybe_put(map, _k, nil), do: map
