@@ -56,8 +56,16 @@ defmodule Florina.Integrations.Providers.Microsoft do
            "client_secret" => cred.client_secret || client_secret(),
            "scope" => Enum.join(@scopes, " ")
          }) do
-      {:ok, t} -> {:ok, %{access_token: t.access_token, expires_at: expires_at(t.expires_in)}}
-      err -> err
+      {:ok, t} ->
+        {:ok,
+         %{
+           access_token: t.access_token,
+           refresh_token: t.refresh_token,
+           expires_at: expires_at(t.expires_in)
+         }}
+
+      err ->
+        err
     end
   end
 

@@ -62,18 +62,57 @@ defmodule Florina.Integrations.Provider do
 
   def decode_claims(_), do: {:error, :invalid_id_token}
 
-  @doc "Return a valid access token for the credential, refreshing if within 60s of expiry."
+  @doc """
+  Return a valid access token for the credential, refreshing if within 60s of
+  expiry. A successful refresh is persisted back to the credential row (new
+  access token + expiry, and the rotated refresh token when the provider returns
+  one) so the next sync reuses it instead of refreshing every time — and so a
+  rotated refresh token isn't silently dropped, which would eventually break the
+  connection. Persistence runs in the caller's tenant-pinned context.
+  """
   def ensure_valid_token(%Credential{} = cred) do
     if token_expired?(cred) do
       case for_credential(cred).refresh_token(cred) do
-        {:ok, %{access_token: t}} when is_binary(t) and t != "" -> {:ok, t}
-        {:ok, _} -> {:error, :token_refresh_empty}
-        {:error, reason} -> {:error, {:token_refresh_failed, reason}}
+        {:ok, %{access_token: t} = refreshed} when is_binary(t) and t != "" ->
+          persist_refreshed_token(cred, refreshed)
+          {:ok, t}
+
+        {:ok, _} ->
+          {:error, :token_refresh_empty}
+
+        {:error, reason} ->
+          {:error, {:token_refresh_failed, reason}}
       end
     else
       {:ok, cred.access_token}
     end
   end
+
+  defp persist_refreshed_token(%Credential{} = cred, refreshed) do
+    attrs =
+      %{access_token: refreshed.access_token, expires_at: Map.get(refreshed, :expires_at)}
+      |> maybe_put_refresh_token(Map.get(refreshed, :refresh_token))
+
+    case Florina.OAuth.update_credential(cred, attrs) do
+      {:ok, _} ->
+        :ok
+
+      {:error, changeset} ->
+        require Logger
+
+        Logger.warning(
+          "[Provider] could not persist refreshed token for credential=#{cred.id}: " <>
+            inspect(changeset.errors)
+        )
+
+        :ok
+    end
+  end
+
+  defp maybe_put_refresh_token(attrs, rt) when is_binary(rt) and rt != "",
+    do: Map.put(attrs, :refresh_token, rt)
+
+  defp maybe_put_refresh_token(attrs, _), do: attrs
 
   defp token_expired?(%Credential{expires_at: nil}), do: false
 

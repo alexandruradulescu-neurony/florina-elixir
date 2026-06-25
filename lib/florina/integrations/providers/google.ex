@@ -48,8 +48,16 @@ defmodule Florina.Integrations.Providers.Google do
            "client_id" => cred.client_id || client_id(),
            "client_secret" => cred.client_secret || client_secret()
          }) do
-      {:ok, t} -> {:ok, %{access_token: t.access_token, expires_at: expires_at(t.expires_in)}}
-      err -> err
+      {:ok, t} ->
+        {:ok,
+         %{
+           access_token: t.access_token,
+           refresh_token: t.refresh_token,
+           expires_at: expires_at(t.expires_in)
+         }}
+
+      err ->
+        err
     end
   end
 
