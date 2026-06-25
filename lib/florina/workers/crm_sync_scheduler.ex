@@ -14,8 +14,8 @@ defmodule Florina.Workers.CrmSyncScheduler do
 
   @impl Oban.Worker
   def perform(%Oban.Job{}) do
-    tenants = Tenants.list()
-    Logger.info("[CrmSyncScheduler] fanning out to #{length(tenants)} tenant(s)")
+    tenants = Tenants.list_active()
+    Logger.info("[CrmSyncScheduler] fanning out to #{length(tenants)} active tenant(s)")
 
     for tenant <- tenants do
       %{tenant_slug: tenant.slug}

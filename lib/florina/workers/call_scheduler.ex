@@ -18,9 +18,9 @@ defmodule Florina.Workers.CallScheduler do
 
   @impl Oban.Worker
   def perform(%Oban.Job{}) do
-    tenants = Tenants.list()
+    tenants = Tenants.list_active()
 
-    Logger.info("[CallScheduler] fanning out to #{length(tenants)} tenant(s)")
+    Logger.info("[CallScheduler] fanning out to #{length(tenants)} active tenant(s)")
 
     for tenant <- tenants do
       %{tenant_slug: tenant.slug}

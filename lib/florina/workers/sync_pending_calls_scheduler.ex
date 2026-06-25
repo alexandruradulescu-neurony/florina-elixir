@@ -13,8 +13,8 @@ defmodule Florina.Workers.SyncPendingCallsScheduler do
 
   @impl Oban.Worker
   def perform(%Oban.Job{}) do
-    tenants = Tenants.list()
-    Logger.info("[SyncPendingCallsScheduler] fanning out to #{length(tenants)} tenant(s)")
+    tenants = Tenants.list_active()
+    Logger.info("[SyncPendingCallsScheduler] fanning out to #{length(tenants)} active tenant(s)")
 
     for tenant <- tenants do
       %{tenant_slug: tenant.slug}

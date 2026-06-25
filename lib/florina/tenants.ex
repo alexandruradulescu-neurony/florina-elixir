@@ -6,6 +6,10 @@ defmodule Florina.Tenants do
 
   def list, do: Repo.all(from t in Tenant, order_by: t.slug)
 
+  @doc "Returns only tenants that are fully provisioned: status == \"active\" AND active == true."
+  def list_active,
+    do: Repo.all(from t in Tenant, where: t.status == "active" and t.active == true, order_by: t.slug)
+
   def get_by_slug(slug) when is_binary(slug), do: Repo.get_by(Tenant, slug: slug)
   def get_by_slug(_), do: nil
 
