@@ -17,55 +17,86 @@
    utilities like bg-base-100, text-base-content, bg-primary, text-error, etc.
    directly from these --color-* variables. These replace the former daisyUI
    theme plugins. */
+/* Theme colors via an indirection layer. The Tailwind @theme tokens point at
+   plain `--app-*` custom properties (light in :root, dark in :root[data-theme=dark]).
+   Tailwind generates bg-base-100 / text-base-content / bg-primary / … from the
+   @theme tokens; switching the underlying --app-* var flips light/dark.
+
+   Why the indirection instead of redefining --color-* under [data-theme=dark]:
+   the prod minifier (Lightning CSS, via `mix assets.deploy --minify`) prunes
+   @theme custom properties that are redefined under a selector, which silently
+   dropped the dark override. Because the @theme tokens REFERENCE --app-*, those
+   vars stay transitively used and survive minification. */
 @theme {
-  --color-base-100: oklch(98% 0 0);
-  --color-base-200: oklch(96% 0.001 286.375);
-  --color-base-300: oklch(92% 0.004 286.32);
-  --color-base-content: oklch(21% 0.006 285.885);
-  --color-primary: oklch(70% 0.213 47.604);
-  --color-primary-content: oklch(98% 0.016 73.684);
-  --color-secondary: oklch(55% 0.027 264.364);
-  --color-secondary-content: oklch(98% 0.002 247.839);
-  --color-accent: oklch(0% 0 0);
-  --color-accent-content: oklch(100% 0 0);
-  --color-neutral: oklch(44% 0.017 285.786);
-  --color-neutral-content: oklch(98% 0 0);
-  --color-info: oklch(62% 0.214 259.815);
-  --color-info-content: oklch(97% 0.014 254.604);
-  --color-success: oklch(70% 0.14 182.503);
-  --color-success-content: oklch(98% 0.014 180.72);
-  --color-warning: oklch(66% 0.179 58.318);
-  --color-warning-content: oklch(98% 0.022 95.277);
-  --color-error: oklch(58% 0.253 17.585);
-  --color-error-content: oklch(96% 0.015 12.422);
+  --color-base-100: var(--app-base-100);
+  --color-base-200: var(--app-base-200);
+  --color-base-300: var(--app-base-300);
+  --color-base-content: var(--app-base-content);
+  --color-primary: var(--app-primary);
+  --color-primary-content: var(--app-primary-content);
+  --color-secondary: var(--app-secondary);
+  --color-secondary-content: var(--app-secondary-content);
+  --color-accent: var(--app-accent);
+  --color-accent-content: var(--app-accent-content);
+  --color-neutral: var(--app-neutral);
+  --color-neutral-content: var(--app-neutral-content);
+  --color-info: var(--app-info);
+  --color-info-content: var(--app-info-content);
+  --color-success: var(--app-success);
+  --color-success-content: var(--app-success-content);
+  --color-warning: var(--app-warning);
+  --color-warning-content: var(--app-warning-content);
+  --color-error: var(--app-error);
+  --color-error-content: var(--app-error-content);
 }
 
-/* Dark theme override (Elixir-inspired). The boot script in app.js sets
-   data-theme="dark" on <html>; these re-bind the same variables so every
-   bg-*/text-* utility switches automatically. Uses `:root[data-theme=dark]`
-   (specificity 0,2,0) so it always beats the `:root` rule Tailwind emits from
-   `@theme` (0,1,0) regardless of source order. */
+/* Light theme (Phoenix-inspired) — the defaults. */
+:root {
+  --app-base-100: oklch(98% 0 0);
+  --app-base-200: oklch(96% 0.001 286.375);
+  --app-base-300: oklch(92% 0.004 286.32);
+  --app-base-content: oklch(21% 0.006 285.885);
+  --app-primary: oklch(70% 0.213 47.604);
+  --app-primary-content: oklch(98% 0.016 73.684);
+  --app-secondary: oklch(55% 0.027 264.364);
+  --app-secondary-content: oklch(98% 0.002 247.839);
+  --app-accent: oklch(0% 0 0);
+  --app-accent-content: oklch(100% 0 0);
+  --app-neutral: oklch(44% 0.017 285.786);
+  --app-neutral-content: oklch(98% 0 0);
+  --app-info: oklch(62% 0.214 259.815);
+  --app-info-content: oklch(97% 0.014 254.604);
+  --app-success: oklch(70% 0.14 182.503);
+  --app-success-content: oklch(98% 0.014 180.72);
+  --app-warning: oklch(66% 0.179 58.318);
+  --app-warning-content: oklch(98% 0.022 95.277);
+  --app-error: oklch(58% 0.253 17.585);
+  --app-error-content: oklch(96% 0.015 12.422);
+}
+
+/* Dark theme (Elixir-inspired). The boot script sets data-theme="dark" on <html>;
+   :root[data-theme=dark] (specificity 0,2,0) beats the :root defaults (0,1,0). */
 :root[data-theme="dark"] {
-  --color-base-100: oklch(30.33% 0.016 252.42);
-  --color-base-200: oklch(25.26% 0.014 253.1);
-  --color-base-300: oklch(20.15% 0.012 254.09);
-  --color-base-content: oklch(97.807% 0.029 256.847);
-  --color-primary: oklch(58% 0.233 277.117);
-  --color-primary-content: oklch(96% 0.018 272.314);
-  --color-secondary: oklch(58% 0.233 277.117);
-  --color-secondary-content: oklch(96% 0.018 272.314);
-  --color-accent: oklch(60% 0.25 292.717);
-  --color-accent-content: oklch(96% 0.016 293.756);
-  --color-neutral: oklch(37% 0.044 257.287);
-  --color-neutral-content: oklch(98% 0.003 247.858);
-  --color-info: oklch(58% 0.158 241.966);
-  --color-info-content: oklch(97% 0.013 236.62);
-  --color-success: oklch(60% 0.118 184.704);
-  --color-success-content: oklch(98% 0.014 180.72);
-  --color-warning: oklch(66% 0.179 58.318);
-  --color-warning-content: oklch(98% 0.022 95.277);
-  --color-error: oklch(58% 0.253 17.585);
-  --color-error-content: oklch(96% 0.015 12.422);
+  --app-base-100: oklch(30.33% 0.016 252.42);
+  --app-base-200: oklch(25.26% 0.014 253.1);
+  --app-base-300: oklch(20.15% 0.012 254.09);
+  --app-base-content: oklch(97.807% 0.029 256.847);
+  --app-primary: oklch(58% 0.233 277.117);
+  --app-primary-content: oklch(96% 0.018 272.314);
+  --app-secondary: oklch(58% 0.233 277.117);
+  --app-secondary-content: oklch(96% 0.018 272.314);
+  --app-accent: oklch(60% 0.25 292.717);
+  --app-accent-content: oklch(96% 0.016 293.756);
+  --app-neutral: oklch(37% 0.044 257.287);
+  --app-neutral-content: oklch(98% 0.003 247.858);
+  --app-info: oklch(58% 0.158 241.966);
+  --app-info-content: oklch(97% 0.013 236.62);
+  --app-success: oklch(60% 0.118 184.704);
+  --app-success-content: oklch(98% 0.014 180.72);
+  --app-warning: oklch(66% 0.179 58.318);
+  --app-warning-content: oklch(98% 0.022 95.277);
+  --app-error: oklch(58% 0.253 17.585);
+  --app-error-content: oklch(96% 0.015 12.422);
 }
 
 /* Add variants based on LiveView classes */
