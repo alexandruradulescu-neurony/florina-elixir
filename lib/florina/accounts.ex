@@ -122,4 +122,44 @@ defmodule Florina.Accounts do
         update_user(user, %{is_sales_agent: true})
     end
   end
+
+  @doc """
+  Pre-create ("invite") an agent by email so they appear in the tenant before
+  their first SSO sign-in. On that first Google/Microsoft login,
+  `upsert_agent_from_identity/1` matches by email and adopts this row — keeping
+  the role set here (so an invited manager logs in as a manager).
+
+  `params` is a string-keyed map: `"email"` (required) plus optional `"role"`,
+  `"first_name"`, `"phone_number"`, `"pipedrive_user_id"`. Blank optionals are
+  dropped. Returns `{:ok, user}`, `{:error, :email_required}`,
+  `{:error, :already_exists}`, or `{:error, changeset}`.
+  """
+  def invite_agent(params) when is_map(params) do
+    email = params |> Map.get("email", "") |> to_string() |> String.trim() |> String.downcase()
+
+    cond do
+      email == "" ->
+        {:error, :email_required}
+
+      get_user_by_email(email) ->
+        {:error, :already_exists}
+
+      true ->
+        params
+        |> Map.take(["role", "first_name", "phone_number", "pipedrive_user_id"])
+        |> Enum.reject(fn {_k, v} -> blank?(v) end)
+        |> Map.new()
+        |> Map.merge(%{
+          "username" => email,
+          "email" => email,
+          "is_sales_agent" => true,
+          "active" => true
+        })
+        |> create_user()
+    end
+  end
+
+  defp blank?(nil), do: true
+  defp blank?(value) when is_binary(value), do: String.trim(value) == ""
+  defp blank?(_), do: false
 end

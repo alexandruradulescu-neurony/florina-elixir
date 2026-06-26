@@ -14,7 +14,7 @@ defmodule FlorinaWeb.Manage.AgentsLive do
 
   @impl true
   def mount(_params, _session, socket) do
-    {:ok, load_users(socket)}
+    {:ok, socket |> load_users() |> assign_invite_form()}
   end
 
   @impl true
@@ -49,6 +49,41 @@ defmodule FlorinaWeb.Manage.AgentsLive do
         {:ok, _} = Accounts.set_active(user, !user.active)
         {:noreply, socket |> put_flash(:info, "Updated.") |> load_users()}
     end
+  end
+
+  def handle_event("invite", %{"invite" => params}, socket) do
+    case Accounts.invite_agent(params) do
+      {:ok, user} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, "Invited #{user.email}.#{domain_note(socket, user.email)}")
+         |> load_users()
+         |> assign_invite_form()}
+
+      {:error, :email_required} ->
+        {:noreply, put_flash(socket, :error, "Email is required.")}
+
+      {:error, :already_exists} ->
+        {:noreply, put_flash(socket, :error, "Someone with that email is already here.")}
+
+      {:error, %Ecto.Changeset{}} ->
+        {:noreply,
+         put_flash(socket, :error, "Couldn't add that person — please check the details.")}
+    end
+  end
+
+  defp assign_invite_form(socket), do: assign(socket, :invite_form, to_form(%{}, as: :invite))
+
+  # If the invited email's domain isn't allowed for this tenant, they can't sign
+  # in yet — surface that inline so the manager isn't surprised.
+  defp domain_note(socket, email) do
+    domain = email |> String.split("@") |> List.last() |> to_string() |> String.downcase()
+    allowed = Enum.map(socket.assigns.tenant.allowed_email_domains || [], &String.downcase/1)
+
+    if domain in allowed,
+      do: "",
+      else:
+        " Note: #{domain} isn't an allowed sign-in domain for this tenant yet — add it in /admin so they can log in."
   end
 
   defp demoting_last_manager?(user, "agent"),
@@ -118,6 +153,34 @@ defmodule FlorinaWeb.Manage.AgentsLive do
             </tr>
           </tbody>
         </table>
+      </div>
+
+      <div class="mt-8 max-w-2xl rounded-lg border border-base-300 p-5">
+        <h2 class="text-lg font-medium mb-1">Add a person</h2>
+        <p class="text-sm text-base-content/60 mb-4">
+          Pre-create someone by email. They appear here right away; when they first
+          sign in with Google or Microsoft their account links up automatically and
+          keeps the role you set. Their email domain must be allowed for this tenant.
+        </p>
+        <.form for={@invite_form} id="invite-form" phx-submit="invite" class="space-y-4">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <.input field={@invite_form[:email]} type="email" label="Email" required />
+            <.input field={@invite_form[:first_name]} type="text" label="First name (optional)" />
+            <.input
+              field={@invite_form[:role]}
+              type="select"
+              label="Role"
+              options={[{"Agent", "agent"}, {"Manager", "manager"}]}
+            />
+            <.input field={@invite_form[:phone_number]} type="tel" label="Phone (optional)" />
+            <.input
+              field={@invite_form[:pipedrive_user_id]}
+              type="number"
+              label="Pipedrive user ID (optional)"
+            />
+          </div>
+          <.button type="submit" variant="primary">Add person</.button>
+        </.form>
       </div>
     </Layouts.agent_app>
     """
