@@ -33,6 +33,69 @@ defmodule Florina.Calls do
   end
 
   @doc """
+  Manager view of every call attempt, newest-updated first, with the call's visit
+  (and that visit's agent + client) preloaded for display.
+
+  `filters` is a plain map (string keys, as they arrive from a form). Blank values
+  are ignored:
+
+    * `"status"`   — one of the `Enums.call_status_values/0` strings
+    * `"phase"`    — `"PRE"` | `"POST"`
+    * `"agent_id"` — restrict to calls whose visit belongs to this agent
+
+  Manager-only: no owner scoping. Mirrors Django's `programmed_calls` view.
+  """
+  def list_for_manager(filters \\ %{}, max \\ 200) do
+    from(c in CallAttempt,
+      join: v in Visit,
+      on: c.visit_id == v.id,
+      preload: [visit: [:agent, :client]],
+      order_by: [desc: c.updated_at]
+    )
+    |> filter_status(blank_to_nil(filters["status"]))
+    |> filter_phase(blank_to_nil(filters["phase"]))
+    |> filter_agent(blank_to_nil(filters["agent_id"]))
+    |> limit(^max)
+    |> TenantRepo.all()
+  end
+
+  defp filter_status(query, nil), do: query
+  defp filter_status(query, status), do: from(c in query, where: c.status == ^status)
+
+  defp filter_phase(query, nil), do: query
+  defp filter_phase(query, phase), do: from(c in query, where: c.phase == ^phase)
+
+  defp filter_agent(query, nil), do: query
+
+  defp filter_agent(query, agent_id),
+    do: from([c, v] in query, where: v.agent_id == ^agent_id)
+
+  defp blank_to_nil(v) when v in [nil, ""], do: nil
+  defp blank_to_nil(v), do: v
+
+  @doc """
+  Counts for the Programmed Calls stats strip, across all calls (unfiltered):
+  `%{total:, scheduled:, active:, completed:, failed:}` where `active` groups
+  INITIATED + IN_PROGRESS and `failed` groups FAILED + NO_ANSWER.
+  """
+  def status_counts do
+    rows =
+      from(c in CallAttempt, group_by: c.status, select: {c.status, count(c.id)})
+      |> TenantRepo.all()
+      |> Map.new()
+
+    n = fn keys -> keys |> Enum.map(&Map.get(rows, &1, 0)) |> Enum.sum() end
+
+    %{
+      total: rows |> Map.values() |> Enum.sum(),
+      scheduled: n.(["SCHEDULED"]),
+      active: n.(["INITIATED", "IN_PROGRESS"]),
+      completed: n.(["COMPLETED"]),
+      failed: n.(["FAILED", "NO_ANSWER"])
+    }
+  end
+
+  @doc """
   True if `call`'s visit is owned by `agent_id`. Used to decide whether a
   realtime `:call_updated` broadcast should reach a given agent's live view.
   """

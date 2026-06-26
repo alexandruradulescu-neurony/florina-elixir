@@ -176,6 +176,7 @@ defmodule FlorinaWeb.Layouts do
                 active={@active == :calendar}
               />
               <.nav_item
+                :if={!@manager?}
                 label="Calls"
                 icon="hero-phone"
                 href={"/t/#{@tenant.slug}/calls"}
@@ -218,6 +219,12 @@ defmodule FlorinaWeb.Layouts do
                 icon="hero-briefcase"
                 href={"/t/#{@tenant.slug}/manage/meetings"}
                 active={@active == :meetings}
+              />
+              <.nav_item
+                label="Calls"
+                icon="hero-phone"
+                href={"/t/#{@tenant.slug}/manage/calls"}
+                active={@active == :programmed_calls}
               />
               <.nav_item
                 label="Clients"
