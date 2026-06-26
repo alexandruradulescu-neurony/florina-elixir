@@ -91,7 +91,8 @@ defmodule FlorinaWeb.Router do
     live "/manage/meetings", Manage.MeetingsLive
     live "/manage/meetings/:id", Manage.MeetingLive
     live "/manage/clients", Manage.ClientsLive
-    live "/manage/clients/:id", Manage.ClientLive
+    live "/manage/clients/new", Manage.ClientLive, :new
+    live "/manage/clients/:id", Manage.ClientLive, :edit
     live "/manage/agents", Manage.AgentsLive
     live "/manage/methodologies", Manage.MethodologiesLive
   end

@@ -22,7 +22,15 @@ defmodule FlorinaWeb.Manage.ClientsLive do
       current_agent={@current_agent}
       active={:clients}
     >
-      <h1 class="text-2xl font-semibold mb-4">Clients</h1>
+      <div class="flex items-center justify-between mb-4">
+        <h1 class="text-2xl font-semibold">Clients</h1>
+        <.link
+          navigate={"/t/#{@tenant.slug}/manage/clients/new"}
+          class="inline-flex items-center rounded-md bg-primary px-3 py-2 text-sm font-semibold text-primary-content hover:opacity-90"
+        >
+          New client
+        </.link>
+      </div>
       <div class="overflow-hidden border border-base-300 rounded-lg">
         <table class="w-full text-sm text-left">
           <thead class="bg-base-200 text-xs uppercase tracking-wider text-base-content/60">
