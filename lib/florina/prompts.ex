@@ -120,7 +120,7 @@ defmodule Florina.Prompts do
 
   @doc "Total count matching `filters` — for pagination."
   def count_runs(filters \\ %{}) do
-    runs_query(filters) |> TenantRepo.aggregate(:count, :id)
+    runs_query(filters) |> TenantRepo.aggregate(:count)
   end
 
   @doc "One run with all associations, or nil. Encrypted fields decrypt on read."
