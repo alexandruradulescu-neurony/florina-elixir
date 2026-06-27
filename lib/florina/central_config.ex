@@ -3,7 +3,7 @@ defmodule Florina.CentralConfig do
   Central (control-plane) configuration management.
 
   This context owns the canonical copies of all shared config:
-  mega prompts, voice prompts, methodologies, scenarios, and default settings.
+  mega prompts, methodologies, scenarios, and default settings.
 
   All reads/writes here use `Florina.Repo` (the control-plane DB).
 
@@ -38,7 +38,6 @@ defmodule Florina.CentralConfig do
 
   alias Florina.CentralConfig.{
     MegaPrompt,
-    VoicePrompt,
     Methodology,
     Scenario,
     GlobalSettings
@@ -46,7 +45,6 @@ defmodule Florina.CentralConfig do
 
   # Per-tenant schema modules (in the tenant DB)
   alias Florina.Prompts.MegaPrompt, as: TenantMegaPrompt
-  alias Florina.Calls.VoicePrompt, as: TenantVoicePrompt
   alias Florina.Methodologies.Methodology, as: TenantMethodology
   alias Florina.Scenarios.Scenario, as: TenantScenario
   alias Florina.Settings.GlobalSettings, as: TenantGlobalSettings
@@ -68,26 +66,6 @@ defmodule Florina.CentralConfig do
   def update_mega_prompt(%MegaPrompt{} = mp, attrs) do
     mp
     |> MegaPrompt.changeset(attrs)
-    |> Repo.update()
-  end
-
-  # ---------------------------------------------------------------------------
-  # Canonical CRUD — VoicePrompts
-  # ---------------------------------------------------------------------------
-
-  def list_voice_prompts, do: Repo.all(VoicePrompt)
-
-  def get_voice_prompt!(id), do: Repo.get!(VoicePrompt, id)
-
-  def create_voice_prompt(attrs) do
-    %VoicePrompt{}
-    |> VoicePrompt.changeset(attrs)
-    |> Repo.insert()
-  end
-
-  def update_voice_prompt(%VoicePrompt{} = vp, attrs) do
-    vp
-    |> VoicePrompt.changeset(attrs)
     |> Repo.update()
   end
 
@@ -242,37 +220,6 @@ defmodule Florina.CentralConfig do
       )
     end
 
-    # --- VoicePrompts ---
-    voice_prompts = Repo.all(VoicePrompt)
-
-    overridden_voice_prompt_ids =
-      TenantRepo.all(from r in TenantVoicePrompt, where: r.is_overridden == true, select: r.id)
-      |> MapSet.new()
-
-    voice_prompt_rows =
-      voice_prompts
-      |> Enum.reject(fn vp -> MapSet.member?(overridden_voice_prompt_ids, vp.id) end)
-      |> Enum.map(fn vp ->
-        %{
-          id: vp.id,
-          name: vp.name,
-          system_prompt: vp.system_prompt,
-          first_message: vp.first_message,
-          prompt_type: vp.prompt_type,
-          is_active: vp.is_active,
-          is_overridden: false,
-          created_at: vp.created_at || now,
-          updated_at: now
-        }
-      end)
-
-    if voice_prompt_rows != [] do
-      TenantRepo.insert_all(TenantVoicePrompt, voice_prompt_rows,
-        on_conflict: :replace_all,
-        conflict_target: :id
-      )
-    end
-
     # --- MegaPrompts ---
     mega_prompts = Repo.all(MegaPrompt)
 
@@ -389,23 +336,6 @@ defmodule Florina.CentralConfig do
           description: s.description || "",
           is_active: s.is_active,
           created_at: s.created_at || now,
-          updated_at: now
-        }
-      end
-    )
-
-    publish_table(
-      Repo.all(VoicePrompt),
-      TenantVoicePrompt,
-      fn vp ->
-        %{
-          id: vp.id,
-          name: vp.name,
-          system_prompt: vp.system_prompt,
-          first_message: vp.first_message,
-          prompt_type: vp.prompt_type,
-          is_active: vp.is_active,
-          created_at: vp.created_at || now,
           updated_at: now
         }
       end

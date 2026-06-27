@@ -98,7 +98,6 @@ defmodule FlorinaWeb.Router do
     live "/manage/clients/:id", Manage.ClientLive, :edit
     live "/manage/agents", Manage.AgentsLive
     live "/manage/methodologies", Manage.MethodologiesLive
-    live "/manage/prompts", Manage.PromptsLive
     live "/manage/mega-prompts", Manage.MegaPromptsLive
     live "/manage/generation-runs", Manage.GenerationRunsLive, :index
     live "/manage/generation-runs/:id", Manage.GenerationRunsLive, :show

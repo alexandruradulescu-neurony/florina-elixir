@@ -76,43 +76,6 @@ defmodule FlorinaWeb.Admin.ConfigLive do
   end
 
   # ---------------------------------------------------------------------------
-  # Edit voice prompts
-  # ---------------------------------------------------------------------------
-
-  def handle_event("edit_voice_prompt", %{"id" => id}, socket) do
-    vp = CentralConfig.get_voice_prompt!(String.to_integer(id))
-
-    form =
-      to_form(
-        %{
-          "name" => vp.name,
-          "system_prompt" => vp.system_prompt,
-          "first_message" => vp.first_message
-        },
-        as: :voice_prompt
-      )
-
-    {:noreply, socket |> assign(:editing, {:voice_prompt, vp}) |> assign(:edit_form, form)}
-  end
-
-  def handle_event("save_voice_prompt", %{"voice_prompt" => params}, socket) do
-    {:voice_prompt, vp} = socket.assigns.editing
-
-    case CentralConfig.update_voice_prompt(vp, params) do
-      {:ok, _updated} ->
-        {:noreply,
-         socket
-         |> put_flash(:info, "Voice prompt updated.")
-         |> assign(:editing, nil)
-         |> assign(:edit_form, nil)
-         |> load_config()}
-
-      {:error, cs} ->
-        {:noreply, assign(socket, :edit_form, to_form(cs, as: :voice_prompt))}
-    end
-  end
-
-  # ---------------------------------------------------------------------------
   # Edit methodologies
   # ---------------------------------------------------------------------------
 
@@ -263,24 +226,6 @@ defmodule FlorinaWeb.Admin.ConfigLive do
                 />
                 <.form_buttons />
               </.form>
-            <% {:voice_prompt, vp} -> %>
-              <h2 class="text-base font-medium mb-4">Edit voice prompt — {vp.prompt_type}</h2>
-              <.form for={@edit_form} phx-submit="save_voice_prompt" class="space-y-3">
-                <.text_field label="Name" name="voice_prompt[name]" form={@edit_form} field={:name} />
-                <.textarea_field
-                  label="System prompt"
-                  name="voice_prompt[system_prompt]"
-                  form={@edit_form}
-                  field={:system_prompt}
-                />
-                <.textarea_field
-                  label="First message"
-                  name="voice_prompt[first_message]"
-                  form={@edit_form}
-                  field={:first_message}
-                />
-                <.form_buttons />
-              </.form>
             <% {:methodology, m} -> %>
               <h2 class="text-base font-medium mb-4">Edit methodology — {m.name}</h2>
               <.form for={@edit_form} phx-submit="save_methodology" class="space-y-3">
@@ -376,19 +321,6 @@ defmodule FlorinaWeb.Admin.ConfigLive do
             <td class="px-4 py-2 font-mono text-xs">{mp.domain}</td>
             <td class="px-4 py-2">{mp.name}</td>
             <td class="px-4 py-2">{if mp.is_active, do: "yes", else: "no"}</td>
-          </:row_render>
-        </.config_table>
-
-        <%!-- Voice prompts --%>
-        <.section_header title={"Voice prompts (#{length(@voice_prompts)})"} />
-        <.config_table rows={@voice_prompts} event="edit_voice_prompt">
-          <:col label="Type"></:col>
-          <:col label="Name"></:col>
-          <:col label="Active"></:col>
-          <:row_render :let={vp}>
-            <td class="px-4 py-2 font-mono text-xs">{vp.prompt_type}</td>
-            <td class="px-4 py-2">{vp.name}</td>
-            <td class="px-4 py-2">{if vp.is_active, do: "yes", else: "no"}</td>
           </:row_render>
         </.config_table>
 
@@ -552,7 +484,6 @@ defmodule FlorinaWeb.Admin.ConfigLive do
   defp load_config(socket) do
     socket
     |> assign(:mega_prompts, CentralConfig.list_mega_prompts())
-    |> assign(:voice_prompts, CentralConfig.list_voice_prompts())
     |> assign(:methodologies, CentralConfig.list_methodologies())
     |> assign(:scenarios, CentralConfig.list_scenarios())
     |> assign(:settings, CentralConfig.get_settings())
