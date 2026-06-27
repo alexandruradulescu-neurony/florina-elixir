@@ -134,6 +134,7 @@ defmodule FlorinaWeb.CalendarLive do
       else
         from_dt
         |> CalendarEvents.list_events_between(to_dt, socket.assigns.scope)
+        |> Enum.reject(&all_day_event?/1)
         |> Enum.map(&event_item/1)
       end
 
@@ -168,6 +169,17 @@ defmodule FlorinaWeb.CalendarLive do
       visit_id: nil
     }
   end
+
+  # Legacy all-day rows already stored before the provider-level filter landed.
+  # Detect from the original payload kept in `raw` (Microsoft isAllDay; Google
+  # all-day events have a "date" but no "dateTime" on start).
+  defp all_day_event?(%{raw: raw}) when is_map(raw) do
+    raw["isAllDay"] == true or
+      (is_map(raw["start"]) and is_nil(raw["start"]["dateTime"]) and
+         not is_nil(raw["start"]["date"]))
+  end
+
+  defp all_day_event?(_), do: false
 
   defp days_with_items(days, items, filter),
     do: Enum.filter(days, &(items_for(items, &1, filter) != []))

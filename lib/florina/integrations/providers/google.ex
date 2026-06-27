@@ -105,7 +105,15 @@ defmodule Florina.Integrations.Providers.Google do
            receive_timeout: 30_000
          ) do
       {:ok, %{status: 200, body: b}} ->
-        events = b |> Map.get("items", []) |> Enum.map(&normalize/1) |> Enum.reject(&is_nil/1)
+        # Skip all-day events (only a "date", no "dateTime") — they're day
+        # markers like "Office"/"Work from office", not real meetings.
+        events =
+          b
+          |> Map.get("items", [])
+          |> Enum.reject(&all_day?/1)
+          |> Enum.map(&normalize/1)
+          |> Enum.reject(&is_nil/1)
+
         acc = acc ++ events
 
         case b["nextPageToken"] do
@@ -186,6 +194,10 @@ defmodule Florina.Integrations.Providers.Google do
   end
 
   defp normalize(_), do: nil
+
+  # All-day events carry only "date" (no "dateTime") on start.
+  defp all_day?(item) when is_map(item), do: is_nil(get_in(item, ["start", "dateTime"]))
+  defp all_day?(_), do: true
 
   defp parse_dt(nil), do: nil
 

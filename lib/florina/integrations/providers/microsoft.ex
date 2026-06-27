@@ -115,7 +115,14 @@ defmodule Florina.Integrations.Providers.Microsoft do
 
     case Req.get(url, opts) do
       {:ok, %{status: 200, body: b}} ->
-        events = b |> Map.get("value", []) |> Enum.map(&normalize/1) |> Enum.reject(&is_nil/1)
+        # Skip all-day events — day markers, not real meetings.
+        events =
+          b
+          |> Map.get("value", [])
+          |> Enum.reject(&(&1["isAllDay"] == true))
+          |> Enum.map(&normalize/1)
+          |> Enum.reject(&is_nil/1)
+
         acc = acc ++ events
 
         case b["@odata.nextLink"] do
