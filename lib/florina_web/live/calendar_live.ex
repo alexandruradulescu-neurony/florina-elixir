@@ -1,15 +1,18 @@
 defmodule FlorinaWeb.CalendarLive do
   @moduledoc """
-  Upcoming appointments for a week, as a day-by-day agenda. Managers see every
-  agent's events and can filter by agent; agents see only their own (scoped in
-  SQL via `Florina.Authz`).
+  Week agenda of appointments.
+
+  Managers see **client meetings only** (Visits) across the team — the things
+  Florina acts on — each clickable through to the meeting cockpit, with a
+  per-agent filter. Agents see their **full personal calendar** (every synced
+  event), since the whole schedule is useful context for them.
   """
   use FlorinaWeb, :live_view
 
   on_mount FlorinaWeb.TenantHook
   on_mount {FlorinaWeb.AgentAuth, :ensure_authenticated}
 
-  alias Florina.{Accounts, Authz, CalendarEvents}
+  alias Florina.{Accounts, Authz, CalendarEvents, Visits}
 
   @impl true
   def mount(_params, _session, socket) do
@@ -48,7 +51,7 @@ defmodule FlorinaWeb.CalendarLive do
       current_agent={@current_agent}
       active={:calendar}
     >
-      <div class="flex flex-wrap items-center justify-between gap-3 mb-6">
+      <div class="flex flex-wrap items-center justify-between gap-3 mb-1">
         <h1 class="text-2xl font-semibold">Calendar</h1>
         <div class="flex items-center gap-2">
           <form :if={@manager?} phx-change="filter">
@@ -64,9 +67,12 @@ defmodule FlorinaWeb.CalendarLive do
           <button phx-click="next_week" class="btn btn-sm" aria-label="Next week">→</button>
         </div>
       </div>
+      <p class="text-sm text-base-content/50 mb-6">
+        {if @manager?, do: "Client meetings across the team.", else: "Your schedule."}
+      </p>
 
       <div class="space-y-6 max-w-2xl">
-        <section :for={day <- days_with_events(@days, @events, @filter_agent_id)}>
+        <section :for={day <- days_with_items(@days, @items, @filter_agent_id)}>
           <h2 class={[
             "text-sm font-semibold mb-2",
             (today?(day) && "text-primary") || "text-base-content/60"
@@ -75,25 +81,43 @@ defmodule FlorinaWeb.CalendarLive do
           </h2>
           <div class="space-y-2">
             <div
-              :for={ev <- events_for(@events, day, @filter_agent_id)}
+              :for={item <- items_for(@items, day, @filter_agent_id)}
               class="flex items-center gap-3 rounded-lg border border-base-300 px-3 py-2"
             >
-              <div class="text-sm font-medium text-base-content/80 w-28 shrink-0">
-                {time_range(ev)}
+              <div class="w-28 shrink-0 text-sm font-medium text-base-content/80">
+                {time_range(item)}
               </div>
               <div class="min-w-0">
-                <div class="text-sm font-medium truncate">{ev.title}</div>
-                <div :if={@manager?} class="text-xs text-base-content/50">{agent_label(ev.user)}</div>
+                <.link
+                  :if={item.visit_id}
+                  navigate={"/t/#{@tenant.slug}/manage/meetings/#{item.visit_id}"}
+                  class="block text-sm font-medium text-primary hover:underline truncate"
+                >
+                  {item.title}
+                </.link>
+                <span :if={is_nil(item.visit_id)} class="block text-sm font-medium truncate">
+                  {item.title}
+                </span>
+                <div :if={item.secondary} class="text-xs text-base-content/50">{item.secondary}</div>
               </div>
+              <span
+                :if={item.status}
+                class={[
+                  "ml-auto shrink-0 rounded-full px-2 py-0.5 text-xs font-medium",
+                  status_tone(item.status)
+                ]}
+              >
+                {status_label(item.status)}
+              </span>
             </div>
           </div>
         </section>
 
         <p
-          :if={days_with_events(@days, @events, @filter_agent_id) == []}
+          :if={days_with_items(@days, @items, @filter_agent_id) == []}
           class="text-sm text-base-content/50 rounded-lg border border-dashed border-base-300 px-4 py-8 text-center"
         >
-          No appointments this week.
+          {if @manager?, do: "No client meetings this week.", else: "No appointments this week."}
         </p>
       </div>
     </Layouts.agent_app>
@@ -101,22 +125,57 @@ defmodule FlorinaWeb.CalendarLive do
   end
 
   defp load_week(socket, monday) do
-    from = DateTime.new!(monday, ~T[00:00:00], "Etc/UTC")
-    to = DateTime.new!(Date.add(monday, 6), ~T[23:59:59], "Etc/UTC")
+    from_dt = DateTime.new!(monday, ~T[00:00:00], "Etc/UTC")
+    to_dt = DateTime.new!(Date.add(monday, 6), ~T[23:59:59], "Etc/UTC")
+
+    items =
+      if socket.assigns.manager? do
+        from_dt |> Visits.list_in_range(to_dt) |> Enum.map(&visit_item/1)
+      else
+        from_dt
+        |> CalendarEvents.list_events_between(to_dt, socket.assigns.scope)
+        |> Enum.map(&event_item/1)
+      end
 
     socket
     |> assign(:monday, monday)
     |> assign(:days, Enum.map(0..6, &Date.add(monday, &1)))
-    |> assign(:events, CalendarEvents.list_events_between(from, to, socket.assigns.scope))
+    |> assign(:items, items)
   end
 
-  defp days_with_events(days, events, filter),
-    do: Enum.filter(days, &(events_for(events, &1, filter) != []))
+  # Manager item: a client meeting (Visit) — linked, with client + agent + status.
+  defp visit_item(v) do
+    %{
+      start_time: v.start_time,
+      end_time: v.end_time,
+      title: v.title,
+      secondary: "#{client_label(v.client)} · #{agent_label(v.agent)}",
+      agent_id: v.agent_id,
+      status: v.status,
+      visit_id: v.id
+    }
+  end
 
-  defp events_for(events, day, filter) do
-    events
-    |> Enum.filter(fn e -> DateTime.to_date(e.start_time) == day end)
-    |> Enum.filter(fn e -> is_nil(filter) or e.user_id == filter end)
+  # Agent item: a raw calendar event — no link, no status.
+  defp event_item(ev) do
+    %{
+      start_time: ev.start_time,
+      end_time: ev.end_time,
+      title: ev.title,
+      secondary: nil,
+      agent_id: ev.user_id,
+      status: nil,
+      visit_id: nil
+    }
+  end
+
+  defp days_with_items(days, items, filter),
+    do: Enum.filter(days, &(items_for(items, &1, filter) != []))
+
+  defp items_for(items, day, filter) do
+    items
+    |> Enum.filter(fn i -> DateTime.to_date(i.start_time) == day end)
+    |> Enum.filter(fn i -> is_nil(filter) or i.agent_id == filter end)
   end
 
   defp today?(day), do: day == Date.utc_today()
@@ -127,12 +186,21 @@ defmodule FlorinaWeb.CalendarLive do
     do:
       "#{Calendar.strftime(monday, "%d %b")} – #{Calendar.strftime(Date.add(monday, 6), "%d %b")}"
 
-  defp time_range(%{start_time: s, end_time: e}) when not is_nil(e),
-    do: "#{fmt(s)} – #{fmt(e)}"
-
+  defp time_range(%{start_time: s, end_time: e}) when not is_nil(e), do: "#{fmt(s)} – #{fmt(e)}"
   defp time_range(%{start_time: s}), do: fmt(s)
 
   defp fmt(%DateTime{} = dt), do: Calendar.strftime(dt, "%H:%M")
+
+  defp status_label(:PLANNED), do: "Planned"
+  defp status_label(:PRE_CALL_DONE), do: "Briefed"
+  defp status_label(:IN_PROGRESS), do: "In progress"
+  defp status_label(:POST_CALL_DONE), do: "Debriefed"
+  defp status_label(:COMPLETE), do: "Complete"
+  defp status_label(other), do: to_string(other)
+
+  defp status_tone(:COMPLETE), do: "bg-success/10 text-success"
+  defp status_tone(:IN_PROGRESS), do: "bg-info/10 text-info"
+  defp status_tone(_), do: "bg-base-200 text-base-content/70"
 
   defp agent_label(nil), do: "—"
 
@@ -140,6 +208,9 @@ defmodule FlorinaWeb.CalendarLive do
     name = [user.first_name, user.last_name] |> Enum.reject(&(&1 in [nil, ""])) |> Enum.join(" ")
     if name == "", do: user.email || user.username, else: name
   end
+
+  defp client_label(%{name: n}) when is_binary(n), do: n
+  defp client_label(_), do: "—"
 
   defp parse_id(""), do: nil
   defp parse_id(id), do: String.to_integer(id)

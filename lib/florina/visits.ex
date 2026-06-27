@@ -157,6 +157,20 @@ defmodule Florina.Visits do
   end
 
   @doc """
+  Active visits whose `start_time` falls within `[from_dt, to_dt]`, every agent,
+  ascending, with agent + client preloaded. Cancelled visits are excluded.
+  Powers the manager calendar (client meetings only, not raw calendar events).
+  """
+  def list_in_range(%DateTime{} = from_dt, %DateTime{} = to_dt) do
+    from(v in Visit,
+      where: v.start_time >= ^from_dt and v.start_time <= ^to_dt and v.status != :CANCELLED,
+      preload: [:agent, :client],
+      order_by: [asc: :start_time]
+    )
+    |> TenantRepo.all()
+  end
+
+  @doc """
   One agent's visits on `date` (UTC), ascending, with client preloaded. Powers
   the agent's "my meetings today" view — scoped to that agent only.
   """
