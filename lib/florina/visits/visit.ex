@@ -45,6 +45,10 @@ defmodule Florina.Visits.Visit do
     field :post_call_summary, :string
     field :crm_synced, :boolean, default: false
 
+    # Manual override for client-meeting classification: when false, the call
+    # scheduler skips this meeting (manager turned Florina's calls off for it).
+    field :calls_enabled, :boolean, default: true
+
     timestamps()
   end
 
@@ -67,7 +71,8 @@ defmodule Florina.Visits.Visit do
     :post_call_prompt_locked,
     :post_call_first_message_locked,
     :post_call_summary,
-    :crm_synced
+    :crm_synced,
+    :calls_enabled
   ]
 
   @doc "Changeset for creating/updating a visit."

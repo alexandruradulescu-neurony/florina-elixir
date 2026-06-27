@@ -63,7 +63,7 @@ defmodule Florina.Workers.ScanTenantCalls do
     # Visits that could still have a pre-call: status PLANNED or PRE_CALL_DONE
     visits =
       from(v in Visit,
-        where: v.status in ^[:PLANNED],
+        where: v.status in ^[:PLANNED] and v.calls_enabled == true,
         preload: [:agent]
       )
       |> TenantRepo.all()
@@ -104,7 +104,7 @@ defmodule Florina.Workers.ScanTenantCalls do
     # Visits that have had their pre-call done and meeting has likely ended
     visits =
       from(v in Visit,
-        where: v.status in ^[:PRE_CALL_DONE, :IN_PROGRESS],
+        where: v.status in ^[:PRE_CALL_DONE, :IN_PROGRESS] and v.calls_enabled == true,
         preload: [:agent]
       )
       |> TenantRepo.all()

@@ -3,14 +3,17 @@ defmodule Florina.Workers.CalendarSync do
   Per-tenant calendar sync + visit detection.
 
   Enqueued by `CalendarSyncScheduler`. For each sales agent with stored
-  Google OAuth credentials:
+  calendar OAuth credentials:
 
-    1. Lists today's calendar events via the configured calendar provider.
-    2. For each event, tries to match attendee email domains against known
-       `Client` records in the tenant DB.
-    3. If a match is found: creates a new `Visit` (or updates times if the
-       event already has a visit).
-    4. Resolves a CRM deal from Pipedrive for new visits.
+    1. Lists calendar events (yesterday → +14 days) via the provider.
+    2. Classifies each event: a meeting with an attendee outside the tenant's
+       own `allowed_email_domains` is a CLIENT meeting; internal-only meetings
+       are ignored. A known client domain is linked; an unknown external domain
+       auto-creates a `Client`. (If the tenant has no domains configured, falls
+       back to the conservative known-client-only match.)
+    3. Creates a `Visit` for client meetings (or updates time/title if it
+       already exists); resolves a CRM deal from Pipedrive for new visits.
+    4. Reconciles cancellations/deletions (retires vanished future meetings).
 
   Mirrors Django's `detect_visits_for_agent` / `sync_all_user_calendars`
   in `tasks.py` and `visit_pipeline.py`.
@@ -47,10 +50,11 @@ defmodule Florina.Workers.CalendarSync do
     with :ok <- Tenant.pin_active(slug) do
       agents = Accounts.list_agents()
       {window_start, window_end} = sync_window(DateTime.utc_now())
+      allowed = internal_domains(slug)
 
       results =
         Enum.map(agents, fn agent ->
-          {agent.username, sync_agent(agent, window_start, window_end)}
+          {agent.username, sync_agent(agent, window_start, window_end, allowed)}
         end)
 
       total_created = results |> Enum.map(fn {_, r} -> r.created end) |> Enum.sum()
@@ -86,11 +90,24 @@ defmodule Florina.Workers.CalendarSync do
   defp beginning_of_day(dt), do: %{dt | hour: 0, minute: 0, second: 0, microsecond: {0, 0}}
   defp end_of_day(dt), do: %{dt | hour: 23, minute: 59, second: 59, microsecond: {0, 0}}
 
+  # The tenant's own email domains (the SSO admit-list), lowercased. Attendees on
+  # these domains are colleagues; an attendee on any other domain makes the
+  # meeting a client meeting. Empty when unconfigured.
+  defp internal_domains(slug) do
+    case Florina.Tenants.get_by_slug(slug) do
+      %{allowed_email_domains: domains} when is_list(domains) ->
+        Enum.map(domains, &String.downcase/1)
+
+      _ ->
+        []
+    end
+  end
+
   # ---------------------------------------------------------------------------
   # Per-agent sync
   # ---------------------------------------------------------------------------
 
-  defp sync_agent(agent, today_start, today_end) do
+  defp sync_agent(agent, today_start, today_end, allowed) do
     acc = %{created: 0, updated: 0, skipped: 0, cancelled: 0, errors: []}
 
     case OAuth.list_calendar_credentials_for_user(agent.id) do
@@ -102,12 +119,12 @@ defmodule Florina.Workers.CalendarSync do
         # An agent may connect both Google and Microsoft — sync each provider and
         # accumulate the counts across them.
         Enum.reduce(creds, acc, fn cred, acc ->
-          sync_agent_credential(agent, cred, today_start, today_end, acc)
+          sync_agent_credential(agent, cred, today_start, today_end, allowed, acc)
         end)
     end
   end
 
-  defp sync_agent_credential(agent, cred, today_start, today_end, acc) do
+  defp sync_agent_credential(agent, cred, today_start, today_end, allowed, acc) do
     case Provider.for_credential(cred).list_events(cred, today_start, today_end) do
       {:ok, events} ->
         Enum.each(events, fn ev ->
@@ -122,7 +139,7 @@ defmodule Florina.Workers.CalendarSync do
 
         acc =
           Enum.reduce(events, acc, fn event, a ->
-            case process_event(agent, cred.provider, event) do
+            case process_event(agent, cred.provider, allowed, event) do
               {:created, _} -> %{a | created: a.created + 1}
               {:updated, _} -> %{a | updated: a.updated + 1}
               :skipped -> %{a | skipped: a.skipped + 1}
@@ -145,17 +162,25 @@ defmodule Florina.Workers.CalendarSync do
   # Per-event processing
   # ---------------------------------------------------------------------------
 
-  defp process_event(agent, provider, %{id: event_id, attendees: attendees} = event) do
+  defp process_event(
+         agent,
+         provider,
+         allowed_domains,
+         %{id: event_id, attendees: attendees} = event
+       ) do
     cond do
       Map.get(event, :status) == "cancelled" ->
         cancel_existing_visit(event_id, agent.id, provider)
 
       true ->
-        case match_client_by_attendees(attendees) do
-          nil ->
+        case classify(attendees, allowed_domains) do
+          :internal ->
             :skipped
 
-          client ->
+          {:error, reason} ->
+            {:error, "event=#{event_id} client resolution failed: #{inspect(reason)}"}
+
+          {:client_meeting, client} ->
             case find_existing_visit(event_id, agent.id, provider) do
               %Visit{} = existing ->
                 update_visit_if_changed(existing, event)
@@ -225,19 +250,63 @@ defmodule Florina.Workers.CalendarSync do
   end
 
   # ---------------------------------------------------------------------------
-  # Client matching by attendee email domain
+  # Client-meeting classification
+  #
+  # A meeting is a client meeting iff an attendee is on a domain that is NOT one
+  # of the tenant's own (`allowed_email_domains`). A known client domain is
+  # linked; an unknown external domain auto-creates a client. Internal-only
+  # meetings don't become visits. When the tenant has no domains configured we
+  # can't tell internal from external, so we fall back to the conservative
+  # known-client-only match (no auto-create).
   # ---------------------------------------------------------------------------
 
-  defp match_client_by_attendees(attendees) do
-    attendees
-    |> Enum.uniq()
-    |> Enum.find_value(fn email ->
-      domain = VisitPipeline.extract_domain_from_email(email)
+  defp classify(attendees, allowed_domains) do
+    domains =
+      attendees
+      |> Enum.map(&VisitPipeline.extract_domain_from_email/1)
+      |> Enum.reject(&is_nil/1)
+      |> Enum.uniq()
 
-      if domain do
-        Clients.get_by_domain(domain)
-      end
-    end)
+    external = Enum.reject(domains, &(&1 in allowed_domains))
+
+    cond do
+      allowed_domains == [] ->
+        case Enum.find_value(domains, &Clients.get_by_domain/1) do
+          nil -> :internal
+          client -> {:client_meeting, client}
+        end
+
+      external == [] ->
+        :internal
+
+      true ->
+        case Enum.find_value(external, &Clients.get_by_domain/1) do
+          nil ->
+            case ensure_client(List.first(external)) do
+              nil -> {:error, :client_create_failed}
+              client -> {:client_meeting, client}
+            end
+
+          client ->
+            {:client_meeting, client}
+        end
+    end
+  end
+
+  # Find-or-create a client for an unknown external domain. crm_id is a stable
+  # "auto:<domain>" so re-syncs reuse the same row rather than duplicating.
+  defp ensure_client(domain) do
+    case Clients.get_by_domain(domain) do
+      nil ->
+        case Clients.create(%{crm_id: "auto:" <> domain, name: domain, domain: domain}) do
+          {:ok, client} -> client
+          # Lost a race / unique conflict — fetch whatever now exists.
+          {:error, _cs} -> Clients.get_by_domain(domain)
+        end
+
+      client ->
+        client
+    end
   end
 
   # ---------------------------------------------------------------------------

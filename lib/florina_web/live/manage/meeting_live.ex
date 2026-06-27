@@ -229,6 +229,12 @@ defmodule FlorinaWeb.Manage.MeetingLive do
               options={Enum.map(@methodologies, &{&1.name, &1.id})}
             />
 
+            <.input
+              field={@form[:calls_enabled]}
+              type="checkbox"
+              label="Florina calls for this meeting (turn off for non-client meetings)"
+            />
+
             <.prompt_field
               form={@form}
               prompt={:pre_call_prompt}
