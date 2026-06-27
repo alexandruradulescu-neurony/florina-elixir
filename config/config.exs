@@ -36,13 +36,18 @@ config :florina, Oban,
     # ──────────── ──────────────────────────────────────────────────────────
     # Every 5 min  CallScheduler → ScanTenantCalls → DialCall
     # Every 15 min SyncPendingCallsScheduler → SyncPendingCalls
-    # Every 30 min CalendarSyncScheduler → CalendarSync (per-user)
+    # Every 5 min  CalendarSyncScheduler → CalendarSync (per-user)
     # Daily 00:05  CrmSyncScheduler → CrmSync
+    #
+    # Calendar sync runs every 5 min so meeting changes (new/moved/cancelled)
+    # surface in the app within minutes. Call correctness doesn't depend on this
+    # cadence — DialCall re-verifies each meeting against the calendar at dial
+    # time. If API volume becomes a concern, add incremental sync or push.
     {Oban.Plugins.Cron,
      crontab: [
        {"*/5 * * * *", Florina.Workers.CallScheduler},
        {"*/15 * * * *", Florina.Workers.SyncPendingCallsScheduler},
-       {"*/30 * * * *", Florina.Workers.CalendarSyncScheduler},
+       {"*/5 * * * *", Florina.Workers.CalendarSyncScheduler},
        {"5 0 * * *", Florina.Workers.CrmSyncScheduler}
      ]}
   ]
