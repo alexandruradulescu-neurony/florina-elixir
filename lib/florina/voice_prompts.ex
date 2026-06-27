@@ -35,8 +35,10 @@ defmodule Florina.VoicePrompts do
   canonical rows) is deferred as future work.
   """
   def create(attrs) do
-    attrs = Map.put(attrs, :is_overridden, true)
-    %VoicePrompt{} |> VoicePrompt.changeset(attrs) |> TenantRepo.insert()
+    %VoicePrompt{}
+    |> VoicePrompt.changeset(attrs)
+    |> Ecto.Changeset.put_change(:is_overridden, true)
+    |> TenantRepo.insert()
   end
 
   @doc """
@@ -46,8 +48,10 @@ defmodule Florina.VoicePrompts do
   tenant-local edit.
   """
   def update(%VoicePrompt{} = p, attrs) do
-    attrs = Map.put(attrs, :is_overridden, true)
-    p |> VoicePrompt.changeset(attrs) |> TenantRepo.update()
+    p
+    |> VoicePrompt.changeset(attrs)
+    |> Ecto.Changeset.put_change(:is_overridden, true)
+    |> TenantRepo.update()
   end
 
   def delete(%VoicePrompt{} = p), do: TenantRepo.delete(p)

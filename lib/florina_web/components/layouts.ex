@@ -244,6 +244,18 @@ defmodule FlorinaWeb.Layouts do
                 href={"/t/#{@tenant.slug}/manage/methodologies"}
                 active={@active == :methodologies}
               />
+              <.nav_item
+                label="Voice Prompts"
+                icon="hero-microphone"
+                href={"/t/#{@tenant.slug}/manage/prompts"}
+                active={@active == :voice_prompts}
+              />
+              <.nav_item
+                label="Mega Prompts"
+                icon="hero-sparkles"
+                href={"/t/#{@tenant.slug}/manage/mega-prompts"}
+                active={@active == :mega_prompts}
+              />
             </ul>
           </li>
         </ul>
