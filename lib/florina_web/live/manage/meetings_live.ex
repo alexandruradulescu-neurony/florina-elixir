@@ -73,7 +73,8 @@ defmodule FlorinaWeb.Manage.MeetingsLive do
     """
   end
 
-  defp when_label(%DateTime{} = dt), do: Calendar.strftime(dt, "%d %b %Y · %H:%M")
+  defp when_label(%DateTime{} = dt),
+    do: Calendar.strftime(Florina.Tz.local(dt), "%d %b %Y · %H:%M")
 
   defp agent_label(%{first_name: f, last_name: l, email: e}), do: name_of(f, l, e)
   defp agent_label(_), do: "—"

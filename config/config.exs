@@ -12,6 +12,8 @@ config :florina,
   generators: [timestamp_type: :utc_datetime]
 
 # Configure Oban (database-backed background jobs).
+config :elixir, :time_zone_database, Tz.TimeZoneDatabase
+
 config :florina, Oban,
   repo: Florina.Repo,
   queues: [

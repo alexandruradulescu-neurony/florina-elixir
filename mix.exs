@@ -69,7 +69,8 @@ defmodule Florina.MixProject do
       {:oban, "~> 2.18"},
       {:cloak, "~> 1.1"},
       {:cloak_ecto, "~> 1.3"},
-      {:bcrypt_elixir, "~> 3.0"}
+      {:bcrypt_elixir, "~> 3.0"},
+      {:tz, "~> 0.28"}
     ]
   end
 

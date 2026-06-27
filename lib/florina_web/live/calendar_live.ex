@@ -16,7 +16,7 @@ defmodule FlorinaWeb.CalendarLive do
 
   @impl true
   def mount(_params, _session, socket) do
-    monday = week_monday(Date.utc_today())
+    monday = week_monday(Florina.Tz.today())
     agent = socket.assigns.current_agent
     manager? = Authz.manager?(agent)
 
@@ -40,7 +40,7 @@ defmodule FlorinaWeb.CalendarLive do
     do: {:noreply, load_week(socket, Date.add(socket.assigns.monday, 7))}
 
   def handle_event("this_week", _params, socket),
-    do: {:noreply, load_week(socket, week_monday(Date.utc_today()))}
+    do: {:noreply, load_week(socket, week_monday(Florina.Tz.today()))}
 
   @impl true
   def render(assigns) do
@@ -138,9 +138,16 @@ defmodule FlorinaWeb.CalendarLive do
         |> Enum.map(&event_item/1)
       end
 
+    # Today-forward only: never show past days (a meeting from yesterday that was
+    # never executed shouldn't appear as if it's still live).
+    today = Florina.Tz.today()
+
+    days =
+      0..6 |> Enum.map(&Date.add(monday, &1)) |> Enum.filter(&(Date.compare(&1, today) != :lt))
+
     socket
     |> assign(:monday, monday)
-    |> assign(:days, Enum.map(0..6, &Date.add(monday, &1)))
+    |> assign(:days, days)
     |> assign(:items, items)
   end
 
@@ -186,11 +193,11 @@ defmodule FlorinaWeb.CalendarLive do
 
   defp items_for(items, day, filter) do
     items
-    |> Enum.filter(fn i -> DateTime.to_date(i.start_time) == day end)
+    |> Enum.filter(fn i -> DateTime.to_date(Florina.Tz.local(i.start_time)) == day end)
     |> Enum.filter(fn i -> is_nil(filter) or i.agent_id == filter end)
   end
 
-  defp today?(day), do: day == Date.utc_today()
+  defp today?(day), do: day == Florina.Tz.today()
 
   defp week_monday(date), do: Date.add(date, -(Date.day_of_week(date) - 1))
 
@@ -201,17 +208,19 @@ defmodule FlorinaWeb.CalendarLive do
   defp time_range(%{start_time: s, end_time: e}) when not is_nil(e), do: "#{fmt(s)} – #{fmt(e)}"
   defp time_range(%{start_time: s}), do: fmt(s)
 
-  defp fmt(%DateTime{} = dt), do: Calendar.strftime(dt, "%H:%M")
+  defp fmt(%DateTime{} = dt), do: Calendar.strftime(Florina.Tz.local(dt), "%H:%M")
 
   defp status_label(:PLANNED), do: "Planned"
   defp status_label(:PRE_CALL_DONE), do: "Briefed"
   defp status_label(:IN_PROGRESS), do: "In progress"
   defp status_label(:POST_CALL_DONE), do: "Debriefed"
   defp status_label(:COMPLETE), do: "Complete"
+  defp status_label(:MISSED), do: "Missed"
   defp status_label(other), do: to_string(other)
 
   defp status_tone(:COMPLETE), do: "bg-success/10 text-success"
   defp status_tone(:IN_PROGRESS), do: "bg-info/10 text-info"
+  defp status_tone(:MISSED), do: "bg-base-200 text-base-content/40 line-through"
   defp status_tone(_), do: "bg-base-200 text-base-content/70"
 
   defp agent_label(nil), do: "—"

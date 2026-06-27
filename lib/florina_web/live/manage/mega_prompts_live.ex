@@ -225,6 +225,6 @@ defmodule FlorinaWeb.Manage.MegaPromptsLive do
     Enum.find_value(@domains, to_string(domain), fn {v, l} -> v == domain && l end)
   end
 
-  defp time_label(%DateTime{} = dt), do: Calendar.strftime(dt, "%d %b %Y")
+  defp time_label(%DateTime{} = dt), do: Calendar.strftime(Florina.Tz.local(dt), "%d %b %Y")
   defp time_label(_), do: "—"
 end

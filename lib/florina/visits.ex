@@ -145,8 +145,7 @@ defmodule Florina.Visits do
   agent + client preloaded. Powers the manager dashboard's "today" list.
   """
   def list_for_day(%Date{} = date) do
-    day_start = DateTime.new!(date, ~T[00:00:00], "Etc/UTC")
-    day_end = DateTime.new!(date, ~T[23:59:59], "Etc/UTC")
+    {day_start, day_end} = Florina.Tz.day_bounds(date)
 
     from(v in Visit,
       where: v.start_time >= ^day_start and v.start_time <= ^day_end,
@@ -163,7 +162,9 @@ defmodule Florina.Visits do
   """
   def list_in_range(%DateTime{} = from_dt, %DateTime{} = to_dt) do
     from(v in Visit,
-      where: v.start_time >= ^from_dt and v.start_time <= ^to_dt and v.status != :CANCELLED,
+      where:
+        v.start_time >= ^from_dt and v.start_time <= ^to_dt and
+          v.status not in [:CANCELLED, :MISSED],
       preload: [:agent, :client],
       order_by: [asc: :start_time]
     )
@@ -175,8 +176,7 @@ defmodule Florina.Visits do
   the agent's "my meetings today" view — scoped to that agent only.
   """
   def list_for_agent_day(agent_id, %Date{} = date) do
-    day_start = DateTime.new!(date, ~T[00:00:00], "Etc/UTC")
-    day_end = DateTime.new!(date, ~T[23:59:59], "Etc/UTC")
+    {day_start, day_end} = Florina.Tz.day_bounds(date)
 
     from(v in Visit,
       where: v.agent_id == ^agent_id and v.start_time >= ^day_start and v.start_time <= ^day_end,

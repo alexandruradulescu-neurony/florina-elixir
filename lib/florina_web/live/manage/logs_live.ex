@@ -119,7 +119,9 @@ defmodule FlorinaWeb.Manage.LogsLive do
   defp level_tone(:INFO), do: "bg-info/10 text-info"
   defp level_tone(_), do: "bg-base-200 text-base-content"
 
-  defp time_label(%DateTime{} = dt), do: Calendar.strftime(dt, "%d %b %Y · %H:%M:%S")
+  defp time_label(%DateTime{} = dt),
+    do: Calendar.strftime(Florina.Tz.local(dt), "%d %b %Y · %H:%M:%S")
+
   defp time_label(_), do: "—"
 
   defp user_label(%{} = u), do: agent_name(u)

@@ -436,10 +436,12 @@ defmodule FlorinaWeb.Manage.MeetingLive do
   defp phase_label("PRE"), do: "Pre-call"
   defp phase_label("POST"), do: "Post-call"
 
-  defp when_label(%DateTime{} = dt), do: Calendar.strftime(dt, "%d %b %Y · %H:%M")
+  defp when_label(%DateTime{} = dt),
+    do: Calendar.strftime(Florina.Tz.local(dt), "%d %b %Y · %H:%M")
+
   defp when_label(_), do: "—"
 
-  defp time_label(%DateTime{} = dt), do: Calendar.strftime(dt, "%d %b · %H:%M")
+  defp time_label(%DateTime{} = dt), do: Calendar.strftime(Florina.Tz.local(dt), "%d %b · %H:%M")
   defp time_label(_), do: "—"
 
   defp agent_label(%{first_name: f, last_name: l, email: e}), do: name_of(f, l, e)

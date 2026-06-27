@@ -263,7 +263,9 @@ defmodule FlorinaWeb.Manage.GenerationRunsLive do
   defp target_label(%{client_id: cid}) when not is_nil(cid), do: "Client ##{cid}"
   defp target_label(_), do: "—"
 
-  defp time_label(%DateTime{} = dt), do: Calendar.strftime(dt, "%d %b %Y · %H:%M")
+  defp time_label(%DateTime{} = dt),
+    do: Calendar.strftime(Florina.Tz.local(dt), "%d %b %Y · %H:%M")
+
   defp time_label(_), do: "—"
 
   defp decrypted(v) when is_binary(v), do: v

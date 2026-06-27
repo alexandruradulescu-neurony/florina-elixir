@@ -202,7 +202,7 @@ defmodule FlorinaWeb.Manage.CallsLive do
   defp status_label("NO_ANSWER"), do: "No answer"
   defp status_label(s), do: s |> String.downcase() |> String.capitalize()
 
-  defp time_label(%DateTime{} = dt), do: Calendar.strftime(dt, "%d %b · %H:%M")
+  defp time_label(%DateTime{} = dt), do: Calendar.strftime(Florina.Tz.local(dt), "%d %b · %H:%M")
   defp time_label(_), do: "—"
 
   defp context_label(%{title: t}) when is_binary(t) and t != "", do: t

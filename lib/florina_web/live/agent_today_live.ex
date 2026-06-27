@@ -36,7 +36,7 @@ defmodule FlorinaWeb.AgentTodayLive do
 
   defp load(socket) do
     agent = socket.assigns.current_agent
-    assign(socket, :meetings, Visits.list_for_agent_day(agent.id, Date.utc_today()))
+    assign(socket, :meetings, Visits.list_for_agent_day(agent.id, Florina.Tz.today()))
   end
 
   @impl true
@@ -45,7 +45,7 @@ defmodule FlorinaWeb.AgentTodayLive do
     <Layouts.agent_app flash={@flash} tenant={@tenant} current_agent={@current_agent} active={:today}>
       <h1 class="text-2xl font-semibold mb-1">My day</h1>
       <p class="text-sm text-base-content/60 mb-6">
-        {Calendar.strftime(Date.utc_today(), "%A, %d %B %Y")}
+        {Calendar.strftime(Florina.Tz.today(), "%A, %d %B %Y")}
       </p>
 
       <div class="space-y-3 max-w-2xl">
@@ -82,7 +82,7 @@ defmodule FlorinaWeb.AgentTodayLive do
     """
   end
 
-  defp time(%DateTime{} = dt), do: Calendar.strftime(dt, "%H:%M")
+  defp time(%DateTime{} = dt), do: Calendar.strftime(Florina.Tz.local(dt), "%H:%M")
 
   defp status_label(:PLANNED), do: "Planned"
   defp status_label(:PRE_CALL_DONE), do: "Briefed"
@@ -90,11 +90,15 @@ defmodule FlorinaWeb.AgentTodayLive do
   defp status_label(:POST_CALL_DONE), do: "Debriefed"
   defp status_label(:COMPLETE), do: "Complete"
   defp status_label(:CANCELLED), do: "Cancelled"
+  defp status_label(:MISSED), do: "Missed"
   defp status_label(other), do: to_string(other)
 
   defp status_tone(:COMPLETE), do: "bg-success/10 text-success"
   defp status_tone(:IN_PROGRESS), do: "bg-info/10 text-info"
-  defp status_tone(:CANCELLED), do: "bg-base-200 text-base-content/40 line-through"
+
+  defp status_tone(s) when s in [:CANCELLED, :MISSED],
+    do: "bg-base-200 text-base-content/40 line-through"
+
   defp status_tone(_), do: "bg-base-200 text-base-content/70"
 
   defp client_label(%{name: n}) when is_binary(n), do: n

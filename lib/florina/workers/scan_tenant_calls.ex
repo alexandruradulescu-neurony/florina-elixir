@@ -34,6 +34,11 @@ defmodule Florina.Workers.ScanTenantCalls do
   @scheduler_window_minutes 10
   @max_call_attempts_per_phase 2
 
+  # A meeting whose end time is more than this many minutes in the past and was
+  # never handled (no calls completed) is retired to :MISSED so it stops looking
+  # "Planned" forever. Comfortably past the post-call offsets (+15/+30) + retries.
+  @missed_grace_minutes 120
+
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"tenant_slug" => slug}}) do
     with :ok <- Tenant.pin_active(slug) do
@@ -42,9 +47,11 @@ defmodule Florina.Workers.ScanTenantCalls do
 
       pre_enqueued = scan_pre_calls(now, half_window, slug)
       post_enqueued = scan_post_calls(now, half_window, slug)
+      missed = mark_missed(now)
 
       Logger.info(
-        "[ScanTenantCalls] tenant=#{slug} pre=#{pre_enqueued} post=#{post_enqueued} enqueued"
+        "[ScanTenantCalls] tenant=#{slug} pre=#{pre_enqueued} post=#{post_enqueued} " <>
+          "missed=#{missed} enqueued"
       )
 
       :ok
@@ -135,6 +142,26 @@ defmodule Florina.Workers.ScanTenantCalls do
     else
       acc
     end
+  end
+
+  # ---------------------------------------------------------------------------
+  # Retire stale meetings
+  # ---------------------------------------------------------------------------
+
+  # Mark meetings whose end time is well past and that were never handled
+  # (still PLANNED/PRE_CALL_DONE/IN_PROGRESS) as :MISSED, so they drop out of
+  # scheduling and the calendar instead of lingering as "Planned" forever.
+  defp mark_missed(now) do
+    cutoff = DateTime.add(now, -@missed_grace_minutes * 60, :second)
+    stamp = DateTime.truncate(now, :second)
+
+    {count, _} =
+      from(v in Visit,
+        where: v.status in ^[:PLANNED, :PRE_CALL_DONE, :IN_PROGRESS] and v.end_time < ^cutoff
+      )
+      |> TenantRepo.update_all(set: [status: :MISSED, updated_at: stamp])
+
+    count
   end
 
   # ---------------------------------------------------------------------------

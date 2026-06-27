@@ -70,7 +70,7 @@ defmodule FlorinaWeb.Manage.MeetingFormLive do
   defp build_attrs(p) do
     with {:ok, date} <- Date.from_iso8601(to_string(p["date"])),
          {:ok, time} <- Time.from_iso8601(to_string(p["time"]) <> ":00"),
-         {:ok, start_dt} <- DateTime.new(date, time, "Etc/UTC") do
+         {:ok, start_dt} <- Florina.Tz.to_utc(date, time) do
       duration = to_int(p["duration"], 30)
       end_dt = DateTime.add(start_dt, duration * 60, :second)
 
@@ -96,7 +96,7 @@ defmodule FlorinaWeb.Manage.MeetingFormLive do
       "title" => "",
       "methodology_id" => "",
       "manager_notes" => "",
-      "date" => Date.to_iso8601(Date.utc_today()),
+      "date" => Date.to_iso8601(Florina.Tz.today()),
       "time" => "09:00",
       "duration" => "30"
     }
@@ -108,14 +108,16 @@ defmodule FlorinaWeb.Manage.MeetingFormLive do
         do: max(DateTime.diff(v.end_time, v.start_time, :second), 0) |> div(60),
         else: 30
 
+    local_start = Florina.Tz.local(v.start_time)
+
     %{
       "agent_id" => v.agent_id,
       "client_id" => v.client_id,
       "title" => v.title,
       "methodology_id" => v.methodology_id,
       "manager_notes" => v.manager_notes || "",
-      "date" => Date.to_iso8601(DateTime.to_date(v.start_time)),
-      "time" => Calendar.strftime(v.start_time, "%H:%M"),
+      "date" => Date.to_iso8601(DateTime.to_date(local_start)),
+      "time" => Calendar.strftime(local_start, "%H:%M"),
       "duration" => to_string(duration)
     }
   end

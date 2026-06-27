@@ -26,7 +26,7 @@ defmodule FlorinaWeb.Manage.DashboardLive do
   def handle_info({:call_updated, _call}, socket), do: {:noreply, load(socket)}
 
   defp load(socket) do
-    today = Date.utc_today()
+    today = Florina.Tz.today()
     meetings = Visits.list_for_day(today)
     recent_calls = Calls.list_recent(:all, 15)
     default_methodology_id = Settings.get().default_methodology_id
@@ -175,7 +175,7 @@ defmodule FlorinaWeb.Manage.DashboardLive do
     """
   end
 
-  defp time(%DateTime{} = dt), do: Calendar.strftime(dt, "%H:%M")
+  defp time(%DateTime{} = dt), do: Calendar.strftime(Florina.Tz.local(dt), "%H:%M")
 
   defp phase_word("PRE"), do: "Pre"
   defp phase_word("POST"), do: "Post"
@@ -187,11 +187,15 @@ defmodule FlorinaWeb.Manage.DashboardLive do
   defp status_label(:POST_CALL_DONE), do: "Debriefed"
   defp status_label(:COMPLETE), do: "Complete"
   defp status_label(:CANCELLED), do: "Cancelled"
+  defp status_label(:MISSED), do: "Missed"
   defp status_label(other), do: to_string(other)
 
   defp status_tone(:COMPLETE), do: "bg-success/10 text-success"
   defp status_tone(:IN_PROGRESS), do: "bg-info/10 text-info"
-  defp status_tone(:CANCELLED), do: "bg-base-200 text-base-content/40 line-through"
+
+  defp status_tone(s) when s in [:CANCELLED, :MISSED],
+    do: "bg-base-200 text-base-content/40 line-through"
+
   defp status_tone(_), do: "bg-base-200 text-base-content/70"
 
   defp call_tone("COMPLETED"), do: "bg-success/10 text-success"
