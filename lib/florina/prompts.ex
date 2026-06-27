@@ -92,7 +92,10 @@ defmodule Florina.Prompts do
     * `"domain"`  — one of `Enums.mega_prompt_domain_values/0` strings
     * `"outcome"` — `"success"` | `"failures"`
 
-  Returns runs with visit/client/mega_prompt preloaded, newest first.
+  Returns lightweight display maps (newest first). The encrypted PII fields
+  (context bundle, Claude request/response, etc.) are deliberately NOT selected
+  here — listing shouldn't decrypt them; that happens only on the detail page
+  (`get_run/1`), where the read is audited.
   """
   def list_runs(filters \\ %{}, page \\ 1, per_page \\ 50) do
     offset = (max(page, 1) - 1) * per_page
@@ -101,7 +104,17 @@ defmodule Florina.Prompts do
     |> order_by(desc: :created_at)
     |> limit(^per_page)
     |> offset(^offset)
-    |> preload([:visit, :client, :mega_prompt])
+    |> select([r], %{
+      id: r.id,
+      created_at: r.created_at,
+      domain: r.domain,
+      triggered_by: r.triggered_by,
+      success: r.success,
+      input_tokens: r.input_tokens,
+      output_tokens: r.output_tokens,
+      visit_id: r.visit_id,
+      client_id: r.client_id
+    })
     |> TenantRepo.all()
   end
 
