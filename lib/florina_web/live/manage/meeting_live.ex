@@ -182,7 +182,15 @@ defmodule FlorinaWeb.Manage.MeetingLive do
         >
           ← Meetings
         </.link>
-        <h1 class="text-2xl font-semibold mt-1">{@visit.title}</h1>
+        <div class="flex items-center justify-between gap-3 mt-1">
+          <h1 class="text-2xl font-semibold">{@visit.title}</h1>
+          <.link
+            navigate={"/t/#{@tenant.slug}/manage/meetings/#{@visit.id}/edit"}
+            class="text-sm text-primary hover:underline shrink-0"
+          >
+            Edit details
+          </.link>
+        </div>
         <p class="text-sm text-base-content/60">
           {when_label(@visit.start_time)} · {agent_label(@visit.agent)} · {client_label(@visit.client)}
         </p>

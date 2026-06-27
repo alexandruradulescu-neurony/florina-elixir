@@ -51,30 +51,50 @@ defmodule FlorinaWeb.AgentTodayLive do
       <div class="space-y-3 max-w-2xl">
         <div
           :for={v <- @meetings}
-          class="flex items-center justify-between rounded-lg border border-base-300 bg-base-100 px-4 py-3"
+          class="flex items-center justify-between gap-4 rounded-lg border border-base-300 bg-base-100 px-4 py-3"
         >
-          <div>
+          <div class="min-w-0">
             <div class="text-sm font-medium text-base-content">{time(v.start_time)} · {v.title}</div>
-            <div class="text-xs text-base-content/60">
-              {client_label(v.client)} ·
-              <span class="rounded bg-base-200 px-2 py-0.5">{to_string(v.status)}</span>
+            <div class="text-xs text-base-content/60 flex items-center gap-2 mt-0.5">
+              <span>{client_label(v.client)}</span>
+              <span class={["rounded-full px-2 py-0.5 font-medium", status_tone(v.status)]}>
+                {status_label(v.status)}
+              </span>
             </div>
           </div>
           <button
             phx-click="call_me"
             phx-value-visit_id={v.id}
-            class="inline-flex items-center gap-1 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-content hover:opacity-90 cursor-pointer"
+            class="inline-flex shrink-0 items-center gap-1 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-content hover:opacity-90 cursor-pointer"
           >
             <.icon name="hero-phone" class="size-4" /> Have Florina call me
           </button>
         </div>
-        <p :if={@meetings == []} class="text-sm text-base-content/40">No meetings today.</p>
+
+        <p
+          :if={@meetings == []}
+          class="text-sm text-base-content/50 rounded-lg border border-dashed border-base-300 px-4 py-8 text-center"
+        >
+          Nothing on your calendar today. Meetings appear here automatically once your calendar syncs.
+        </p>
       </div>
     </Layouts.agent_app>
     """
   end
 
   defp time(%DateTime{} = dt), do: Calendar.strftime(dt, "%H:%M")
+
+  defp status_label(:PLANNED), do: "Planned"
+  defp status_label(:PRE_CALL_DONE), do: "Briefed"
+  defp status_label(:IN_PROGRESS), do: "In progress"
+  defp status_label(:POST_CALL_DONE), do: "Debriefed"
+  defp status_label(:COMPLETE), do: "Complete"
+  defp status_label(other), do: to_string(other)
+
+  defp status_tone(:COMPLETE), do: "bg-success/10 text-success"
+  defp status_tone(:IN_PROGRESS), do: "bg-info/10 text-info"
+  defp status_tone(_), do: "bg-base-200 text-base-content/70"
+
   defp client_label(%{name: n}) when is_binary(n), do: n
   defp client_label(_), do: "—"
 end

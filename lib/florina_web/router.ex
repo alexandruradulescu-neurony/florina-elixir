@@ -89,7 +89,9 @@ defmodule FlorinaWeb.Router do
     # Manager-only screens (each LiveView gates with AgentAuth :require_manager).
     live "/manage/dashboard", Manage.DashboardLive
     live "/manage/meetings", Manage.MeetingsLive
+    live "/manage/meetings/new", Manage.MeetingFormLive, :new
     live "/manage/meetings/:id", Manage.MeetingLive
+    live "/manage/meetings/:id/edit", Manage.MeetingFormLive, :edit
     live "/manage/calls", Manage.CallsLive
     live "/manage/clients", Manage.ClientsLive
     live "/manage/clients/new", Manage.ClientLive, :new

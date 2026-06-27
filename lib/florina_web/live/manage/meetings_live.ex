@@ -22,7 +22,15 @@ defmodule FlorinaWeb.Manage.MeetingsLive do
       current_agent={@current_agent}
       active={:meetings}
     >
-      <h1 class="text-2xl font-semibold mb-4">Meetings</h1>
+      <div class="flex items-center justify-between mb-4">
+        <h1 class="text-2xl font-semibold">Meetings</h1>
+        <.link
+          navigate={"/t/#{@tenant.slug}/manage/meetings/new"}
+          class="inline-flex items-center gap-1 rounded-md bg-primary px-3 py-2 text-sm font-semibold text-primary-content hover:opacity-90"
+        >
+          <.icon name="hero-plus" class="size-4" /> New meeting
+        </.link>
+      </div>
       <div class="overflow-hidden border border-base-300 rounded-lg">
         <table class="w-full text-sm text-left">
           <thead class="bg-base-200 text-xs uppercase tracking-wider text-base-content/60">
