@@ -256,6 +256,24 @@ defmodule FlorinaWeb.Layouts do
                 href={"/t/#{@tenant.slug}/manage/mega-prompts"}
                 active={@active == :mega_prompts}
               />
+              <.nav_item
+                label="Generation Runs"
+                icon="hero-clipboard-document-list"
+                href={"/t/#{@tenant.slug}/manage/generation-runs"}
+                active={@active == :generation_runs}
+              />
+              <.nav_item
+                label="Settings"
+                icon="hero-cog-6-tooth"
+                href={"/t/#{@tenant.slug}/manage/settings"}
+                active={@active == :settings}
+              />
+              <.nav_item
+                label="Logs"
+                icon="hero-document-text"
+                href={"/t/#{@tenant.slug}/manage/logs"}
+                active={@active == :logs}
+              />
             </ul>
           </li>
         </ul>

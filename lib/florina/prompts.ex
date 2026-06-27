@@ -85,5 +85,56 @@ defmodule Florina.Prompts do
   def recent_runs(limit \\ 50),
     do: TenantRepo.all(from r in GenerationRun, order_by: [desc: r.created_at], limit: ^limit)
 
+  @doc """
+  Paginated, filtered audit list for the Generation Runs screen. `filters` is a
+  plain map (string keys, as from a form):
+
+    * `"domain"`  — one of `Enums.mega_prompt_domain_values/0` strings
+    * `"outcome"` — `"success"` | `"failures"`
+
+  Returns runs with visit/client/mega_prompt preloaded, newest first.
+  """
+  def list_runs(filters \\ %{}, page \\ 1, per_page \\ 50) do
+    offset = (max(page, 1) - 1) * per_page
+
+    runs_query(filters)
+    |> order_by(desc: :created_at)
+    |> limit(^per_page)
+    |> offset(^offset)
+    |> preload([:visit, :client, :mega_prompt])
+    |> TenantRepo.all()
+  end
+
+  @doc "Total count matching `filters` — for pagination."
+  def count_runs(filters \\ %{}) do
+    runs_query(filters) |> TenantRepo.aggregate(:count, :id)
+  end
+
+  @doc "One run with all associations, or nil. Encrypted fields decrypt on read."
+  def get_run(id) do
+    case TenantRepo.get(GenerationRun, id) do
+      nil -> nil
+      run -> TenantRepo.preload(run, [:visit, :client, :mega_prompt, :created_by])
+    end
+  end
+
+  defp runs_query(filters) do
+    GenerationRun
+    |> filter_domain(blank_to_nil(filters["domain"]))
+    |> filter_outcome(blank_to_nil(filters["outcome"]))
+  end
+
+  defp filter_domain(query, nil), do: query
+
+  defp filter_domain(query, domain),
+    do: from(r in query, where: r.domain == ^String.to_existing_atom(domain))
+
+  defp filter_outcome(query, "success"), do: from(r in query, where: r.success == true)
+  defp filter_outcome(query, "failures"), do: from(r in query, where: r.success == false)
+  defp filter_outcome(query, _), do: query
+
+  defp blank_to_nil(v) when v in [nil, ""], do: nil
+  defp blank_to_nil(v), do: v
+
   defp now, do: DateTime.utc_now() |> DateTime.truncate(:second)
 end

@@ -98,6 +98,10 @@ defmodule FlorinaWeb.Router do
     live "/manage/methodologies", Manage.MethodologiesLive
     live "/manage/prompts", Manage.PromptsLive
     live "/manage/mega-prompts", Manage.MegaPromptsLive
+    live "/manage/generation-runs", Manage.GenerationRunsLive, :index
+    live "/manage/generation-runs/:id", Manage.GenerationRunsLive, :show
+    live "/manage/settings", Manage.SettingsLive
+    live "/manage/logs", Manage.LogsLive
   end
 
   scope "/", FlorinaWeb do

@@ -18,6 +18,35 @@ defmodule Florina.Audit do
   def list_recent(limit \\ 100),
     do: TenantRepo.all(from l in ActivityLog, order_by: [desc: l.timestamp], limit: ^limit)
 
+  @doc """
+  Filtered audit list for the Logs screen, newest first, with `:user` and
+  `:visit` preloaded. `filters` is a plain map (string keys, as from a form):
+
+    * `"level"`   — one of `Enums.log_level_values/0` strings
+    * `"user_id"` — restrict to entries by this user
+  """
+  def list_filtered(filters \\ %{}, limit \\ 200) do
+    from(l in ActivityLog,
+      order_by: [desc: l.timestamp],
+      preload: [:user, :visit],
+      limit: ^limit
+    )
+    |> filter_level(blank_to_nil(filters["level"]))
+    |> filter_user(blank_to_nil(filters["user_id"]))
+    |> TenantRepo.all()
+  end
+
+  defp filter_level(query, nil), do: query
+
+  defp filter_level(query, level),
+    do: from(l in query, where: l.level == ^String.to_existing_atom(level))
+
+  defp filter_user(query, nil), do: query
+  defp filter_user(query, user_id), do: from(l in query, where: l.user_id == ^user_id)
+
+  defp blank_to_nil(v) when v in [nil, ""], do: nil
+  defp blank_to_nil(v), do: v
+
   def list_for_visit(visit_id),
     do:
       TenantRepo.all(

@@ -15,10 +15,9 @@ defmodule Florina.Settings do
   tenant-local edit.
   """
   def update(attrs) do
-    attrs = Map.put(attrs, :is_overridden, true)
-
     GlobalSettings.load()
     |> GlobalSettings.changeset(attrs)
+    |> Ecto.Changeset.put_change(:is_overridden, true)
     |> TenantRepo.update()
   end
 end
