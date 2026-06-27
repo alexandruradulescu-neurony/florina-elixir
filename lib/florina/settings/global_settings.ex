@@ -16,6 +16,7 @@ defmodule Florina.Settings.GlobalSettings do
     field :pre_call_offset_minutes, :integer, default: -60
     field :post_call_offset_minutes, :integer, default: 15
     field :retry_interval_minutes, :integer, default: 5
+    field :max_call_attempts_per_phase, :integer, default: 2
     field :max_context_tokens_warn, :integer, default: 50_000
 
     field :is_overridden, :boolean, default: false
@@ -29,6 +30,7 @@ defmodule Florina.Settings.GlobalSettings do
     :pre_call_offset_minutes,
     :post_call_offset_minutes,
     :retry_interval_minutes,
+    :max_call_attempts_per_phase,
     :max_context_tokens_warn,
     :default_methodology_id,
     :is_overridden

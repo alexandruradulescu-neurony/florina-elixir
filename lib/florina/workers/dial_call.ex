@@ -41,8 +41,6 @@ defmodule Florina.Workers.DialCall do
   alias Florina.Workers.{Tenant, ScanTenantCalls}
   alias Florina.Services.Assembler
 
-  @max_call_attempts_per_phase 2
-
   # A calendar-sourced meeting is only worth calling about if "now" is within this
   # window of its (possibly just-moved) start/end time. Guards against calling
   # early/late when a meeting was moved right before the dial.
@@ -97,7 +95,8 @@ defmodule Florina.Workers.DialCall do
             :ok
 
           # Hard cap
-          ScanTenantCalls.phase_dial_count(visit.id, phase) >= @max_call_attempts_per_phase ->
+          ScanTenantCalls.phase_dial_count(visit.id, phase) >=
+              Florina.Settings.get().max_call_attempts_per_phase ->
             Logger.info("[DialCall] visit=#{visit.id} phase=#{phase} cap reached — skip")
             :ok
 

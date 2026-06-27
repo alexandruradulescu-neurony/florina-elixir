@@ -27,12 +27,12 @@ defmodule Florina.Workers.ScanTenantCalls do
   alias Florina.Visits.Visit
   alias Florina.Calls.CallAttempt
   alias Florina.Workers.{Tenant, DialCall}
+  alias Florina.Settings
 
-  # Ported from Django voice/constants.py
-  @pre_meeting_offsets [-60, -30]
-  @post_meeting_offsets [15, 30]
+  # Retry model (all tenant-configurable via GlobalSettings):
+  #   first attempt at <phase>_call_offset_minutes, then every
+  #   retry_interval_minutes, up to max_call_attempts_per_phase.
   @scheduler_window_minutes 10
-  @max_call_attempts_per_phase 2
 
   # A meeting whose end time is more than this many minutes in the past and was
   # never handled (no calls completed) is retired to :MISSED so it stops looking
@@ -44,9 +44,10 @@ defmodule Florina.Workers.ScanTenantCalls do
     with :ok <- Tenant.pin_active(slug) do
       now = DateTime.utc_now()
       half_window = div(@scheduler_window_minutes, 2)
+      settings = Settings.get()
 
-      pre_enqueued = scan_pre_calls(now, half_window, slug)
-      post_enqueued = scan_post_calls(now, half_window, slug)
+      pre_enqueued = scan_pre_calls(now, half_window, slug, settings)
+      post_enqueued = scan_post_calls(now, half_window, slug, settings)
       missed = mark_missed(now)
 
       Logger.info(
@@ -66,7 +67,7 @@ defmodule Florina.Workers.ScanTenantCalls do
   # Pre-call scan
   # ---------------------------------------------------------------------------
 
-  defp scan_pre_calls(now, half_window, tenant_slug) do
+  defp scan_pre_calls(now, half_window, tenant_slug, settings) do
     # Visits that could still have a pre-call: status PLANNED or PRE_CALL_DONE
     visits =
       from(v in Visit,
@@ -78,17 +79,18 @@ defmodule Florina.Workers.ScanTenantCalls do
     Enum.reduce(visits, 0, fn visit, acc ->
       if phone_missing?(visit),
         do: acc,
-        else: enqueue_pre_if_due(visit, now, half_window, tenant_slug, acc)
+        else: enqueue_pre_if_due(visit, now, half_window, tenant_slug, settings, acc)
     end)
   end
 
-  defp enqueue_pre_if_due(visit, now, half_window, tenant_slug, acc) do
-    due_times = Enum.map(@pre_meeting_offsets, &DateTime.add(visit.start_time, &1 * 60, :second))
+  defp enqueue_pre_if_due(visit, now, half_window, tenant_slug, settings, acc) do
+    due_times =
+      due_times(visit.start_time, settings.pre_call_offset_minutes, settings)
 
     if Enum.any?(due_times, &within_window?(&1, now, half_window)) do
       total_dials = phase_dial_count(visit.id, "PRE")
 
-      if total_dials >= @max_call_attempts_per_phase do
+      if total_dials >= settings.max_call_attempts_per_phase do
         Logger.info(
           "[ScanTenantCalls] visit=#{visit.id} PRE cap reached (#{total_dials}), skipping"
         )
@@ -107,7 +109,7 @@ defmodule Florina.Workers.ScanTenantCalls do
   # Post-call scan
   # ---------------------------------------------------------------------------
 
-  defp scan_post_calls(now, half_window, tenant_slug) do
+  defp scan_post_calls(now, half_window, tenant_slug, settings) do
     # Visits that have had their pre-call done and meeting has likely ended
     visits =
       from(v in Visit,
@@ -119,17 +121,17 @@ defmodule Florina.Workers.ScanTenantCalls do
     Enum.reduce(visits, 0, fn visit, acc ->
       if phone_missing?(visit),
         do: acc,
-        else: enqueue_post_if_due(visit, now, half_window, tenant_slug, acc)
+        else: enqueue_post_if_due(visit, now, half_window, tenant_slug, settings, acc)
     end)
   end
 
-  defp enqueue_post_if_due(visit, now, half_window, tenant_slug, acc) do
-    due_times = Enum.map(@post_meeting_offsets, &DateTime.add(visit.end_time, &1 * 60, :second))
+  defp enqueue_post_if_due(visit, now, half_window, tenant_slug, settings, acc) do
+    due_times = due_times(visit.end_time, settings.post_call_offset_minutes, settings)
 
     if Enum.any?(due_times, &within_window?(&1, now, half_window)) do
       total_dials = phase_dial_count(visit.id, "POST")
 
-      if total_dials >= @max_call_attempts_per_phase do
+      if total_dials >= settings.max_call_attempts_per_phase do
         Logger.info(
           "[ScanTenantCalls] visit=#{visit.id} POST cap reached (#{total_dials}), skipping"
         )
@@ -171,6 +173,17 @@ defmodule Florina.Workers.ScanTenantCalls do
   defp within_window?(target, now, half_window_minutes) do
     diff_seconds = abs(DateTime.diff(now, target, :second))
     diff_seconds <= half_window_minutes * 60
+  end
+
+  # Attempt times for a phase: first at `offset_min` from `base`, then one every
+  # `retry_interval_minutes`, for `max_call_attempts_per_phase` attempts.
+  defp due_times(base, offset_min, settings) do
+    attempts = max(settings.max_call_attempts_per_phase, 1)
+    interval = settings.retry_interval_minutes
+
+    for n <- 0..(attempts - 1)//1 do
+      DateTime.add(base, (offset_min + n * interval) * 60, :second)
+    end
   end
 
   @doc """

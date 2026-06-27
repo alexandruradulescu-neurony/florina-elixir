@@ -81,6 +81,13 @@ defmodule FlorinaWeb.Manage.SettingsLive do
             label="Post-call offset (minutes)"
           />
           <.input
+            field={@form[:max_call_attempts_per_phase]}
+            type="number"
+            label="Call attempts per phase"
+            min="1"
+            max="10"
+          />
+          <.input
             field={@form[:retry_interval_minutes]}
             type="number"
             label="Retry interval (minutes)"
@@ -106,8 +113,12 @@ defmodule FlorinaWeb.Manage.SettingsLive do
             — when Florina dials relative to the meeting (negative = before).
           </p>
           <p>
+            <span class="font-medium text-base-content">Call attempts per phase</span>
+            — how many times Florina tries each pre/post call.
+          </p>
+          <p>
             <span class="font-medium text-base-content">Retry interval</span>
-            — wait between dial attempts.
+            — wait between those attempts.
           </p>
           <p>
             <span class="font-medium text-base-content">Token-warning threshold</span>
