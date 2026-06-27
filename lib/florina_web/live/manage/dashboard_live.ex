@@ -186,10 +186,12 @@ defmodule FlorinaWeb.Manage.DashboardLive do
   defp status_label(:IN_PROGRESS), do: "In progress"
   defp status_label(:POST_CALL_DONE), do: "Debriefed"
   defp status_label(:COMPLETE), do: "Complete"
+  defp status_label(:CANCELLED), do: "Cancelled"
   defp status_label(other), do: to_string(other)
 
   defp status_tone(:COMPLETE), do: "bg-success/10 text-success"
   defp status_tone(:IN_PROGRESS), do: "bg-info/10 text-info"
+  defp status_tone(:CANCELLED), do: "bg-base-200 text-base-content/40 line-through"
   defp status_tone(_), do: "bg-base-200 text-base-content/70"
 
   defp call_tone("COMPLETED"), do: "bg-success/10 text-success"

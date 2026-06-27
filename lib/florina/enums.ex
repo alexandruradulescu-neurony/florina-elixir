@@ -30,7 +30,9 @@ defmodule Florina.Enums do
       PRE_CALL_DONE: "PRE_CALL_DONE",
       IN_PROGRESS: "IN_PROGRESS",
       POST_CALL_DONE: "POST_CALL_DONE",
-      COMPLETE: "COMPLETE"
+      COMPLETE: "COMPLETE",
+      # Meeting removed/cancelled on the calendar — excluded from call scheduling.
+      CANCELLED: "CANCELLED"
     ]
 
   @doc "Client relationship status — stored in Romanian (\"nou\"/\"existent\")."

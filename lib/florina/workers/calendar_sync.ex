@@ -56,11 +56,12 @@ defmodule Florina.Workers.CalendarSync do
       total_created = results |> Enum.map(fn {_, r} -> r.created end) |> Enum.sum()
       total_updated = results |> Enum.map(fn {_, r} -> r.updated end) |> Enum.sum()
       total_skipped = results |> Enum.map(fn {_, r} -> r.skipped end) |> Enum.sum()
+      total_cancelled = results |> Enum.map(fn {_, r} -> r.cancelled end) |> Enum.sum()
       total_errors = results |> Enum.flat_map(fn {_, r} -> r.errors end)
 
       Logger.info(
         "[CalendarSync] tenant=#{slug} created=#{total_created} updated=#{total_updated} " <>
-          "skipped=#{total_skipped} errors=#{length(total_errors)}"
+          "skipped=#{total_skipped} cancelled=#{total_cancelled} errors=#{length(total_errors)}"
       )
 
       :ok
@@ -90,7 +91,7 @@ defmodule Florina.Workers.CalendarSync do
   # ---------------------------------------------------------------------------
 
   defp sync_agent(agent, today_start, today_end) do
-    acc = %{created: 0, updated: 0, skipped: 0, errors: []}
+    acc = %{created: 0, updated: 0, skipped: 0, cancelled: 0, errors: []}
 
     case OAuth.list_calendar_credentials_for_user(agent.id) do
       [] ->
@@ -119,14 +120,17 @@ defmodule Florina.Workers.CalendarSync do
           end
         end)
 
-        Enum.reduce(events, acc, fn event, a ->
-          case process_event(agent, cred.provider, event) do
-            {:created, _} -> %{a | created: a.created + 1}
-            {:updated, _} -> %{a | updated: a.updated + 1}
-            :skipped -> %{a | skipped: a.skipped + 1}
-            {:error, msg} -> %{a | errors: [msg | a.errors]}
-          end
-        end)
+        acc =
+          Enum.reduce(events, acc, fn event, a ->
+            case process_event(agent, cred.provider, event) do
+              {:created, _} -> %{a | created: a.created + 1}
+              {:updated, _} -> %{a | updated: a.updated + 1}
+              :skipped -> %{a | skipped: a.skipped + 1}
+              {:error, msg} -> %{a | errors: [msg | a.errors]}
+            end
+          end)
+
+        reconcile_cancelled(agent.id, cred.provider, today_start, today_end, events, acc)
 
       {:error, reason} ->
         msg =
@@ -167,13 +171,13 @@ defmodule Florina.Workers.CalendarSync do
   end
 
   # A cancelled meeting must not spawn a visit. If one already exists for this
-  # event and hasn't completed, retire it to COMPLETE so the call scheduler
-  # (which only dials :PLANNED) stops — there is no dedicated CANCELLED status.
+  # event and hasn't completed, retire it to :CANCELLED so the call scheduler
+  # (which only acts on :PLANNED / :PRE_CALL_DONE / :IN_PROGRESS) stops dialing.
   defp cancel_existing_visit(event_id, agent_id, provider) do
     case find_existing_visit(event_id, agent_id, provider) do
       %Visit{status: status} = existing
       when status in [:PLANNED, :PRE_CALL_DONE, :IN_PROGRESS] ->
-        case Visits.update(existing, %{status: :COMPLETE}) do
+        case Visits.update(existing, %{status: :CANCELLED}) do
           {:ok, _v} -> :skipped
           {:error, cs} -> {:error, "cancel failed: #{inspect(cs.errors)}"}
         end
@@ -181,6 +185,43 @@ defmodule Florina.Workers.CalendarSync do
       _ ->
         :skipped
     end
+  end
+
+  # Provider-agnostic safety net for cancellations/deletions. Google omits
+  # cancelled events from the list entirely (we don't request deleted ones), so
+  # a cancelled meeting simply vanishes rather than arriving with status
+  # "cancelled". Any active visit in the synced window whose calendar event is no
+  # longer returned was cancelled or deleted — retire it to :CANCELLED so the
+  # scheduler stops dialing. Scoped to FUTURE visits only, so a transient/empty
+  # fetch can't retroactively cancel meetings that already happened.
+  defp reconcile_cancelled(agent_id, provider, _window_start, window_end, events, acc) do
+    now = DateTime.utc_now()
+    present_ids = events |> Enum.map(& &1.id) |> MapSet.new()
+
+    stale =
+      from(v in Visit,
+        where:
+          v.agent_id == ^agent_id and v.provider == ^provider and
+            not is_nil(v.calendar_event_id) and
+            v.status in ^[:PLANNED, :PRE_CALL_DONE, :IN_PROGRESS] and
+            v.start_time >= ^now and v.start_time <= ^window_end
+      )
+      |> TenantRepo.all()
+      |> Enum.reject(fn v -> MapSet.member?(present_ids, v.calendar_event_id) end)
+
+    Enum.reduce(stale, acc, fn v, a ->
+      case Visits.update(v, %{status: :CANCELLED}) do
+        {:ok, _} ->
+          Logger.info(
+            "[CalendarSync] retired visit=#{v.id} — event #{v.calendar_event_id} no longer on #{provider} calendar"
+          )
+
+          %{a | cancelled: a.cancelled + 1}
+
+        {:error, cs} ->
+          %{a | errors: ["reconcile failed visit=#{v.id}: #{inspect(cs.errors)}" | a.errors]}
+      end
+    end)
   end
 
   # ---------------------------------------------------------------------------
