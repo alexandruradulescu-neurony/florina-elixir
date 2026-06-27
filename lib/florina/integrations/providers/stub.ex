@@ -41,10 +41,15 @@ defmodule Florina.Integrations.Providers.Stub do
 
   def list_events(_cred, _min, _max), do: Process.get(:oauth_stub_list_events, {:ok, []})
 
+  # Default is a non-:not_found error so the freshness check proceeds (places the
+  # call) in tests that don't opt into it. Tests exercising freshness set it.
+  def get_event(_cred, _id), do: Process.get(:oauth_stub_get_event, {:error, :not_configured})
+
   def set_exchange_code(r), do: Process.put(:oauth_stub_exchange_code, r)
   def set_refresh_token(r), do: Process.put(:oauth_stub_refresh_token, r)
   def set_identity(r), do: Process.put(:oauth_stub_identity, r)
   def set_list_events(r), do: Process.put(:oauth_stub_list_events, r)
+  def set_get_event(r), do: Process.put(:oauth_stub_get_event, r)
 
   def reset do
     Enum.each(
@@ -52,7 +57,8 @@ defmodule Florina.Integrations.Providers.Stub do
         :oauth_stub_exchange_code,
         :oauth_stub_refresh_token,
         :oauth_stub_identity,
-        :oauth_stub_list_events
+        :oauth_stub_list_events,
+        :oauth_stub_get_event
       ],
       &Process.delete/1
     )

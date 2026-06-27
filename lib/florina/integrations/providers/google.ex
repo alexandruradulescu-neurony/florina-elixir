@@ -127,6 +127,22 @@ defmodule Florina.Integrations.Providers.Google do
     end
   end
 
+  @impl Florina.Integrations.CalendarProvider
+  def get_event(%Credential{} = cred, event_id) when is_binary(event_id) do
+    with {:ok, token} <- Provider.ensure_valid_token(cred) do
+      case Req.get("#{@calendar_api}/calendars/primary/events/#{URI.encode(event_id)}",
+             headers: bearer(token),
+             receive_timeout: 15_000
+           ) do
+        {:ok, %{status: 200, body: b}} -> {:ok, normalize(b)}
+        {:ok, %{status: s}} when s in [404, 410] -> {:error, :not_found}
+        {:ok, %{status: 401}} -> {:error, :unauthorized}
+        {:ok, %{status: s, body: b}} -> {:error, {:http, s, b}}
+        {:error, r} -> {:error, r}
+      end
+    end
+  end
+
   defp post_token(form) do
     case Req.post(@token_uri, form: form, receive_timeout: 15_000) do
       {:ok, %{status: 200, body: b}} ->

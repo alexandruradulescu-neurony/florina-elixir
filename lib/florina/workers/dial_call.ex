@@ -34,12 +34,19 @@ defmodule Florina.Workers.DialCall do
   import Ecto.Query
 
   alias Florina.TenantRepo
+  alias Florina.{OAuth, Visits}
   alias Florina.Visits.Visit
   alias Florina.Calls.CallAttempt
+  alias Florina.Integrations.Provider
   alias Florina.Workers.{Tenant, ScanTenantCalls}
   alias Florina.Services.Assembler
 
   @max_call_attempts_per_phase 2
+
+  # A calendar-sourced meeting is only worth calling about if "now" is within this
+  # window of its (possibly just-moved) start/end time. Guards against calling
+  # early/late when a meeting was moved right before the dial.
+  @timely_window_seconds 90 * 60
 
   # Terminal/active statuses — no further dial if one of these exists
   @blocking_statuses ["SCHEDULED", "INITIATED", "IN_PROGRESS", "COMPLETED"]
@@ -64,25 +71,130 @@ defmodule Florina.Workers.DialCall do
   end
 
   defp do_dial(visit, phase, _tenant_slug) do
-    # Idempotency: skip if a blocking attempt already exists
-    if active_attempt_exists?(visit.id, phase) do
-      Logger.info(
-        "[DialCall] visit=#{visit.id} phase=#{phase} already has active/completed attempt — skip"
-      )
+    case check_calendar_freshness(visit, phase) do
+      :cancelled ->
+        Logger.info(
+          "[DialCall] visit=#{visit.id} #{phase} aborted — meeting cancelled/removed on calendar"
+        )
 
-      :ok
-    else
-      # Hard cap
-      total = ScanTenantCalls.phase_dial_count(visit.id, phase)
-
-      if total >= @max_call_attempts_per_phase do
-        Logger.info("[DialCall] visit=#{visit.id} phase=#{phase} cap reached (#{total}) — skip")
         :ok
-      else
-        run_dial(visit, phase)
-      end
+
+      :mistimed ->
+        Logger.info(
+          "[DialCall] visit=#{visit.id} #{phase} skipped — meeting moved out of the call window"
+        )
+
+        :ok
+
+      {:ok, visit} ->
+        cond do
+          # Idempotency: skip if a blocking attempt already exists
+          active_attempt_exists?(visit.id, phase) ->
+            Logger.info(
+              "[DialCall] visit=#{visit.id} phase=#{phase} already has active/completed attempt — skip"
+            )
+
+            :ok
+
+          # Hard cap
+          ScanTenantCalls.phase_dial_count(visit.id, phase) >= @max_call_attempts_per_phase ->
+            Logger.info("[DialCall] visit=#{visit.id} phase=#{phase} cap reached — skip")
+            :ok
+
+          true ->
+            run_dial(visit, phase)
+        end
     end
   end
+
+  # ---------------------------------------------------------------------------
+  # Just-before-dial calendar freshness check (sync fix 2/3)
+  #
+  # Confirms a calendar-sourced meeting still exists and is still timely right
+  # before we dial, catching last-minute cancellations/moves the 30-min sync
+  # poll would miss. Manual visits (no event id) and unverifiable cases proceed.
+  # ---------------------------------------------------------------------------
+
+  defp check_calendar_freshness(%Visit{calendar_event_id: id} = visit, _phase)
+       when id in [nil, ""],
+       do: {:ok, visit}
+
+  defp check_calendar_freshness(%Visit{} = visit, phase) do
+    case credential_for(visit) do
+      nil ->
+        {:ok, visit}
+
+      cred ->
+        case Provider.for_credential(cred).get_event(cred, visit.calendar_event_id) do
+          {:error, :not_found} ->
+            retire_cancelled(visit)
+            :cancelled
+
+          {:ok, %{status: "cancelled"}} ->
+            retire_cancelled(visit)
+            :cancelled
+
+          {:ok, event} ->
+            visit = apply_event_changes(visit, event)
+            if timely?(visit, phase), do: {:ok, visit}, else: :mistimed
+
+          {:error, _reason} ->
+            # Can't verify (transient/auth) — proceed; the sync reconciliation
+            # backstop (fix 1/3) still catches cancellations on the next cycle.
+            {:ok, visit}
+        end
+    end
+  end
+
+  defp credential_for(%Visit{agent_id: agent_id, provider: provider}) do
+    agent_id
+    |> OAuth.list_calendar_credentials_for_user()
+    |> Enum.find(fn c -> c.provider == provider end)
+  end
+
+  defp retire_cancelled(visit) do
+    case Visits.update(visit, %{status: :CANCELLED}) do
+      {:ok, _} ->
+        :ok
+
+      {:error, cs} ->
+        Logger.warning("[DialCall] failed to cancel visit=#{visit.id}: #{inspect(cs.errors)}")
+    end
+  end
+
+  defp apply_event_changes(visit, event) do
+    changes =
+      %{}
+      |> put_if_changed(:start_time, visit.start_time, Map.get(event, :start_time))
+      |> put_if_changed(:end_time, visit.end_time, Map.get(event, :end_time))
+      |> put_if_changed(:title, visit.title, Map.get(event, :title))
+
+    if map_size(changes) > 0 do
+      case Visits.update(visit, changes) do
+        {:ok, v} -> v
+        {:error, _cs} -> visit
+      end
+    else
+      visit
+    end
+  end
+
+  defp put_if_changed(map, key, old, new) when not is_nil(new) and old != new,
+    do: Map.put(map, key, new)
+
+  defp put_if_changed(map, _key, _old, _new), do: map
+
+  defp timely?(%Visit{start_time: start}, "PRE") do
+    diff = DateTime.diff(start, DateTime.utc_now(), :second)
+    diff > 0 and diff <= @timely_window_seconds
+  end
+
+  defp timely?(%Visit{end_time: finish}, "POST") do
+    diff = DateTime.diff(DateTime.utc_now(), finish, :second)
+    diff >= 0 and diff <= @timely_window_seconds
+  end
+
+  defp timely?(_visit, _phase), do: true
 
   defp run_dial(visit, phase) do
     # Ensure assembled prompt exists; assemble on-the-fly if absent.

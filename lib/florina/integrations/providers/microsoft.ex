@@ -137,6 +137,27 @@ defmodule Florina.Integrations.Providers.Microsoft do
     end
   end
 
+  @impl Florina.Integrations.CalendarProvider
+  def get_event(%Credential{} = cred, event_id) when is_binary(event_id) do
+    with {:ok, token} <- Provider.ensure_valid_token(cred) do
+      headers = [
+        {"authorization", "Bearer #{token}"},
+        {"Prefer", ~s(outlook.timezone="UTC")}
+      ]
+
+      case Req.get("#{@graph}/me/events/#{URI.encode(event_id)}",
+             headers: headers,
+             receive_timeout: 15_000
+           ) do
+        {:ok, %{status: 200, body: b}} -> {:ok, normalize(b)}
+        {:ok, %{status: 404}} -> {:error, :not_found}
+        {:ok, %{status: 401}} -> {:error, :unauthorized}
+        {:ok, %{status: s, body: b}} -> {:error, {:http, s, b}}
+        {:error, r} -> {:error, r}
+      end
+    end
+  end
+
   defp tenant,
     do:
       Application.get_env(:florina, :microsoft_tenant) ||
