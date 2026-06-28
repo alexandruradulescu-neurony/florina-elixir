@@ -56,9 +56,9 @@ Manager:
 
 Agent:
 - [x] agent_today_live (My Day)
-- [ ] calls_live (call-me)
-- [ ] calendar_live (shared manager+agent)
-- [ ] clients_live (agent client directory)
+- [x] calls_live (call-me)
+- [x] calendar_live (shared manager+agent)
+- [x] clients_live (agent client directory)
 
 Admin / other:
 - [ ] admin/index_live

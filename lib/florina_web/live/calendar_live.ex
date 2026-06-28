@@ -52,22 +52,25 @@ defmodule FlorinaWeb.CalendarLive do
       active={:calendar}
     >
       <div class="flex flex-wrap items-center justify-between gap-3 mb-1">
-        <h1 class="text-2xl font-semibold">Calendar</h1>
+        <h1 class="text-2xl font-semibold text-gray-900 dark:text-white">Calendar</h1>
         <div class="flex items-center gap-2">
           <form :if={@manager?} phx-change="filter">
-            <select name="agent_id" class="select select-bordered select-sm">
+            <select
+              name="agent_id"
+              class="rounded-md bg-white py-1.5 pl-3 pr-8 text-sm text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:focus:outline-indigo-500"
+            >
               <option value="">All agents</option>
               <option :for={a <- @agents} value={a.id} selected={@filter_agent_id == a.id}>
                 {agent_label(a)}
               </option>
             </select>
           </form>
-          <button phx-click="prev_week" class="btn btn-sm" aria-label="Previous week">←</button>
-          <button phx-click="this_week" class="btn btn-sm">{week_range_label(@monday)}</button>
-          <button phx-click="next_week" class="btn btn-sm" aria-label="Next week">→</button>
+          <button phx-click="prev_week" class={nav_btn()} aria-label="Previous week">←</button>
+          <button phx-click="this_week" class={nav_btn()}>{week_range_label(@monday)}</button>
+          <button phx-click="next_week" class={nav_btn()} aria-label="Next week">→</button>
         </div>
       </div>
-      <p class="text-sm text-base-content/50 mb-6">
+      <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">
         {if @manager?, do: "Client meetings across the team.", else: "Your schedule."}
       </p>
 
@@ -75,30 +78,36 @@ defmodule FlorinaWeb.CalendarLive do
         <section :for={day <- days_with_items(@days, @items, @filter_agent_id)}>
           <h2 class={[
             "text-sm font-semibold mb-2",
-            (today?(day) && "text-primary") || "text-base-content/60"
+            (today?(day) && "text-indigo-600 dark:text-indigo-400") ||
+              "text-gray-500 dark:text-gray-400"
           ]}>
             {Calendar.strftime(day, "%A, %d %B")}{if today?(day), do: " · Today"}
           </h2>
           <div class="space-y-2">
             <div
               :for={item <- items_for(@items, day, @filter_agent_id)}
-              class="flex items-center gap-3 rounded-lg border border-base-300 px-3 py-2"
+              class="flex items-center gap-3 rounded-lg border border-gray-200 px-3 py-2 dark:border-white/10"
             >
-              <div class="w-28 shrink-0 text-sm font-medium text-base-content/80">
+              <div class="w-28 shrink-0 text-sm font-medium text-gray-600 dark:text-gray-300">
                 {time_range(item)}
               </div>
               <div class="min-w-0">
                 <.link
                   :if={item.visit_id}
                   navigate={"/t/#{@tenant.slug}/manage/meetings/#{item.visit_id}"}
-                  class="block text-sm font-medium text-primary hover:underline truncate"
+                  class="block text-sm font-medium text-indigo-600 hover:text-indigo-500 truncate dark:text-indigo-400"
                 >
                   {item.title}
                 </.link>
-                <span :if={is_nil(item.visit_id)} class="block text-sm font-medium truncate">
+                <span
+                  :if={is_nil(item.visit_id)}
+                  class="block text-sm font-medium truncate text-gray-900 dark:text-white"
+                >
                   {item.title}
                 </span>
-                <div :if={item.secondary} class="text-xs text-base-content/50">{item.secondary}</div>
+                <div :if={item.secondary} class="text-xs text-gray-500 dark:text-gray-400">
+                  {item.secondary}
+                </div>
               </div>
               <span
                 :if={item.status}
@@ -115,7 +124,7 @@ defmodule FlorinaWeb.CalendarLive do
 
         <p
           :if={days_with_items(@days, @items, @filter_agent_id) == []}
-          class="text-sm text-base-content/50 rounded-lg border border-dashed border-base-300 px-4 py-8 text-center"
+          class="text-sm text-gray-500 dark:text-gray-400 rounded-lg border border-dashed border-gray-300 px-4 py-8 text-center dark:border-white/15"
         >
           {if @manager?, do: "No client meetings this week.", else: "No appointments this week."}
         </p>
@@ -218,10 +227,21 @@ defmodule FlorinaWeb.CalendarLive do
   defp status_label(:MISSED), do: "Missed"
   defp status_label(other), do: to_string(other)
 
-  defp status_tone(:COMPLETE), do: "bg-success/10 text-success"
-  defp status_tone(:IN_PROGRESS), do: "bg-info/10 text-info"
-  defp status_tone(:MISSED), do: "bg-base-200 text-base-content/40 line-through"
-  defp status_tone(_), do: "bg-base-200 text-base-content/70"
+  # Shared TW Plus secondary button styling for the week-nav controls.
+  defp nav_btn,
+    do:
+      "rounded-md bg-white px-3 py-1.5 text-sm font-semibold text-gray-900 shadow-xs ring-1 ring-inset ring-gray-300 hover:bg-gray-50 cursor-pointer dark:bg-white/10 dark:text-white dark:ring-0 dark:hover:bg-white/20"
+
+  defp status_tone(:COMPLETE),
+    do: "bg-green-100 text-green-700 dark:bg-green-500/10 dark:text-green-400"
+
+  defp status_tone(:IN_PROGRESS),
+    do: "bg-blue-100 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400"
+
+  defp status_tone(:MISSED),
+    do: "bg-gray-100 text-gray-400 line-through dark:bg-white/5 dark:text-gray-500"
+
+  defp status_tone(_), do: "bg-gray-100 text-gray-600 dark:bg-white/10 dark:text-gray-300"
 
   defp agent_label(nil), do: "—"
 

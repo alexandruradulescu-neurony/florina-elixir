@@ -32,31 +32,33 @@ defmodule FlorinaWeb.CallsLive do
   def render(assigns) do
     ~H"""
     <Layouts.agent_app flash={@flash} tenant={@tenant} current_agent={@current_agent} active={:calls}>
-      <h1 class="text-2xl font-semibold mb-4">Calls</h1>
-      <table class="w-full text-left text-sm">
-        <thead>
-          <tr class="border-b border-base-300">
-            <th class="px-3 py-2 font-semibold">Phase</th>
-            <th class="px-3 py-2 font-semibold">Status</th>
-            <th class="px-3 py-2 font-semibold">Call ID</th>
-            <th class="px-3 py-2 font-semibold">Summary</th>
-            <th class="px-3 py-2 font-semibold">Updated</th>
-          </tr>
-        </thead>
-        <tbody id="calls" phx-update="stream">
-          <tr
-            :for={{dom_id, call} <- @streams.calls}
-            id={dom_id}
-            class="odd:bg-base-100 even:bg-base-200"
-          >
-            <td class="px-3 py-2">{call.phase}</td>
-            <td class="px-3 py-2">{call.status}</td>
-            <td class="px-3 py-2">{call.external_call_id}</td>
-            <td class="px-3 py-2">{call.summary}</td>
-            <td class="px-3 py-2">{call.updated_at}</td>
-          </tr>
-        </tbody>
-      </table>
+      <h1 class="text-2xl font-semibold mb-4 text-gray-900 dark:text-white">Calls</h1>
+      <div class="overflow-x-auto rounded-lg border border-gray-200 dark:border-white/10">
+        <table class="w-full text-left text-sm">
+          <thead class="bg-gray-50 dark:bg-white/5">
+            <tr>
+              <th class="px-3 py-2 font-semibold text-gray-900 dark:text-white">Phase</th>
+              <th class="px-3 py-2 font-semibold text-gray-900 dark:text-white">Status</th>
+              <th class="px-3 py-2 font-semibold text-gray-900 dark:text-white">Call ID</th>
+              <th class="px-3 py-2 font-semibold text-gray-900 dark:text-white">Summary</th>
+              <th class="px-3 py-2 font-semibold text-gray-900 dark:text-white">Updated</th>
+            </tr>
+          </thead>
+          <tbody id="calls" phx-update="stream" class="divide-y divide-gray-200 dark:divide-white/10">
+            <tr
+              :for={{dom_id, call} <- @streams.calls}
+              id={dom_id}
+              class="hover:bg-gray-50 dark:hover:bg-white/5 text-gray-700 dark:text-gray-300"
+            >
+              <td class="px-3 py-2">{call.phase}</td>
+              <td class="px-3 py-2">{call.status}</td>
+              <td class="px-3 py-2">{call.external_call_id}</td>
+              <td class="px-3 py-2">{call.summary}</td>
+              <td class="px-3 py-2">{call.updated_at}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </Layouts.agent_app>
     """
   end
