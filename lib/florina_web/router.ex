@@ -20,10 +20,6 @@ defmodule FlorinaWeb.Router do
     plug :accepts, ["json"]
   end
 
-  pipeline :dashboard_auth do
-    plug :basic_auth_dashboard
-  end
-
   pipeline :require_admin do
     plug FlorinaWeb.Plugs.RequireAdmin
   end
@@ -46,11 +42,6 @@ defmodule FlorinaWeb.Router do
 
   defp put_tenant_slug_in_session(conn, _opts) do
     Plug.Conn.put_session(conn, :tenant_slug, conn.assigns.tenant.slug)
-  end
-
-  defp basic_auth_dashboard(conn, _opts) do
-    creds = Application.fetch_env!(:florina, :dashboard_auth)
-    Plug.BasicAuth.basic_auth(conn, username: creds[:username], password: creds[:password])
   end
 
   scope "/t/:tenant_slug/webhooks", FlorinaWeb.Webhook do

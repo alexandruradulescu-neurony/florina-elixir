@@ -54,7 +54,17 @@ defmodule Florina.Workers.CalendarSync do
 
       results =
         Enum.map(agents, fn agent ->
-          {agent.username, sync_agent(agent, window_start, window_end, allowed)}
+          result =
+            try do
+              sync_agent(agent, window_start, window_end, allowed)
+            rescue
+              e ->
+                msg = "CalendarSync agent=#{agent.username} crashed: #{Exception.message(e)}"
+                Logger.error("[CalendarSync] #{msg}")
+                %{created: 0, updated: 0, skipped: 0, cancelled: 0, errors: [msg]}
+            end
+
+          {agent.username, result}
         end)
 
       total_created = results |> Enum.map(fn {_, r} -> r.created end) |> Enum.sum()
@@ -156,6 +166,15 @@ defmodule Florina.Workers.CalendarSync do
         Logger.error("[CalendarSync] #{msg}")
         %{acc | errors: [msg | acc.errors]}
     end
+  rescue
+    # One malformed event (e.g. a bad upsert or reconcile) must not abort the
+    # whole credential's sync — log it, record it in `errors`, and move on.
+    e ->
+      msg =
+        "CalendarSync agent=#{agent.username} provider=#{cred.provider} crashed: #{Exception.message(e)}"
+
+      Logger.error("[CalendarSync] #{msg}")
+      %{acc | errors: [msg | acc.errors]}
   end
 
   # ---------------------------------------------------------------------------

@@ -157,9 +157,21 @@ defmodule Florina.Workers.ScanTenantCalls do
     cutoff = DateTime.add(now, -@missed_grace_minutes * 60, :second)
     stamp = DateTime.truncate(now, :second)
 
+    # A visit that was actually called must never be marked MISSED. Exclude any
+    # visit that has a CallAttempt that was placed/active/completed (i.e. whose
+    # status is NOT a pure FAILED/NO_ANSWER non-call), via a correlated subquery.
     {count, _} =
       from(v in Visit,
-        where: v.status in ^[:PLANNED, :PRE_CALL_DONE, :IN_PROGRESS] and v.end_time < ^cutoff
+        as: :visit,
+        where: v.status in ^[:PLANNED, :PRE_CALL_DONE, :IN_PROGRESS] and v.end_time < ^cutoff,
+        where:
+          not exists(
+            from(ca in CallAttempt,
+              where:
+                ca.visit_id == parent_as(:visit).id and
+                  ca.status not in ["FAILED", "NO_ANSWER"]
+            )
+          )
       )
       |> TenantRepo.update_all(set: [status: :MISSED, updated_at: stamp])
 

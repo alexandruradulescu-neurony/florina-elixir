@@ -109,8 +109,6 @@ config :logger, :default_formatter,
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason
 
-config :florina, :dashboard_auth, username: "admin", password: "change-me-in-prod"
-
 # Tenancy: one shared database + one connection pool (Florina.Repo). Each tenant
 # is isolated by Postgres schema (`tenant_<id>`), provisioned + migrated via
 # Florina.Tenants.Provisioner / Migrator with an Ecto `:prefix`. No per-tenant

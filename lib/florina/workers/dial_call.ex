@@ -218,8 +218,17 @@ defmodule Florina.Workers.DialCall do
         Logger.warning("[DialCall] visit=#{visit.id} agent has no phone — skip")
         :ok
       else
-        attempt = create_scheduled_attempt(visit.id, phase)
-        fire_call(attempt, phone, prompt, first_message, visit)
+        case create_scheduled_attempt_capped(visit.id, phase) do
+          {:ok, attempt} ->
+            fire_call(attempt, phone, prompt, first_message, visit)
+
+          :cap_reached ->
+            Logger.info(
+              "[DialCall] visit=#{visit.id} phase=#{phase} cap reached at insert — aborting dial"
+            )
+
+            :ok
+        end
       end
     end
   end
@@ -318,17 +327,38 @@ defmodule Florina.Workers.DialCall do
     )
   end
 
-  defp create_scheduled_attempt(visit_id, phase) do
-    {:ok, attempt} =
-      %CallAttempt{}
-      |> CallAttempt.create_changeset(%{
-        visit_id: visit_id,
-        phase: phase,
-        status: "SCHEDULED"
-      })
-      |> TenantRepo.insert()
+  # Cap check + scheduled-attempt insert as one atomic unit. Two dials >120s
+  # apart (past the Oban unique window) could otherwise both pass the earlier
+  # cap check and exceed the cap. Lock the visit row, re-check the per-phase
+  # count inside the txn, and only insert if still under cap.
+  defp create_scheduled_attempt_capped(visit_id, phase) do
+    cap = Florina.Settings.get().max_call_attempts_per_phase
 
-    attempt
+    result =
+      TenantRepo.transaction(fn ->
+        from(v in Visit, where: v.id == ^visit_id, lock: "FOR UPDATE")
+        |> TenantRepo.one()
+
+        if ScanTenantCalls.phase_dial_count(visit_id, phase) >= cap do
+          :cap_reached
+        else
+          {:ok, attempt} =
+            %CallAttempt{}
+            |> CallAttempt.create_changeset(%{
+              visit_id: visit_id,
+              phase: phase,
+              status: "SCHEDULED"
+            })
+            |> TenantRepo.insert()
+
+          {:ok, attempt}
+        end
+      end)
+
+    case result do
+      {:ok, inner} -> inner
+      {:error, _reason} -> :cap_reached
+    end
   end
 
   defp create_failed_attempt(visit_id, phase) do

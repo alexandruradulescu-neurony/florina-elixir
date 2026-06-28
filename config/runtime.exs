@@ -76,12 +76,6 @@ if config_env() == :prod do
     pipedrive_api_token: System.get_env("PIPEDRIVE_API_TOKEN"),
     pipedrive_domain: System.get_env("PIPEDRIVE_DOMAIN")
 
-  config :florina, :dashboard_auth,
-    username: System.get_env("DASHBOARD_USER") || "admin",
-    password:
-      System.get_env("DASHBOARD_PASS") ||
-        raise("DASHBOARD_PASS not set — required to protect the /calls dashboard")
-
   database_url =
     System.get_env("DATABASE_URL") ||
       raise """

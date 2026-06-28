@@ -39,7 +39,7 @@ defmodule Florina.Anthropic do
   @impl true
   def stream_chat(messages, opts \\ []) do
     on_delta = Keyword.get(opts, :on_delta, fn _ -> :ok end)
-    api_key = Application.fetch_env!(:florina, :anthropic_api_key)
+    api_key = Application.get_env(:florina, :anthropic_api_key)
 
     if api_key in [nil, ""] do
       {:error, :api_key_not_configured}
@@ -99,7 +99,7 @@ defmodule Florina.Anthropic do
   """
   @impl true
   def complete(messages, opts \\ []) do
-    api_key = Application.fetch_env!(:florina, :anthropic_api_key)
+    api_key = Application.get_env(:florina, :anthropic_api_key)
 
     if api_key in [nil, ""] do
       {:error, :api_key_not_configured}

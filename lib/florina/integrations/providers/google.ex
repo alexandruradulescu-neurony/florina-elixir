@@ -172,10 +172,12 @@ defmodule Florina.Integrations.Providers.Google do
   end
 
   defp normalize(item) when is_map(item) do
-    if id = item["id"] do
-      start_raw = get_in(item, ["start", "dateTime"]) || get_in(item, ["start", "date"])
-      end_raw = get_in(item, ["end", "dateTime"]) || get_in(item, ["end", "date"])
-      st = parse_dt(start_raw) || DateTime.utc_now()
+    start_raw = get_in(item, ["start", "dateTime"]) || get_in(item, ["start", "date"])
+    end_raw = get_in(item, ["end", "dateTime"]) || get_in(item, ["end", "date"])
+    st = parse_dt(start_raw)
+    # Drop the event if it has no id or no parseable start time, rather than
+    # inventing "now" — a bad timestamp would otherwise spawn a phantom visit.
+    if (id = item["id"]) && st do
       en = parse_dt(end_raw) || DateTime.add(st, 3600, :second)
 
       %{

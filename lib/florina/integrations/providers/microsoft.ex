@@ -79,6 +79,11 @@ defmodule Florina.Integrations.Providers.Microsoft do
       {:ok,
        %{
          email: email,
+         # Forced true: Entra ID does not emit an `email_verified` claim. Safe
+         # because this provider is locked to WORK/SCHOOL accounts only
+         # (MICROSOFT_TENANT=organizations), so the email/UPN is an
+         # org-controlled, DNS-verified address — and the sign-in domain gate
+         # rejects anything outside the tenant's allowed_email_domains.
          email_verified: is_binary(email),
          name: claims["name"],
          subject: claims["oid"] || claims["sub"]
@@ -198,8 +203,10 @@ defmodule Florina.Integrations.Providers.Microsoft do
   end
 
   defp normalize(item) when is_map(item) do
-    if id = item["id"] do
-      st = parse_dt(get_in(item, ["start", "dateTime"])) || DateTime.utc_now()
+    st = parse_dt(get_in(item, ["start", "dateTime"]))
+    # Drop the event if it has no id or no parseable start time, rather than
+    # inventing "now" — a bad timestamp would otherwise spawn a phantom visit.
+    if (id = item["id"]) && st do
       en = parse_dt(get_in(item, ["end", "dateTime"])) || DateTime.add(st, 3600, :second)
 
       attendees =

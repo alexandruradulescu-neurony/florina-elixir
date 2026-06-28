@@ -4,7 +4,10 @@ defmodule Florina.Integrations.Provider do
   and holds shared OAuth helpers: callback URI, signed state, JWT-claim decoding,
   and token-freshness/refresh.
   """
+  import Ecto.Query
+
   alias Florina.OAuth.Credential
+  alias Florina.TenantRepo
 
   @registry %{
     google: {:oauth_provider_google, Florina.Integrations.Providers.Google},
@@ -78,19 +81,49 @@ defmodule Florina.Integrations.Provider do
   """
   def ensure_valid_token(%Credential{} = cred) do
     if token_expired?(cred) do
-      case for_credential(cred).refresh_token(cred) do
-        {:ok, %{access_token: t} = refreshed} when is_binary(t) and t != "" ->
-          persist_refreshed_token(cred, refreshed)
-          {:ok, t}
+      # Serialize refresh per-credential: two concurrent syncs for the same
+      # credential could both refresh, and the second write could persist a
+      # stale rotated refresh token. Lock the credential row, re-read expiry
+      # inside the txn (a peer may have just refreshed), and only one refresh
+      # happens — the latest token wins.
+      result =
+        TenantRepo.transaction(fn ->
+          locked =
+            from(c in Credential, where: c.id == ^cred.id, lock: "FOR UPDATE")
+            |> TenantRepo.one()
 
-        {:ok, _} ->
-          {:error, :token_refresh_empty}
+          cond do
+            is_nil(locked) ->
+              refresh_and_persist(cred)
 
-        {:error, reason} ->
-          {:error, {:token_refresh_failed, reason}}
+            token_expired?(locked) ->
+              refresh_and_persist(locked)
+
+            true ->
+              {:ok, locked.access_token}
+          end
+        end)
+
+      case result do
+        {:ok, inner} -> inner
+        {:error, reason} -> {:error, {:token_refresh_failed, reason}}
       end
     else
       {:ok, cred.access_token}
+    end
+  end
+
+  defp refresh_and_persist(%Credential{} = cred) do
+    case for_credential(cred).refresh_token(cred) do
+      {:ok, %{access_token: t} = refreshed} when is_binary(t) and t != "" ->
+        persist_refreshed_token(cred, refreshed)
+        {:ok, t}
+
+      {:ok, _} ->
+        {:error, :token_refresh_empty}
+
+      {:error, reason} ->
+        {:error, {:token_refresh_failed, reason}}
     end
   end
 

@@ -29,9 +29,12 @@ defmodule FlorinaWeb.Manage.MegaPromptsLive do
   end
 
   @impl true
-  def handle_event("new", %{"domain" => domain}, socket) do
+  def handle_event("new", %{"domain" => domain}, socket)
+      when domain in ["PRE_CALL", "POST_CALL", "LESSONS_DISTILL"] do
     {:noreply, start_form(socket, to_domain(domain))}
   end
+
+  def handle_event("new", _params, socket), do: {:noreply, socket}
 
   def handle_event("edit", %{"id" => id}, socket) do
     case Prompts.get_mega(id) do
