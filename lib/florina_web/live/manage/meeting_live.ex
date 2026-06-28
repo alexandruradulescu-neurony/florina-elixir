@@ -178,20 +178,20 @@ defmodule FlorinaWeb.Manage.MeetingLive do
       <div class="mb-6">
         <.link
           navigate={"/t/#{@tenant.slug}/manage/meetings"}
-          class="text-sm text-base-content/60 hover:underline"
+          class="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
         >
           ← Meetings
         </.link>
         <div class="flex items-center justify-between gap-3 mt-1">
-          <h1 class="text-2xl font-semibold">{@visit.title}</h1>
+          <h1 class="text-2xl font-semibold text-gray-900 dark:text-white">{@visit.title}</h1>
           <.link
             navigate={"/t/#{@tenant.slug}/manage/meetings/#{@visit.id}/edit"}
-            class="text-sm text-primary hover:underline shrink-0"
+            class="text-sm font-medium text-indigo-600 hover:text-indigo-500 shrink-0 dark:text-indigo-400"
           >
             Edit details
           </.link>
         </div>
-        <p class="text-sm text-base-content/60">
+        <p class="text-sm text-gray-500 dark:text-gray-400">
           {when_label(@visit.start_time)} · {agent_label(@visit.agent)} · {client_label(@visit.client)}
         </p>
       </div>
@@ -201,10 +201,14 @@ defmodule FlorinaWeb.Manage.MeetingLive do
         <div class="lg:col-span-2 space-y-6">
           <div
             :if={@visit.post_call_summary not in [nil, ""]}
-            class="rounded-lg border border-base-300 bg-base-100 p-4"
+            class="rounded-lg border border-gray-200 bg-white p-4 dark:border-white/10 dark:bg-gray-900"
           >
-            <h2 class="text-sm font-semibold mb-1">Post-call summary</h2>
-            <p class="text-sm text-base-content/70 whitespace-pre-line">{@visit.post_call_summary}</p>
+            <h2 class="text-sm font-semibold mb-1 text-gray-900 dark:text-white">
+              Post-call summary
+            </h2>
+            <p class="text-sm text-gray-600 dark:text-gray-300 whitespace-pre-line">
+              {@visit.post_call_summary}
+            </p>
           </div>
 
           <.form
@@ -256,30 +260,43 @@ defmodule FlorinaWeb.Manage.MeetingLive do
             <.button type="submit" variant="primary">Save changes</.button>
           </.form>
 
-          <div :if={@visit.call_attempts != []} class="rounded-lg border border-base-300 p-4">
-            <h2 class="text-sm font-semibold mb-3">Calls & AI analysis</h2>
+          <div
+            :if={@visit.call_attempts != []}
+            class="rounded-lg border border-gray-200 p-4 dark:border-white/10"
+          >
+            <h2 class="text-sm font-semibold mb-3 text-gray-900 dark:text-white">
+              Calls & AI analysis
+            </h2>
             <div class="space-y-4">
               <div
                 :for={call <- Enum.sort_by(@visit.call_attempts, & &1.id, :desc)}
-                class="rounded border border-base-200 p-3"
+                class="rounded border border-gray-200 p-3 dark:border-white/10"
               >
                 <div class="flex items-center gap-2 text-sm">
-                  <span class="rounded bg-base-200 px-2 py-0.5 text-xs font-medium">{call.phase}</span>
-                  <span class="text-base-content/60">{call.status}</span>
+                  <span class="rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700 dark:bg-white/10 dark:text-gray-200">
+                    {call.phase}
+                  </span>
+                  <span class="text-gray-500 dark:text-gray-400">{call.status}</span>
                 </div>
-                <div :if={call.summary} class="mt-2 text-sm text-base-content/70">{call.summary}</div>
+                <div :if={call.summary} class="mt-2 text-sm text-gray-600 dark:text-gray-300">
+                  {call.summary}
+                </div>
                 <details :if={call.transcript not in [nil, ""]} class="mt-2 text-sm">
-                  <summary class="cursor-pointer text-base-content/60">Transcript</summary>
-                  <p class="mt-1 whitespace-pre-line text-base-content/70">{call.transcript}</p>
+                  <summary class="cursor-pointer text-gray-500 dark:text-gray-400">
+                    Transcript
+                  </summary>
+                  <p class="mt-1 whitespace-pre-line text-gray-600 dark:text-gray-300">
+                    {call.transcript}
+                  </p>
                 </details>
                 <div :if={is_map(call.analysis) and map_size(call.analysis) > 0} class="mt-2">
                   <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <div
                       :for={{k, v} <- call.analysis}
-                      class="rounded bg-base-200/50 p-2 text-xs"
+                      class="rounded bg-gray-50 p-2 text-xs dark:bg-white/5"
                     >
-                      <div class="font-semibold">{humanize(k)}</div>
-                      <div class="text-base-content/70">{format_value(v)}</div>
+                      <div class="font-semibold text-gray-900 dark:text-white">{humanize(k)}</div>
+                      <div class="text-gray-600 dark:text-gray-300">{format_value(v)}</div>
                     </div>
                   </div>
                 </div>
@@ -290,8 +307,8 @@ defmodule FlorinaWeb.Manage.MeetingLive do
 
         <%!-- Sidebar --%>
         <div class="space-y-6">
-          <div class="rounded-lg border border-base-300 p-4">
-            <h2 class="text-sm font-semibold mb-3">Lifecycle</h2>
+          <div class="rounded-lg border border-gray-200 p-4 dark:border-white/10">
+            <h2 class="text-sm font-semibold mb-3 text-gray-900 dark:text-white">Lifecycle</h2>
             <ol class="space-y-1">
               <li :for={{value, label} <- statuses()}>
                 <button
@@ -301,8 +318,9 @@ defmodule FlorinaWeb.Manage.MeetingLive do
                   disabled={to_string(@visit.status) == value}
                   class={[
                     "w-full text-left rounded px-2 py-1 text-sm",
-                    (to_string(@visit.status) == value && "bg-primary/10 text-primary font-semibold") ||
-                      "text-base-content/70 hover:bg-base-200"
+                    (to_string(@visit.status) == value &&
+                       "bg-indigo-50 text-indigo-600 font-semibold dark:bg-indigo-500/10 dark:text-indigo-400") ||
+                      "text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-white/5"
                   ]}
                 >
                   {label}
@@ -311,30 +329,24 @@ defmodule FlorinaWeb.Manage.MeetingLive do
             </ol>
           </div>
 
-          <div class="rounded-lg border border-base-300 p-4">
-            <h2 class="text-sm font-semibold mb-1">Run AI call</h2>
-            <p class="text-xs text-base-content/50 mb-3">Queues a real call to the agent's phone.</p>
+          <div class="rounded-lg border border-gray-200 p-4 dark:border-white/10">
+            <h2 class="text-sm font-semibold mb-1 text-gray-900 dark:text-white">Run AI call</h2>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
+              Queues a real call to the agent's phone.
+            </p>
             <div class="flex gap-2">
-              <button
-                type="button"
-                phx-click="run_call"
-                phx-value-phase="PRE"
-                class="btn btn-sm flex-1"
-              >
+              <button type="button" phx-click="run_call" phx-value-phase="PRE" class={action_btn()}>
                 Pre-call
               </button>
-              <button
-                type="button"
-                phx-click="run_call"
-                phx-value-phase="POST"
-                class="btn btn-sm flex-1"
-              >
+              <button type="button" phx-click="run_call" phx-value-phase="POST" class={action_btn()}>
                 Post-call
               </button>
             </div>
 
-            <h2 class="text-sm font-semibold mt-4 mb-1">Regenerate prompts</h2>
-            <p class="text-xs text-base-content/50 mb-3">
+            <h2 class="text-sm font-semibold mt-4 mb-1 text-gray-900 dark:text-white">
+              Regenerate prompts
+            </h2>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
               Re-runs the assembler (skips locked fields).
             </p>
             <div class="flex gap-2">
@@ -343,7 +355,7 @@ defmodule FlorinaWeb.Manage.MeetingLive do
                 phx-click="regenerate"
                 phx-value-phase="PRE"
                 disabled={@regenerating != nil}
-                class="btn btn-sm flex-1"
+                class={action_btn()}
               >
                 {if @regenerating == "PRE", do: "Working…", else: "Pre-call"}
               </button>
@@ -352,32 +364,36 @@ defmodule FlorinaWeb.Manage.MeetingLive do
                 phx-click="regenerate"
                 phx-value-phase="POST"
                 disabled={@regenerating != nil}
-                class="btn btn-sm flex-1"
+                class={action_btn()}
               >
                 {if @regenerating == "POST", do: "Working…", else: "Post-call"}
               </button>
             </div>
           </div>
 
-          <div class="rounded-lg border border-base-300 p-4">
-            <h2 class="text-sm font-semibold mb-3">Recent generation runs</h2>
-            <p :if={@runs == []} class="text-sm text-base-content/50">No runs yet.</p>
+          <div class="rounded-lg border border-gray-200 p-4 dark:border-white/10">
+            <h2 class="text-sm font-semibold mb-3 text-gray-900 dark:text-white">
+              Recent generation runs
+            </h2>
+            <p :if={@runs == []} class="text-sm text-gray-500 dark:text-gray-400">No runs yet.</p>
             <ul :if={@runs != []} class="space-y-2 text-xs">
               <li :for={run <- @runs} class="flex items-center justify-between gap-2">
                 <div>
-                  <div class="font-medium">{humanize(run.domain)}</div>
-                  <div class="text-base-content/50">
+                  <div class="font-medium text-gray-900 dark:text-white">{humanize(run.domain)}</div>
+                  <div class="text-gray-500 dark:text-gray-400">
                     {time_label(run.created_at)} · {run.triggered_by}
                   </div>
                 </div>
                 <div class="text-right">
                   <span class={[
                     "rounded-full px-2 py-0.5 font-medium",
-                    (run.success && "bg-success/10 text-success") || "bg-error/10 text-error"
+                    (run.success &&
+                       "bg-green-100 text-green-700 dark:bg-green-500/10 dark:text-green-400") ||
+                      "bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-400"
                   ]}>
                     {if run.success, do: "ok", else: "fail"}
                   </span>
-                  <div class="text-base-content/40 mt-0.5">
+                  <div class="text-gray-400 mt-0.5">
                     {run.input_tokens}/{run.output_tokens} tok
                   </div>
                 </div>
@@ -401,8 +417,8 @@ defmodule FlorinaWeb.Manage.MeetingLive do
 
   defp prompt_field(assigns) do
     ~H"""
-    <fieldset class="rounded-lg border border-base-300 p-4 space-y-3">
-      <legend class="px-1 text-sm font-semibold">{@title}</legend>
+    <fieldset class="rounded-lg border border-gray-200 p-4 space-y-3 dark:border-white/10">
+      <legend class="px-1 text-sm font-semibold text-gray-900 dark:text-white">{@title}</legend>
       <.input
         field={@form[@prompt]}
         type="textarea"
@@ -419,12 +435,17 @@ defmodule FlorinaWeb.Manage.MeetingLive do
         <.input field={@form[@prompt_lock]} type="checkbox" label="Lock prompt" />
         <.input field={@form[@first_lock]} type="checkbox" label="Lock first message" />
       </div>
-      <p class="text-xs text-base-content/50">
+      <p class="text-xs text-gray-500 dark:text-gray-400">
         When locked, neither the agent nor a regenerate can change that field.
       </p>
     </fieldset>
     """
   end
+
+  # Shared secondary (white) button class for the sidebar actions.
+  defp action_btn,
+    do:
+      "flex-1 inline-flex items-center justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-xs ring-1 ring-inset ring-gray-300 hover:bg-gray-50 disabled:opacity-50 cursor-pointer dark:bg-white/10 dark:text-white dark:ring-0 dark:hover:bg-white/20"
 
   # --- view helpers -----------------------------------------------------------
 

@@ -23,46 +23,47 @@ defmodule FlorinaWeb.Manage.MeetingsLive do
       active={:meetings}
     >
       <div class="flex items-center justify-between mb-4">
-        <h1 class="text-2xl font-semibold">Meetings</h1>
-        <.link
-          navigate={"/t/#{@tenant.slug}/manage/meetings/new"}
-          class="inline-flex items-center gap-1 rounded-md bg-primary px-3 py-2 text-sm font-semibold text-primary-content hover:opacity-90"
-        >
+        <h1 class="text-2xl font-semibold text-gray-900 dark:text-white">Meetings</h1>
+        <.button navigate={"/t/#{@tenant.slug}/manage/meetings/new"} variant="primary">
           <.icon name="hero-plus" class="size-4" /> New meeting
-        </.link>
+        </.button>
       </div>
-      <div class="overflow-hidden border border-base-300 rounded-lg">
+      <div class="overflow-hidden border border-gray-200 rounded-lg dark:border-white/10">
         <table class="w-full text-sm text-left">
-          <thead class="bg-base-200 text-xs uppercase tracking-wider text-base-content/60">
+          <thead class="bg-gray-50 text-xs uppercase tracking-wider text-gray-500 dark:bg-white/5 dark:text-gray-400">
             <tr>
-              <th class="px-4 py-3">When</th>
-              <th class="px-4 py-3">Title</th>
-              <th class="px-4 py-3">Agent</th>
-              <th class="px-4 py-3">Client</th>
-              <th class="px-4 py-3">Status</th>
+              <th class="px-4 py-3 font-semibold">When</th>
+              <th class="px-4 py-3 font-semibold">Title</th>
+              <th class="px-4 py-3 font-semibold">Agent</th>
+              <th class="px-4 py-3 font-semibold">Client</th>
+              <th class="px-4 py-3 font-semibold">Status</th>
               <th class="px-4 py-3"></th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-base-300">
-            <tr :for={v <- @visits} class="hover:bg-base-200/50">
-              <td class="px-4 py-3 whitespace-nowrap">{when_label(v.start_time)}</td>
-              <td class="px-4 py-3 font-medium">{v.title}</td>
-              <td class="px-4 py-3">{agent_label(v.agent)}</td>
-              <td class="px-4 py-3">{client_label(v.client)}</td>
+          <tbody class="divide-y divide-gray-200 dark:divide-white/10">
+            <tr :for={v <- @visits} class="hover:bg-gray-50 dark:hover:bg-white/5">
+              <td class="px-4 py-3 whitespace-nowrap text-gray-700 dark:text-gray-300">
+                {when_label(v.start_time)}
+              </td>
+              <td class="px-4 py-3 font-medium text-gray-900 dark:text-white">{v.title}</td>
+              <td class="px-4 py-3 text-gray-700 dark:text-gray-300">{agent_label(v.agent)}</td>
+              <td class="px-4 py-3 text-gray-700 dark:text-gray-300">{client_label(v.client)}</td>
               <td class="px-4 py-3">
-                <span class="text-xs rounded px-2 py-0.5 bg-base-200">{to_string(v.status)}</span>
+                <span class="text-xs rounded px-2 py-0.5 bg-gray-100 text-gray-600 dark:bg-white/10 dark:text-gray-300">
+                  {to_string(v.status)}
+                </span>
               </td>
               <td class="px-4 py-3 text-right">
                 <.link
                   navigate={"/t/#{@tenant.slug}/manage/meetings/#{v.id}"}
-                  class="text-sm text-primary hover:underline"
+                  class="text-sm font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400"
                 >
                   Edit
                 </.link>
               </td>
             </tr>
             <tr :if={@visits == []}>
-              <td colspan="6" class="px-4 py-6 text-center text-base-content/40 text-sm">
+              <td colspan="6" class="px-4 py-6 text-center text-gray-400 text-sm">
                 No meetings yet.
               </td>
             </tr>

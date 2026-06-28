@@ -65,9 +65,11 @@ defmodule FlorinaWeb.CoreComponents do
       {@rest}
     >
       <div class={[
-        "flex items-start gap-2 rounded-md p-4 text-sm shadow w-80 sm:w-96 max-w-80 sm:max-w-96 text-wrap",
-        @kind == :info && "bg-info text-info-content",
-        @kind == :error && "bg-error text-error-content"
+        "flex items-start gap-2 rounded-md p-4 text-sm shadow-lg ring-1 w-80 sm:w-96 max-w-80 sm:max-w-96 text-wrap",
+        @kind == :info &&
+          "bg-blue-50 text-blue-800 ring-blue-600/10 dark:bg-blue-500/10 dark:text-blue-300 dark:ring-blue-400/20",
+        @kind == :error &&
+          "bg-red-50 text-red-800 ring-red-600/10 dark:bg-red-500/10 dark:text-red-300 dark:ring-red-400/20"
       ]}>
         <.icon :if={@kind == :info} name="hero-information-circle" class="size-5 shrink-0" />
         <.icon :if={@kind == :error} name="hero-exclamation-circle" class="size-5 shrink-0" />
@@ -102,12 +104,14 @@ defmodule FlorinaWeb.CoreComponents do
 
   def button(%{rest: rest} = assigns) do
     base =
-      "inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-semibold " <>
-        "hover:opacity-90 disabled:opacity-50 cursor-pointer"
+      "inline-flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-semibold shadow-xs " <>
+        "focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50 cursor-pointer"
 
     variants = %{
-      "primary" => "bg-primary text-primary-content",
-      nil => "bg-base-200 text-base-content hover:bg-base-300"
+      "primary" =>
+        "bg-indigo-600 text-white hover:bg-indigo-500 focus-visible:outline-indigo-600 dark:bg-indigo-500 dark:hover:bg-indigo-400 dark:focus-visible:outline-indigo-500",
+      nil =>
+        "bg-white text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus-visible:outline-gray-400 dark:bg-white/10 dark:text-white dark:ring-0 dark:hover:bg-white/20"
     }
 
     assigns =
@@ -220,7 +224,7 @@ defmodule FlorinaWeb.CoreComponents do
 
     ~H"""
     <div class="mb-2">
-      <label for={@id} class="flex items-center gap-2 text-sm text-base-content">
+      <label for={@id} class="flex items-center gap-2 text-sm text-gray-900 dark:text-white">
         <input
           type="hidden"
           name={@name}
@@ -234,7 +238,10 @@ defmodule FlorinaWeb.CoreComponents do
           name={@name}
           value="true"
           checked={@checked}
-          class={@class || "size-4 rounded border-base-300 text-primary"}
+          class={
+            @class ||
+              "size-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-600 dark:border-white/10 dark:bg-white/5"
+          }
           {@rest}
         />{@label}
       </label>
@@ -247,14 +254,16 @@ defmodule FlorinaWeb.CoreComponents do
     ~H"""
     <div class="mb-2">
       <label for={@id}>
-        <span :if={@label} class="mb-1 block text-sm font-medium text-base-content">{@label}</span>
+        <span :if={@label} class="mb-1 block text-sm/6 font-medium text-gray-900 dark:text-white">
+          {@label}
+        </span>
         <select
           id={@id}
           name={@name}
           class={[
             @class ||
-              "w-full rounded-md border border-base-300 bg-base-100 px-3 py-2 text-sm text-base-content focus:outline-none focus:ring-2 focus:ring-primary/50",
-            @errors != [] && (@error_class || "border-error")
+              "w-full rounded-md bg-white px-3 py-1.5 text-sm text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:focus:outline-indigo-500",
+            @errors != [] && (@error_class || "outline-red-500 dark:outline-red-500")
           ]}
           multiple={@multiple}
           {@rest}
@@ -272,14 +281,16 @@ defmodule FlorinaWeb.CoreComponents do
     ~H"""
     <div class="mb-2">
       <label for={@id}>
-        <span :if={@label} class="mb-1 block text-sm font-medium text-base-content">{@label}</span>
+        <span :if={@label} class="mb-1 block text-sm/6 font-medium text-gray-900 dark:text-white">
+          {@label}
+        </span>
         <textarea
           id={@id}
           name={@name}
           class={[
             @class ||
-              "w-full min-h-24 rounded-md border border-base-300 bg-base-100 px-3 py-2 text-sm text-base-content focus:outline-none focus:ring-2 focus:ring-primary/50",
-            @errors != [] && (@error_class || "border-error")
+              "w-full min-h-24 rounded-md bg-white px-3 py-1.5 text-sm text-gray-900 outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:focus:outline-indigo-500",
+            @errors != [] && (@error_class || "outline-red-500 dark:outline-red-500")
           ]}
           {@rest}
         >{Phoenix.HTML.Form.normalize_value("textarea", @value)}</textarea>
@@ -294,7 +305,9 @@ defmodule FlorinaWeb.CoreComponents do
     ~H"""
     <div class="mb-2">
       <label for={@id}>
-        <span :if={@label} class="mb-1 block text-sm font-medium text-base-content">{@label}</span>
+        <span :if={@label} class="mb-1 block text-sm/6 font-medium text-gray-900 dark:text-white">
+          {@label}
+        </span>
         <input
           type={@type}
           name={@name}
@@ -302,8 +315,8 @@ defmodule FlorinaWeb.CoreComponents do
           value={Phoenix.HTML.Form.normalize_value(@type, @value)}
           class={[
             @class ||
-              "w-full rounded-md border border-base-300 bg-base-100 px-3 py-2 text-sm text-base-content focus:outline-none focus:ring-2 focus:ring-primary/50",
-            @errors != [] && (@error_class || "border-error")
+              "w-full rounded-md bg-white px-3 py-1.5 text-sm text-gray-900 outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:focus:outline-indigo-500",
+            @errors != [] && (@error_class || "outline-red-500 dark:outline-red-500")
           ]}
           {@rest}
         />
@@ -316,7 +329,7 @@ defmodule FlorinaWeb.CoreComponents do
   # Helper used by inputs to generate form errors
   defp error(assigns) do
     ~H"""
-    <p class="mt-1.5 flex gap-2 items-center text-sm text-error">
+    <p class="mt-1.5 flex gap-2 items-center text-sm text-red-600 dark:text-red-400">
       <.icon name="hero-exclamation-circle" class="size-5" />
       {render_slot(@inner_block)}
     </p>
@@ -334,10 +347,10 @@ defmodule FlorinaWeb.CoreComponents do
     ~H"""
     <header class={[@actions != [] && "flex items-center justify-between gap-6", "pb-4"]}>
       <div>
-        <h1 class="text-lg font-semibold leading-8">
+        <h1 class="text-base font-semibold text-gray-900 dark:text-white">
           {render_slot(@inner_block)}
         </h1>
-        <p :if={@subtitle != []} class="text-sm text-base-content/70">
+        <p :if={@subtitle != []} class="mt-1 text-sm text-gray-500 dark:text-gray-400">
           {render_slot(@subtitle)}
         </p>
       </div>
@@ -380,23 +393,36 @@ defmodule FlorinaWeb.CoreComponents do
     ~H"""
     <table class="w-full text-left text-sm">
       <thead>
-        <tr class="border-b border-base-300">
-          <th :for={col <- @col} class="px-3 py-2 font-semibold">{col[:label]}</th>
-          <th :if={@action != []} class="px-3 py-2">
+        <tr class="border-b border-gray-200 dark:border-white/10">
+          <th :for={col <- @col} class="px-3 py-3.5 font-semibold text-gray-900 dark:text-white">
+            {col[:label]}
+          </th>
+          <th :if={@action != []} class="px-3 py-3.5">
             <span class="sr-only">{gettext("Actions")}</span>
           </th>
         </tr>
       </thead>
-      <tbody id={@id} phx-update={is_struct(@rows, Phoenix.LiveView.LiveStream) && "stream"}>
-        <tr :for={row <- @rows} id={@row_id && @row_id.(row)} class="odd:bg-base-100 even:bg-base-200">
+      <tbody
+        id={@id}
+        phx-update={is_struct(@rows, Phoenix.LiveView.LiveStream) && "stream"}
+        class="divide-y divide-gray-200 dark:divide-white/10"
+      >
+        <tr
+          :for={row <- @rows}
+          id={@row_id && @row_id.(row)}
+          class="hover:bg-gray-50 dark:hover:bg-white/5"
+        >
           <td
             :for={col <- @col}
             phx-click={@row_click && @row_click.(row)}
-            class={["px-3 py-2", @row_click && "hover:cursor-pointer"]}
+            class={[
+              "px-3 py-4 text-gray-700 dark:text-gray-300",
+              @row_click && "hover:cursor-pointer"
+            ]}
           >
             {render_slot(col, @row_item.(row))}
           </td>
-          <td :if={@action != []} class="w-0 px-3 py-2 font-semibold">
+          <td :if={@action != []} class="w-0 px-3 py-4 font-semibold">
             <div class="flex gap-4">
               <%= for action <- @action do %>
                 {render_slot(action, @row_item.(row))}
@@ -425,11 +451,11 @@ defmodule FlorinaWeb.CoreComponents do
 
   def list(assigns) do
     ~H"""
-    <ul class="divide-y divide-base-300">
+    <ul class="divide-y divide-gray-200 dark:divide-white/10">
       <li :for={item <- @item} class="flex items-center gap-4 py-3">
         <div class="grow">
-          <div class="font-bold">{item.title}</div>
-          <div>{render_slot(item)}</div>
+          <div class="font-semibold text-gray-900 dark:text-white">{item.title}</div>
+          <div class="text-gray-700 dark:text-gray-300">{render_slot(item)}</div>
         </div>
       </li>
     </ul>

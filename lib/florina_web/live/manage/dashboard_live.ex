@@ -85,33 +85,33 @@ defmodule FlorinaWeb.Manage.DashboardLive do
     >
       <div class="flex items-center justify-between mb-6">
         <div>
-          <h1 class="text-2xl font-semibold">Today</h1>
-          <p class="text-sm text-base-content/60">{Calendar.strftime(@today, "%A, %d %B %Y")}</p>
+          <h1 class="text-2xl font-semibold text-gray-900 dark:text-white">Today</h1>
+          <p class="text-sm text-gray-500 dark:text-gray-400">
+            {Calendar.strftime(@today, "%A, %d %B %Y")}
+          </p>
         </div>
-        <.link
-          navigate={"/t/#{@tenant.slug}/manage/meetings/new"}
-          class="inline-flex items-center gap-1 rounded-md bg-primary px-3 py-2 text-sm font-semibold text-primary-content hover:opacity-90"
-        >
+        <.button navigate={"/t/#{@tenant.slug}/manage/meetings/new"} variant="primary">
           <.icon name="hero-plus" class="size-4" /> New meeting
-        </.link>
+        </.button>
       </div>
 
       <section :if={@attention != []} class="mb-8">
-        <h2 class="text-sm font-semibold text-base-content/60 mb-2">Needs attention</h2>
+        <h2 class="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-2">Needs attention</h2>
         <ul class="space-y-2">
           <li
             :for={item <- @attention}
             class={[
-              "flex items-center gap-2 rounded-lg border px-3 py-2 text-sm",
-              (item.severity == :error && "border-error/30 bg-error/5") ||
-                "border-warning/30 bg-warning/5"
+              "flex items-center gap-2 rounded-lg border px-3 py-2 text-sm text-gray-700 dark:text-gray-300",
+              (item.severity == :error &&
+                 "border-red-200 bg-red-50 dark:border-red-500/20 dark:bg-red-500/10") ||
+                "border-yellow-200 bg-yellow-50 dark:border-yellow-500/20 dark:bg-yellow-500/10"
             ]}
           >
             <.icon
               name="hero-exclamation-triangle"
               class={[
                 "size-4 shrink-0",
-                (item.severity == :error && "text-error") || "text-warning"
+                (item.severity == :error && "text-red-500") || "text-yellow-500"
               ]}
             />
             <span>{item.message}</span>
@@ -121,20 +121,20 @@ defmodule FlorinaWeb.Manage.DashboardLive do
 
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <section class="lg:col-span-2">
-          <h2 class="text-lg font-medium mb-3">
-            Today's meetings <span class="text-base-content/40 text-sm">({length(@meetings)})</span>
+          <h2 class="text-lg font-medium mb-3 text-gray-900 dark:text-white">
+            Today's meetings <span class="text-gray-400 text-sm">({length(@meetings)})</span>
           </h2>
           <div class="space-y-2">
             <.link
               :for={v <- @meetings}
               navigate={"/t/#{@tenant.slug}/manage/meetings/#{v.id}"}
-              class="flex items-center justify-between rounded-lg border border-base-300 px-3 py-2 hover:bg-base-200/50"
+              class="flex items-center justify-between rounded-lg border border-gray-200 px-3 py-2 hover:bg-gray-50 dark:border-white/10 dark:hover:bg-white/5"
             >
               <div>
-                <div class="text-sm font-medium text-base-content">
+                <div class="text-sm font-medium text-gray-900 dark:text-white">
                   {time(v.start_time)} · {v.title}
                 </div>
-                <div class="text-xs text-base-content/60">
+                <div class="text-xs text-gray-500 dark:text-gray-400">
                   {agent_label(v.agent)} · {client_label(v.client)}
                 </div>
               </div>
@@ -144,7 +144,7 @@ defmodule FlorinaWeb.Manage.DashboardLive do
             </.link>
             <p
               :if={@meetings == []}
-              class="text-sm text-base-content/40 rounded-lg border border-dashed border-base-300 px-3 py-6 text-center"
+              class="text-sm text-gray-400 rounded-lg border border-dashed border-gray-300 px-3 py-6 text-center dark:border-white/15"
             >
               No meetings today. Calendar sync brings them in, or add one manually.
             </p>
@@ -152,20 +152,25 @@ defmodule FlorinaWeb.Manage.DashboardLive do
         </section>
 
         <section>
-          <h2 class="text-lg font-medium mb-3">Recent calls</h2>
+          <h2 class="text-lg font-medium mb-3 text-gray-900 dark:text-white">Recent calls</h2>
           <div class="space-y-2">
-            <div :for={c <- @recent_calls} class="rounded-lg border border-base-300 px-3 py-2">
+            <div
+              :for={c <- @recent_calls}
+              class="rounded-lg border border-gray-200 px-3 py-2 dark:border-white/10"
+            >
               <div class="flex items-center justify-between">
-                <span class="text-sm font-medium">{phase_word(c.phase)} call</span>
+                <span class="text-sm font-medium text-gray-900 dark:text-white">
+                  {phase_word(c.phase)} call
+                </span>
                 <span class={["text-xs rounded-full px-2 py-0.5 font-medium", call_tone(c.status)]}>
                   {String.downcase(c.status)}
                 </span>
               </div>
-              <div :if={c.summary_title} class="text-xs text-base-content/60 mt-0.5">
+              <div :if={c.summary_title} class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                 {c.summary_title}
               </div>
             </div>
-            <p :if={@recent_calls == []} class="text-sm text-base-content/40">
+            <p :if={@recent_calls == []} class="text-sm text-gray-400">
               No call activity yet.
             </p>
           </div>
@@ -190,18 +195,27 @@ defmodule FlorinaWeb.Manage.DashboardLive do
   defp status_label(:MISSED), do: "Missed"
   defp status_label(other), do: to_string(other)
 
-  defp status_tone(:COMPLETE), do: "bg-success/10 text-success"
-  defp status_tone(:IN_PROGRESS), do: "bg-info/10 text-info"
+  defp status_tone(:COMPLETE),
+    do: "bg-green-100 text-green-700 dark:bg-green-500/10 dark:text-green-400"
+
+  defp status_tone(:IN_PROGRESS),
+    do: "bg-blue-100 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400"
 
   defp status_tone(s) when s in [:CANCELLED, :MISSED],
-    do: "bg-base-200 text-base-content/40 line-through"
+    do: "bg-gray-100 text-gray-400 line-through dark:bg-white/5 dark:text-gray-500"
 
-  defp status_tone(_), do: "bg-base-200 text-base-content/70"
+  defp status_tone(_), do: "bg-gray-100 text-gray-600 dark:bg-white/10 dark:text-gray-300"
 
-  defp call_tone("COMPLETED"), do: "bg-success/10 text-success"
-  defp call_tone(s) when s in ["FAILED", "NO_ANSWER"], do: "bg-error/10 text-error"
-  defp call_tone(s) when s in ["INITIATED", "IN_PROGRESS"], do: "bg-info/10 text-info"
-  defp call_tone(_), do: "bg-base-200 text-base-content/70"
+  defp call_tone("COMPLETED"),
+    do: "bg-green-100 text-green-700 dark:bg-green-500/10 dark:text-green-400"
+
+  defp call_tone(s) when s in ["FAILED", "NO_ANSWER"],
+    do: "bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-400"
+
+  defp call_tone(s) when s in ["INITIATED", "IN_PROGRESS"],
+    do: "bg-blue-100 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400"
+
+  defp call_tone(_), do: "bg-gray-100 text-gray-600 dark:bg-white/10 dark:text-gray-300"
 
   defp agent_label(%{first_name: f, last_name: l, email: e}), do: name_of(f, l, e)
   defp agent_label(_), do: "—"
