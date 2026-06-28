@@ -12,6 +12,7 @@ defmodule Florina.Application do
     children = [
       FlorinaWeb.Telemetry,
       Florina.Vault,
+      Florina.Auth.LoginRateLimiter,
       Florina.Repo,
       # Apply pending per-tenant migrations BEFORE Oban + the Endpoint start, so
       # jobs/requests never hit an out-of-date schema. Blocking + fail-loud: a

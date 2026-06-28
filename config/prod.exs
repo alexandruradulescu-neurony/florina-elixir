@@ -19,6 +19,10 @@ config :florina, FlorinaWeb.Endpoint,
     ]
   ]
 
+# Send the session cookie only over HTTPS in production (the endpoint already
+# forces SSL above). Read at compile time by @session_options in endpoint.ex.
+config :florina, :session_secure, true
+
 # Configure Swoosh API Client
 config :swoosh, api_client: Swoosh.ApiClient.Req
 

@@ -139,8 +139,20 @@ defmodule Florina.Prompts do
 
   defp filter_domain(query, nil), do: query
 
-  defp filter_domain(query, domain),
-    do: from(r in query, where: r.domain == ^String.to_existing_atom(domain))
+  defp filter_domain(query, domain) do
+    # `domain` comes straight from a URL/form param. An unknown value would crash
+    # `to_existing_atom`, so an unrecognised filter just drops to "no filter".
+    case safe_existing_atom(domain) do
+      nil -> query
+      atom -> from(r in query, where: r.domain == ^atom)
+    end
+  end
+
+  defp safe_existing_atom(s) when is_binary(s) do
+    String.to_existing_atom(s)
+  rescue
+    ArgumentError -> nil
+  end
 
   defp filter_outcome(query, "success"), do: from(r in query, where: r.success == true)
   defp filter_outcome(query, "failures"), do: from(r in query, where: r.success == false)

@@ -38,8 +38,20 @@ defmodule Florina.Audit do
 
   defp filter_level(query, nil), do: query
 
-  defp filter_level(query, level),
-    do: from(l in query, where: l.level == ^String.to_existing_atom(level))
+  defp filter_level(query, level) do
+    # `level` is a URL/form param; an unknown value would crash `to_existing_atom`,
+    # so an unrecognised filter just drops to "no filter".
+    case safe_existing_atom(level) do
+      nil -> query
+      atom -> from(l in query, where: l.level == ^atom)
+    end
+  end
+
+  defp safe_existing_atom(s) when is_binary(s) do
+    String.to_existing_atom(s)
+  rescue
+    ArgumentError -> nil
+  end
 
   defp filter_user(query, nil), do: query
   defp filter_user(query, user_id), do: from(l in query, where: l.user_id == ^user_id)

@@ -4,11 +4,16 @@ defmodule FlorinaWeb.Endpoint do
   # The session will be stored in the cookie and signed,
   # this means its contents can be read but not tampered with.
   # Set :encryption_salt if you would also like to encrypt it.
+  # `secure: true` (HTTPS-only cookie) is enabled in production via
+  # `config :florina, :session_secure, true`; left off in dev/test where there's
+  # no TLS on localhost. `http_only` keeps the cookie out of reach of JS.
   @session_options [
     store: :cookie,
     key: "_florina_key",
     signing_salt: "MgpuMbo4",
-    same_site: "Lax"
+    same_site: "Lax",
+    http_only: true,
+    secure: Application.compile_env(:florina, :session_secure, false)
   ]
 
   socket "/live", Phoenix.LiveView.Socket,

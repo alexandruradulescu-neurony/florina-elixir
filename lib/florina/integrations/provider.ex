@@ -24,10 +24,11 @@ defmodule Florina.Integrations.Provider do
 
   def supported?(p) when is_atom(p), do: Map.has_key?(@registry, p)
 
-  def sign_state(endpoint_or_conn, tenant_slug, provider) do
+  def sign_state(endpoint_or_conn, tenant_slug, provider, nonce) do
     Phoenix.Token.sign(endpoint_or_conn, @state_salt, %{
       tenant_slug: tenant_slug,
-      provider: to_string(provider)
+      provider: to_string(provider),
+      nonce: nonce
     })
   end
 

@@ -22,13 +22,21 @@ defmodule FlorinaWeb.AuthController do
     p = String.to_existing_atom(provider)
     slug = conn.assigns.tenant.slug
 
+    # Bind this sign-in to the browser: stash a one-time random nonce in the
+    # session and embed it in the signed state. The callback only proceeds if the
+    # state's nonce matches the session's — so a state minted in someone else's
+    # browser (login CSRF) can't be replayed into this one.
+    nonce = :crypto.strong_rand_bytes(16) |> Base.url_encode64()
+
     url =
       Provider.impl(p).authorize_url(
         Provider.redirect_uri(provider),
-        Provider.sign_state(conn, slug, p)
+        Provider.sign_state(conn, slug, p, nonce)
       )
 
-    redirect(conn, external: url)
+    conn
+    |> put_session(:oauth_nonce, nonce)
+    |> redirect(external: url)
   end
 
   def start(conn, _),
@@ -39,15 +47,20 @@ defmodule FlorinaWeb.AuthController do
     p = String.to_existing_atom(provider)
 
     # Fixed callback path — the tenant is NOT in the URL. Recover it from the
-    # signed state (which proves we issued it at `start`), then pin that tenant's
+    # signed state (which proves we issued it at `start`), confirm the nonce
+    # matches this browser's session (login-CSRF guard), then pin that tenant's
     # schema prefix and assign it so the rest of the flow works as before.
-    with {:ok, %{tenant_slug: slug, provider: ^provider}} <- Provider.verify_state(conn, state),
+    session_nonce = get_session(conn, :oauth_nonce)
+
+    with {:ok, %{tenant_slug: slug, provider: ^provider, nonce: ^session_nonce}}
+         when is_binary(session_nonce) <- Provider.verify_state(conn, state),
          %Tenants.Tenant{active: true, status: "active"} = tenant <- Tenants.get_by_slug(slug) do
       # Pin the tenant schema for this request, and guarantee it's cleared once the
       # response is sent so a pooled connection process can't carry it into a later,
       # unrelated request (mirrors FlorinaWeb.Plugs.ResolveTenant).
       conn =
         conn
+        |> delete_session(:oauth_nonce)
         |> assign(:tenant, tenant)
         |> register_before_send(fn c ->
           Process.delete(:tenant_prefix)

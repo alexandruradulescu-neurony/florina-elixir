@@ -66,7 +66,14 @@ defmodule FlorinaWeb.Manage.GenerationRunsLive do
        |> load_runs()}
 
   def handle_event("page", %{"to" => to}, socket) do
-    page = max(String.to_integer(to), 1)
+    # `to` is a client-sent param; a non-integer falls back to page 1 instead of
+    # crashing the LiveView.
+    page =
+      case Integer.parse(to) do
+        {n, ""} -> max(n, 1)
+        _ -> 1
+      end
+
     {:noreply, socket |> assign(:page, page) |> load_runs()}
   end
 
