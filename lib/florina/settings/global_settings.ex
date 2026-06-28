@@ -19,6 +19,11 @@ defmodule Florina.Settings.GlobalSettings do
     field :max_call_attempts_per_phase, :integer, default: 2
     field :max_context_tokens_warn, :integer, default: 50_000
 
+    # Per-tenant Pipedrive (CRM) credentials. Each tenant syncs its own CRM, so
+    # these are tenant-private and never published from the central config.
+    field :pipedrive_api_token, :string
+    field :pipedrive_domain, :string
+
     field :is_overridden, :boolean, default: false
 
     belongs_to :default_methodology, Florina.Methodologies.Methodology
@@ -32,6 +37,8 @@ defmodule Florina.Settings.GlobalSettings do
     :retry_interval_minutes,
     :max_call_attempts_per_phase,
     :max_context_tokens_warn,
+    :pipedrive_api_token,
+    :pipedrive_domain,
     :default_methodology_id,
     :is_overridden
   ]

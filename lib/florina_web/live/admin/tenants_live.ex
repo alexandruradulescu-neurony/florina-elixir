@@ -9,14 +9,17 @@ defmodule FlorinaWeb.Admin.TenantsLive do
 
   on_mount FlorinaWeb.Admin.AdminAuth
 
-  alias Florina.Tenants
+  alias Florina.{Settings, Tenants}
   alias Florina.Workers.ProvisionTenant
 
   @impl true
   def mount(_params, _session, socket) do
+    tenants = Tenants.list()
+
     {:ok,
      socket
-     |> assign(:tenants, Tenants.list())
+     |> assign(:tenants, tenants)
+     |> assign(:crm, load_crm(tenants))
      |> assign(:form, build_form())}
   end
 
@@ -107,6 +110,27 @@ defmodule FlorinaWeb.Admin.TenantsLive do
     end
   end
 
+  def handle_event("save_crm", %{"slug" => slug} = params, socket) do
+    case Tenants.get_by_slug(slug) do
+      nil ->
+        {:noreply, put_flash(socket, :error, "Tenant #{slug} not found.")}
+
+      tenant ->
+        result = with_tenant(tenant, fn -> Settings.update_crm(params) end)
+
+        case result do
+          {:ok, _} ->
+            {:noreply,
+             socket
+             |> put_flash(:info, "CRM credentials saved for #{slug}.")
+             |> assign(:crm, load_crm(socket.assigns.tenants))}
+
+          _ ->
+            {:noreply, put_flash(socket, :error, "Could not save CRM credentials for #{slug}.")}
+        end
+    end
+  end
+
   def handle_event("retry", %{"slug" => slug}, socket) do
     case Tenants.get_by_slug(slug) do
       nil ->
@@ -165,6 +189,7 @@ defmodule FlorinaWeb.Admin.TenantsLive do
                 <th class="px-4 py-3 font-semibold">Status</th>
                 <th class="px-4 py-3 font-semibold">Active</th>
                 <th class="px-4 py-3 font-semibold">Domains</th>
+                <th class="px-4 py-3 font-semibold">CRM (Pipedrive)</th>
                 <th class="px-4 py-3 font-semibold">Actions</th>
               </tr>
             </thead>
@@ -216,6 +241,33 @@ defmodule FlorinaWeb.Admin.TenantsLive do
                   </form>
                 </td>
                 <td class="px-4 py-3">
+                  <form
+                    :if={tenant.status == "active"}
+                    id={"crm-#{tenant.slug}"}
+                    phx-submit="save_crm"
+                    class="flex flex-col gap-1"
+                  >
+                    <input type="hidden" name="slug" value={tenant.slug} />
+                    <input
+                      type="text"
+                      name="pipedrive_domain"
+                      value={crm_domain(@crm, tenant.slug)}
+                      placeholder="domain"
+                      class="rounded px-2 py-1 text-xs font-mono w-40 bg-white text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 dark:bg-white/5 dark:text-white dark:outline-white/10"
+                    />
+                    <input
+                      type="password"
+                      name="pipedrive_api_token"
+                      placeholder={crm_token_placeholder(@crm, tenant.slug)}
+                      class="rounded px-2 py-1 text-xs font-mono w-40 bg-white text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 dark:bg-white/5 dark:text-white dark:outline-white/10"
+                    />
+                    <button class="text-xs font-medium text-indigo-600 hover:text-indigo-500 self-start dark:text-indigo-400">
+                      Save
+                    </button>
+                  </form>
+                  <span :if={tenant.status != "active"} class="text-xs text-gray-400">—</span>
+                </td>
+                <td class="px-4 py-3">
                   <a
                     href={"/admin/tenants/#{tenant.slug}/agents"}
                     class="text-xs font-medium text-indigo-600 hover:text-indigo-500 mr-2 dark:text-indigo-400"
@@ -251,7 +303,7 @@ defmodule FlorinaWeb.Admin.TenantsLive do
                 </td>
               </tr>
               <tr :if={@tenants == []}>
-                <td colspan="7" class="px-4 py-6 text-center text-gray-400 text-sm">
+                <td colspan="8" class="px-4 py-6 text-center text-gray-400 text-sm">
                   No tenants yet.
                 </td>
               </tr>
@@ -329,6 +381,50 @@ defmodule FlorinaWeb.Admin.TenantsLive do
   defp admin_input,
     do:
       "w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:focus:outline-indigo-500"
+
+  # ---------------------------------------------------------------------------
+  # CRM credentials (per-tenant, read/written inside the tenant's schema)
+  # ---------------------------------------------------------------------------
+
+  # Load each active tenant's CRM settings by briefly pinning its schema prefix.
+  # Inactive/provisioning tenants have no usable schema yet, so they're skipped.
+  defp load_crm(tenants) do
+    for t <- tenants, t.status == "active", into: %{} do
+      {t.slug, read_crm(t)}
+    end
+  end
+
+  defp read_crm(tenant) do
+    with_tenant(tenant, fn ->
+      s = Settings.get()
+      %{domain: s.pipedrive_domain, has_token: present?(s.pipedrive_api_token)}
+    end)
+  rescue
+    _ -> %{domain: nil, has_token: false}
+  end
+
+  # Run `fun` with the tenant's schema prefix pinned, always clearing it after so
+  # this long-lived LiveView process can't leak the prefix into later work.
+  defp with_tenant(tenant, fun) do
+    Process.put(:tenant_prefix, Tenants.schema_prefix(tenant))
+
+    try do
+      fun.()
+    after
+      Process.delete(:tenant_prefix)
+    end
+  end
+
+  defp crm_domain(crm, slug), do: get_in(crm, [slug, :domain]) || ""
+
+  defp crm_token_placeholder(crm, slug) do
+    if get_in(crm, [slug, :has_token]),
+      do: "•••••• (set — blank keeps it)",
+      else: "API token"
+  end
+
+  defp present?(v) when v in [nil, ""], do: false
+  defp present?(_), do: true
 
   # ---------------------------------------------------------------------------
   # Helpers

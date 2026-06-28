@@ -247,7 +247,7 @@ defmodule Florina.Integrations.Pipedrive do
   # ---------------------------------------------------------------------------
 
   defp base_url do
-    domain = Application.get_env(:florina, :pipedrive_domain, "")
+    domain = tenant_creds().domain
 
     if domain in [nil, ""] do
       {:error, {:missing_config, :pipedrive_domain}}
@@ -257,7 +257,7 @@ defmodule Florina.Integrations.Pipedrive do
   end
 
   defp api_token do
-    token = Application.get_env(:florina, :pipedrive_api_token, "")
+    token = tenant_creds().token
 
     if token in [nil, ""] do
       {:error, {:missing_config, :pipedrive_api_token}}
@@ -265,6 +265,29 @@ defmodule Florina.Integrations.Pipedrive do
       {:ok, token}
     end
   end
+
+  # Each Pipedrive call runs in a tenant-pinned context (the sync/calendar
+  # workers pin the tenant first), so prefer that tenant's saved credentials and
+  # fall back to the global env value (kept for the original single-tenant
+  # deployment until per-tenant creds are entered).
+  defp tenant_creds do
+    settings =
+      try do
+        Florina.Settings.get()
+      rescue
+        _ -> nil
+      end
+
+    %{
+      token: present(settings && settings.pipedrive_api_token) || env(:pipedrive_api_token),
+      domain: present(settings && settings.pipedrive_domain) || env(:pipedrive_domain)
+    }
+  end
+
+  defp env(key), do: Application.get_env(:florina, key, "")
+
+  defp present(v) when v in [nil, ""], do: nil
+  defp present(v), do: v
 
   # Pipedrive accepts the API token via the `x-api-token` header (documented
   # alternative to the `?api_token=` query param) — keeps the secret out of URLs,

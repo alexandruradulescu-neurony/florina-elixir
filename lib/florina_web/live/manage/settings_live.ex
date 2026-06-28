@@ -46,6 +46,19 @@ defmodule FlorinaWeb.Manage.SettingsLive do
     end
   end
 
+  def handle_event("save_crm", %{"crm" => params}, socket) do
+    case Settings.update_crm(params) do
+      {:ok, settings} ->
+        {:noreply,
+         socket
+         |> assign(:settings, settings)
+         |> put_flash(:info, "CRM credentials saved.")}
+
+      {:error, _changeset} ->
+        {:noreply, put_flash(socket, :error, "Could not save CRM credentials.")}
+    end
+  end
+
   defp assign_form(socket, changeset), do: assign(socket, :form, to_form(changeset))
 
   @impl true
@@ -129,6 +142,40 @@ defmodule FlorinaWeb.Manage.SettingsLive do
             — fallback when no agent or visit override is set.
           </p>
         </aside>
+      </div>
+
+      <div class="mt-12 border-t border-gray-200 dark:border-white/10 pt-8 max-w-xl">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+          CRM integration (Pipedrive)
+        </h2>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mb-5">
+          This workspace syncs its own Pipedrive account. Leave the token blank to
+          keep the current one; leave both blank to fall back to the system default.
+        </p>
+        <.form
+          :let={f}
+          for={to_form(%{"pipedrive_domain" => @settings.pipedrive_domain || ""}, as: :crm)}
+          phx-submit="save_crm"
+          class="space-y-5"
+        >
+          <.input
+            field={f[:pipedrive_domain]}
+            type="text"
+            label="Pipedrive domain"
+            placeholder="yourcompany"
+          />
+          <.input
+            field={f[:pipedrive_api_token]}
+            type="password"
+            label="Pipedrive API token"
+            placeholder={
+              if @settings.pipedrive_api_token,
+                do: "•••••••• (a token is saved — leave blank to keep it)",
+                else: "Paste your Pipedrive API token"
+            }
+          />
+          <.button type="submit" variant="primary">Save CRM credentials</.button>
+        </.form>
       </div>
     </Layouts.agent_app>
     """
