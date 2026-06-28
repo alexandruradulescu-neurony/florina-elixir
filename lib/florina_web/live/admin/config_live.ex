@@ -192,19 +192,22 @@ defmodule FlorinaWeb.Admin.ConfigLive do
       <div class="max-w-5xl mx-auto">
         <div class="flex items-center justify-between mb-6">
           <div>
-            <h1 class="text-2xl font-semibold">Central Config</h1>
-            <p class="text-sm text-gray-500 mt-1">
+            <h1 class="text-2xl font-semibold text-gray-900 dark:text-white">Central Config</h1>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
               <a href="/admin" class="hover:underline">Admin</a> &rsaquo; Config
             </p>
           </div>
           <div class="flex gap-2">
-            <a href="/admin/tenants" class="px-3 py-1.5 text-sm border rounded hover:bg-gray-50">
+            <a
+              href="/admin/tenants"
+              class="px-3 py-1.5 text-sm font-semibold rounded-md bg-white text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:bg-white/10 dark:text-white dark:ring-0 dark:hover:bg-white/20"
+            >
               Tenants
             </a>
             <button
               phx-click="publish_all"
               data-confirm="Publish canonical config to ALL active tenants? Rows marked as overridden will be skipped."
-              class="px-4 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+              class="px-4 py-1.5 text-sm font-semibold bg-indigo-600 text-white rounded-md shadow-xs hover:bg-indigo-500 dark:bg-indigo-500 dark:hover:bg-indigo-400"
             >
               Publish to all tenants
             </button>
@@ -212,10 +215,15 @@ defmodule FlorinaWeb.Admin.ConfigLive do
         </div>
 
         <%!-- Edit panel (inline, shown when editing != nil) --%>
-        <div :if={@editing} class="border rounded-lg p-6 mb-8 bg-gray-50">
+        <div
+          :if={@editing}
+          class="border border-gray-200 rounded-lg p-6 mb-8 bg-gray-50 dark:border-white/10 dark:bg-white/5"
+        >
           <%= case @editing do %>
             <% {:mega_prompt, mp} -> %>
-              <h2 class="text-base font-medium mb-4">Edit mega prompt — {mp.domain}</h2>
+              <h2 class="text-base font-medium mb-4 text-gray-900 dark:text-white">
+                Edit mega prompt — {mp.domain}
+              </h2>
               <.form for={@edit_form} phx-submit="save_mega_prompt" class="space-y-3">
                 <.text_field label="Name" name="mega_prompt[name]" form={@edit_form} field={:name} />
                 <.textarea_field
@@ -227,7 +235,9 @@ defmodule FlorinaWeb.Admin.ConfigLive do
                 <.form_buttons />
               </.form>
             <% {:methodology, m} -> %>
-              <h2 class="text-base font-medium mb-4">Edit methodology — {m.name}</h2>
+              <h2 class="text-base font-medium mb-4 text-gray-900 dark:text-white">
+                Edit methodology — {m.name}
+              </h2>
               <.form for={@edit_form} phx-submit="save_methodology" class="space-y-3">
                 <.text_field
                   label="Name"
@@ -250,7 +260,9 @@ defmodule FlorinaWeb.Admin.ConfigLive do
                 <.form_buttons />
               </.form>
             <% {:scenario, s} -> %>
-              <h2 class="text-base font-medium mb-4">Edit scenario — {s.name}</h2>
+              <h2 class="text-base font-medium mb-4 text-gray-900 dark:text-white">
+                Edit scenario — {s.name}
+              </h2>
               <.form for={@edit_form} phx-submit="save_scenario" class="space-y-3">
                 <.text_field label="Name" name="scenario[name]" form={@edit_form} field={:name} />
                 <.textarea_field
@@ -262,7 +274,9 @@ defmodule FlorinaWeb.Admin.ConfigLive do
                 <.form_buttons />
               </.form>
             <% {:settings, _s} -> %>
-              <h2 class="text-base font-medium mb-4">Edit global settings</h2>
+              <h2 class="text-base font-medium mb-4 text-gray-900 dark:text-white">
+                Edit global settings
+              </h2>
               <.form for={@edit_form} phx-submit="save_settings" class="space-y-3">
                 <.text_field
                   label="Pre-call offset (min)"
@@ -299,9 +313,12 @@ defmodule FlorinaWeb.Admin.ConfigLive do
 
         <%!-- Global settings --%>
         <.section_header title="Global settings">
-          <button phx-click="edit_settings" class="text-xs text-blue-600 hover:underline">Edit</button>
+          <button
+            phx-click="edit_settings"
+            class="text-xs font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400"
+          >Edit</button>
         </.section_header>
-        <div class="border rounded-lg divide-y mb-8 text-sm">
+        <div class="border border-gray-200 rounded-lg divide-y divide-gray-200 mb-8 text-sm dark:border-white/10 dark:divide-white/10">
           <.kv_row label="Pre-call offset" value={"#{@settings.pre_call_offset_minutes} min"} />
           <.kv_row label="Post-call offset" value={"#{@settings.post_call_offset_minutes} min"} />
           <.kv_row label="Retry interval" value={"#{@settings.retry_interval_minutes} min"} />
@@ -361,7 +378,7 @@ defmodule FlorinaWeb.Admin.ConfigLive do
 
     ~H"""
     <div class="flex items-center justify-between mb-2">
-      <h2 class="text-base font-semibold text-gray-700">{@title}</h2>
+      <h2 class="text-base font-semibold text-gray-900 dark:text-white">{@title}</h2>
       <div :if={@inner_block}>{render_slot(@inner_block)}</div>
     </div>
     """
@@ -370,8 +387,8 @@ defmodule FlorinaWeb.Admin.ConfigLive do
   defp kv_row(assigns) do
     ~H"""
     <div class="flex px-4 py-2 gap-4">
-      <span class="text-gray-500 w-48 shrink-0">{@label}</span>
-      <span class="font-mono">{@value}</span>
+      <span class="text-gray-500 dark:text-gray-400 w-48 shrink-0">{@label}</span>
+      <span class="font-mono text-gray-900 dark:text-white">{@value}</span>
     </div>
     """
   end
@@ -387,22 +404,22 @@ defmodule FlorinaWeb.Admin.ConfigLive do
 
   defp config_table(assigns) do
     ~H"""
-    <div class="overflow-hidden border rounded-lg mb-8">
+    <div class="overflow-hidden border border-gray-200 rounded-lg mb-8 dark:border-white/10">
       <table class="w-full text-sm text-left">
-        <thead class="bg-gray-50 text-xs uppercase tracking-wider text-gray-500">
+        <thead class="bg-gray-50 text-xs uppercase tracking-wider text-gray-500 dark:bg-white/5 dark:text-gray-400">
           <tr>
-            <th :for={col <- @col} class="px-4 py-3">{col.label}</th>
-            <th class="px-4 py-3">Actions</th>
+            <th :for={col <- @col} class="px-4 py-3 font-semibold">{col.label}</th>
+            <th class="px-4 py-3 font-semibold">Actions</th>
           </tr>
         </thead>
-        <tbody class="divide-y">
-          <tr :for={row <- @rows} class="hover:bg-gray-50">
+        <tbody class="divide-y divide-gray-200 dark:divide-white/10 text-gray-700 dark:text-gray-300">
+          <tr :for={row <- @rows} class="hover:bg-gray-50 dark:hover:bg-white/5">
             {render_slot(@row_render, row)}
             <td class="px-4 py-2">
               <button
                 phx-click={@event}
                 phx-value-id={row.id}
-                class="text-xs text-blue-600 hover:underline"
+                class="text-xs font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400"
               >
                 Edit
               </button>
@@ -428,12 +445,12 @@ defmodule FlorinaWeb.Admin.ConfigLive do
   defp text_field(assigns) do
     ~H"""
     <div>
-      <label class="block text-sm font-medium text-gray-700 mb-1">{@label}</label>
+      <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{@label}</label>
       <input
         type={@type}
         name={@name}
         value={@form[@field] && @form[@field].value}
-        class="w-full border rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+        class="w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:focus:outline-indigo-500"
       />
     </div>
     """
@@ -447,11 +464,11 @@ defmodule FlorinaWeb.Admin.ConfigLive do
   defp textarea_field(assigns) do
     ~H"""
     <div>
-      <label class="block text-sm font-medium text-gray-700 mb-1">{@label}</label>
+      <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{@label}</label>
       <textarea
         name={@name}
         rows="5"
-        class="w-full border rounded px-3 py-2 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-blue-500"
+        class="w-full rounded-md bg-white px-3 py-2 text-sm font-mono text-gray-900 outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:focus:outline-indigo-500"
       >{@form[@field] && @form[@field].value}</textarea>
     </div>
     """
@@ -462,14 +479,14 @@ defmodule FlorinaWeb.Admin.ConfigLive do
     <div class="flex gap-2 pt-1">
       <button
         type="submit"
-        class="px-4 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
+        class="px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-md shadow-xs hover:bg-indigo-500 dark:bg-indigo-500 dark:hover:bg-indigo-400"
       >
         Save
       </button>
       <button
         type="button"
         phx-click="cancel_edit"
-        class="px-4 py-2 border text-sm rounded hover:bg-gray-50"
+        class="px-4 py-2 text-sm font-semibold rounded-md bg-white text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:bg-white/10 dark:text-white dark:ring-0 dark:hover:bg-white/20"
       >
         Cancel
       </button>

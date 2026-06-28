@@ -75,43 +75,56 @@ defmodule FlorinaWeb.Admin.AgentsLive do
       <div class="max-w-4xl mx-auto">
         <div class="flex items-center justify-between mb-6">
           <div>
-            <h1 class="text-2xl font-semibold">Agents — {@tenant.name}</h1>
-            <p class="text-sm text-gray-500 mt-1">
+            <h1 class="text-2xl font-semibold text-gray-900 dark:text-white">
+              Agents — {@tenant.name}
+            </h1>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
               <a href="/admin" class="hover:underline">Admin</a>
               &rsaquo; <a href="/admin/tenants" class="hover:underline">Tenants</a>
               &rsaquo; {@tenant.slug}
             </p>
           </div>
-          <a href="/admin/tenants" class="px-3 py-1.5 text-sm border rounded hover:bg-gray-50">
+          <a
+            href="/admin/tenants"
+            class="px-3 py-1.5 text-sm font-semibold rounded-md bg-white text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:bg-white/10 dark:text-white dark:ring-0 dark:hover:bg-white/20"
+          >
             Back
           </a>
         </div>
 
         <p
           :if={!@provisioned?}
-          class="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded p-3"
+          class="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded p-3 dark:text-amber-300 dark:bg-amber-500/10 dark:border-amber-500/20"
         >
           This tenant isn't provisioned yet — no users to show.
         </p>
 
-        <div :if={@provisioned?} class="overflow-hidden border rounded-lg">
+        <div
+          :if={@provisioned?}
+          class="overflow-hidden border border-gray-200 rounded-lg dark:border-white/10"
+        >
           <table class="w-full text-sm text-left">
-            <thead class="bg-gray-50 text-xs uppercase tracking-wider text-gray-500">
+            <thead class="bg-gray-50 text-xs uppercase tracking-wider text-gray-500 dark:bg-white/5 dark:text-gray-400">
               <tr>
-                <th class="px-4 py-3">User</th>
-                <th class="px-4 py-3">Email</th>
-                <th class="px-4 py-3">Role</th>
-                <th class="px-4 py-3">Active</th>
+                <th class="px-4 py-3 font-semibold">User</th>
+                <th class="px-4 py-3 font-semibold">Email</th>
+                <th class="px-4 py-3 font-semibold">Role</th>
+                <th class="px-4 py-3 font-semibold">Active</th>
               </tr>
             </thead>
-            <tbody class="divide-y">
-              <tr :for={u <- @users} class="hover:bg-gray-50">
-                <td class="px-4 py-3 font-medium">{u.username}</td>
-                <td class="px-4 py-3 font-mono text-xs">{u.email}</td>
+            <tbody class="divide-y divide-gray-200 dark:divide-white/10">
+              <tr :for={u <- @users} class="hover:bg-gray-50 dark:hover:bg-white/5">
+                <td class="px-4 py-3 font-medium text-gray-900 dark:text-white">{u.username}</td>
+                <td class="px-4 py-3 font-mono text-xs text-gray-700 dark:text-gray-300">
+                  {u.email}
+                </td>
                 <td class="px-4 py-3">
                   <form phx-change="set_role">
                     <input type="hidden" name="user_id" value={u.id} />
-                    <select name="role" class="border rounded px-2 py-1 text-xs">
+                    <select
+                      name="role"
+                      class="rounded px-2 py-1 text-xs bg-white text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 dark:bg-white/5 dark:text-white dark:outline-white/10"
+                    >
                       <option value="agent" selected={u.role == :agent}>agent</option>
                       <option value="manager" selected={u.role == :manager}>manager</option>
                     </select>
@@ -122,8 +135,9 @@ defmodule FlorinaWeb.Admin.AgentsLive do
                     phx-click="toggle_active"
                     phx-value-id={u.id}
                     class={[
-                      "text-xs hover:underline",
-                      (u.active && "text-red-600") || "text-green-600"
+                      "text-xs font-medium hover:underline",
+                      (u.active && "text-red-600 dark:text-red-400") ||
+                        "text-green-600 dark:text-green-400"
                     ]}
                   >
                     {if u.active, do: "Deactivate", else: "Activate"}

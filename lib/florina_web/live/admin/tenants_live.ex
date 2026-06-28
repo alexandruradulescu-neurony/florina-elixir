@@ -133,18 +133,21 @@ defmodule FlorinaWeb.Admin.TenantsLive do
       <div class="max-w-5xl mx-auto">
         <div class="flex items-center justify-between mb-6">
           <div>
-            <h1 class="text-2xl font-semibold">Tenants</h1>
-            <p class="text-sm text-gray-500 mt-1">
+            <h1 class="text-2xl font-semibold text-gray-900 dark:text-white">Tenants</h1>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
               <a href="/admin" class="hover:underline">Admin</a> &rsaquo; Tenants
             </p>
           </div>
           <div class="flex gap-2">
-            <a href="/admin/config" class="px-3 py-1.5 text-sm border rounded hover:bg-gray-50">
+            <a
+              href="/admin/config"
+              class="px-3 py-1.5 text-sm font-semibold rounded-md bg-white text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:bg-white/10 dark:text-white dark:ring-0 dark:hover:bg-white/20"
+            >
               Config
             </a>
             <button
               phx-click="refresh"
-              class="px-3 py-1.5 text-sm border rounded hover:bg-gray-50"
+              class="px-3 py-1.5 text-sm font-semibold rounded-md bg-white text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:bg-white/10 dark:text-white dark:ring-0 dark:hover:bg-white/20"
             >
               Refresh
             </button>
@@ -152,30 +155,37 @@ defmodule FlorinaWeb.Admin.TenantsLive do
         </div>
 
         <%!-- Tenant table --%>
-        <div class="overflow-hidden border rounded-lg mb-10">
+        <div class="overflow-hidden border border-gray-200 rounded-lg mb-10 dark:border-white/10">
           <table class="w-full text-sm text-left">
-            <thead class="bg-gray-50 text-xs uppercase tracking-wider text-gray-500">
+            <thead class="bg-gray-50 text-xs uppercase tracking-wider text-gray-500 dark:bg-white/5 dark:text-gray-400">
               <tr>
-                <th class="px-4 py-3">Name</th>
-                <th class="px-4 py-3">Slug</th>
-                <th class="px-4 py-3">Database</th>
-                <th class="px-4 py-3">Status</th>
-                <th class="px-4 py-3">Active</th>
-                <th class="px-4 py-3">Domains</th>
-                <th class="px-4 py-3">Actions</th>
+                <th class="px-4 py-3 font-semibold">Name</th>
+                <th class="px-4 py-3 font-semibold">Slug</th>
+                <th class="px-4 py-3 font-semibold">Database</th>
+                <th class="px-4 py-3 font-semibold">Status</th>
+                <th class="px-4 py-3 font-semibold">Active</th>
+                <th class="px-4 py-3 font-semibold">Domains</th>
+                <th class="px-4 py-3 font-semibold">Actions</th>
               </tr>
             </thead>
-            <tbody class="divide-y">
-              <tr :for={tenant <- @tenants} class="hover:bg-gray-50">
-                <td class="px-4 py-3 font-medium">{tenant.name}</td>
-                <td class="px-4 py-3 font-mono text-xs">{tenant.slug}</td>
-                <td class="px-4 py-3 font-mono text-xs">{tenant.database}</td>
+            <tbody class="divide-y divide-gray-200 dark:divide-white/10">
+              <tr :for={tenant <- @tenants} class="hover:bg-gray-50 dark:hover:bg-white/5">
+                <td class="px-4 py-3 font-medium text-gray-900 dark:text-white">{tenant.name}</td>
+                <td class="px-4 py-3 font-mono text-xs text-gray-700 dark:text-gray-300">
+                  {tenant.slug}
+                </td>
+                <td class="px-4 py-3 font-mono text-xs text-gray-700 dark:text-gray-300">
+                  {tenant.database}
+                </td>
                 <td class="px-4 py-3">
                   <span class={[
                     "inline-flex items-center px-2 py-0.5 rounded text-xs font-medium",
-                    tenant.status == "active" && "bg-green-100 text-green-800",
-                    tenant.status == "provisioning" && "bg-yellow-100 text-yellow-800",
-                    tenant.status == "failed" && "bg-red-100 text-red-800"
+                    tenant.status == "active" &&
+                      "bg-green-100 text-green-800 dark:bg-green-500/10 dark:text-green-400",
+                    tenant.status == "provisioning" &&
+                      "bg-yellow-100 text-yellow-800 dark:bg-yellow-500/10 dark:text-yellow-400",
+                    tenant.status == "failed" &&
+                      "bg-red-100 text-red-800 dark:bg-red-500/10 dark:text-red-400"
                   ]}>
                     {tenant.status}
                   </span>
@@ -183,8 +193,9 @@ defmodule FlorinaWeb.Admin.TenantsLive do
                 <td class="px-4 py-3">
                   <span class={[
                     "inline-flex items-center px-2 py-0.5 rounded text-xs font-medium",
-                    tenant.active && "bg-blue-100 text-blue-800",
-                    !tenant.active && "bg-gray-100 text-gray-500"
+                    tenant.active &&
+                      "bg-blue-100 text-blue-800 dark:bg-blue-500/10 dark:text-blue-400",
+                    !tenant.active && "bg-gray-100 text-gray-500 dark:bg-white/10 dark:text-gray-400"
                   ]}>
                     {if tenant.active, do: "yes", else: "no"}
                   </span>
@@ -197,15 +208,17 @@ defmodule FlorinaWeb.Admin.TenantsLive do
                       name="domains"
                       value={Enum.join(tenant.allowed_email_domains || [], ", ")}
                       placeholder="leadder.com, acme.io"
-                      class="border rounded px-2 py-1 text-xs font-mono w-48"
+                      class="rounded px-2 py-1 text-xs font-mono w-48 bg-white text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 dark:bg-white/5 dark:text-white dark:outline-white/10"
                     />
-                    <button class="text-xs text-blue-600 hover:underline">Save</button>
+                    <button class="text-xs font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400">
+                      Save
+                    </button>
                   </form>
                 </td>
                 <td class="px-4 py-3">
                   <a
                     href={"/admin/tenants/#{tenant.slug}/agents"}
-                    class="text-xs text-blue-600 hover:underline mr-2"
+                    class="text-xs font-medium text-indigo-600 hover:text-indigo-500 mr-2 dark:text-indigo-400"
                   >
                     Agents
                   </a>
@@ -213,7 +226,7 @@ defmodule FlorinaWeb.Admin.TenantsLive do
                     :if={tenant.active}
                     phx-click="deactivate"
                     phx-value-slug={tenant.slug}
-                    class="text-xs text-red-600 hover:underline"
+                    class="text-xs font-medium text-red-600 hover:text-red-500 dark:text-red-400"
                     data-confirm={"Deactivate #{tenant.slug}?"}
                   >
                     Deactivate
@@ -222,7 +235,7 @@ defmodule FlorinaWeb.Admin.TenantsLive do
                     :if={!tenant.active}
                     phx-click="activate"
                     phx-value-slug={tenant.slug}
-                    class="text-xs text-green-600 hover:underline"
+                    class="text-xs font-medium text-green-600 hover:text-green-500 dark:text-green-400"
                   >
                     Activate
                   </button>
@@ -230,7 +243,7 @@ defmodule FlorinaWeb.Admin.TenantsLive do
                     :if={tenant.status == "failed"}
                     phx-click="retry"
                     phx-value-slug={tenant.slug}
-                    class="text-xs text-blue-600 hover:underline ml-2"
+                    class="text-xs font-medium text-indigo-600 hover:text-indigo-500 ml-2 dark:text-indigo-400"
                     data-confirm={"Retry provisioning #{tenant.slug}?"}
                   >
                     Retry
@@ -247,8 +260,8 @@ defmodule FlorinaWeb.Admin.TenantsLive do
         </div>
 
         <%!-- Add tenant form --%>
-        <div class="border rounded-lg p-6 max-w-lg">
-          <h2 class="text-lg font-medium mb-4">Add tenant</h2>
+        <div class="border border-gray-200 rounded-lg p-6 max-w-lg dark:border-white/10">
+          <h2 class="text-lg font-medium mb-4 text-gray-900 dark:text-white">Add tenant</h2>
           <.form
             for={@form}
             id="add-tenant-form"
@@ -257,18 +270,22 @@ defmodule FlorinaWeb.Admin.TenantsLive do
             class="space-y-4"
           >
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Display name</label>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Display name
+              </label>
               <input
                 type="text"
                 name="tenant[name]"
                 value={@form[:name] && @form[:name].value}
                 placeholder="Acme Corp"
-                class="w-full border rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                class={admin_input()}
                 required
               />
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Slug</label>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Slug
+              </label>
               <input
                 type="text"
                 name="tenant[slug]"
@@ -276,26 +293,28 @@ defmodule FlorinaWeb.Admin.TenantsLive do
                 placeholder="acme"
                 pattern="[a-z0-9_-]+"
                 title="Lowercase letters, digits, hyphens and underscores only"
-                class="w-full border rounded px-3 py-2 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-blue-500"
+                class={[admin_input(), "font-mono"]}
                 required
               />
               <p class="text-xs text-gray-400 mt-1">Lowercase, URL-safe (a-z, 0-9, -, _)</p>
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Database name</label>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Database name
+              </label>
               <input
                 type="text"
                 name="tenant[database]"
                 value={@form[:database] && @form[:database].value}
                 placeholder="florina_tenant_acme"
-                class="w-full border rounded px-3 py-2 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-blue-500"
+                class={[admin_input(), "font-mono"]}
                 required
               />
               <p class="text-xs text-gray-400 mt-1">Auto-suggested from slug; edit if needed.</p>
             </div>
             <button
               type="submit"
-              class="px-4 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 focus:outline-none"
+              class="px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-md shadow-xs hover:bg-indigo-500 dark:bg-indigo-500 dark:hover:bg-indigo-400"
             >
               Register &amp; provision
             </button>
@@ -305,6 +324,11 @@ defmodule FlorinaWeb.Admin.TenantsLive do
     </Layouts.app>
     """
   end
+
+  # Shared TW Plus text-input styling for the admin add-tenant form.
+  defp admin_input,
+    do:
+      "w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:focus:outline-indigo-500"
 
   # ---------------------------------------------------------------------------
   # Helpers
