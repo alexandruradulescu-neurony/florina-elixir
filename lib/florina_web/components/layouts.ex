@@ -104,7 +104,10 @@ defmodule FlorinaWeb.Layouts do
 
         <div class="flex flex-1 items-center justify-end gap-x-4 self-stretch lg:gap-x-6">
           <.theme_toggle />
-          <div aria-hidden="true" class="hidden lg:block lg:h-6 lg:w-px lg:bg-gray-200 dark:lg:bg-white/10" />
+          <div
+            aria-hidden="true"
+            class="hidden lg:block lg:h-6 lg:w-px lg:bg-gray-200 dark:lg:bg-white/10"
+          />
 
           <%!-- User menu --%>
           <div class="relative">
@@ -118,7 +121,9 @@ defmodule FlorinaWeb.Layouts do
                 {agent_initial(@current_agent)}
               </span>
               <span class="hidden lg:flex lg:items-center">
-                <span class="text-sm font-semibold text-gray-900 dark:text-white">{agent_name(@current_agent)}</span>
+                <span class="text-sm font-semibold text-gray-900 dark:text-white">{agent_name(
+                  @current_agent
+                )}</span>
                 <.icon name="hero-chevron-down" class="ml-1 size-5 text-gray-400 dark:text-gray-500" />
               </span>
             </button>
