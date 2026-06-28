@@ -84,9 +84,13 @@ defmodule Florina.Workers.PostCallCompletion do
         transcript_text = transcript || ""
 
         case VisitPipeline.process_post_call(visit, transcript_text, :END_OF_MEETING) do
-          {:ok, %{visit: updated_visit}} ->
-            # Mark fully COMPLETE once the post-call pipeline finishes
-            if updated_visit.status in [:POST_CALL_DONE, :PRE_CALL_DONE, :IN_PROGRESS, :PLANNED] do
+          {:ok, %{run: run, visit: updated_visit}} ->
+            # Only mark fully COMPLETE when the post-call generation actually
+            # succeeded. A failed run (LLM/parse/validation error) must leave the
+            # visit in its prior status so it can be retried/inspected, not be
+            # silently stamped done.
+            if run.success and
+                 updated_visit.status in [:POST_CALL_DONE, :PRE_CALL_DONE, :IN_PROGRESS, :PLANNED] do
               case Visits.update(updated_visit, %{status: :COMPLETE}) do
                 {:ok, _v} ->
                   Logger.info("[PostCallCompletion] visit=#{visit.id} marked COMPLETE")
@@ -95,6 +99,12 @@ defmodule Florina.Workers.PostCallCompletion do
                   Logger.warning(
                     "[PostCallCompletion] could not mark COMPLETE for visit=#{visit.id}: #{inspect(cs.errors)}"
                   )
+              end
+            else
+              unless run.success do
+                Logger.warning(
+                  "[PostCallCompletion] post-call generation failed for visit=#{visit.id} — leaving status=#{updated_visit.status}, not marking COMPLETE"
+                )
               end
             end
 
