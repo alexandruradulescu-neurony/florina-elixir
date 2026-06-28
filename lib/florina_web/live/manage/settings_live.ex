@@ -57,8 +57,8 @@ defmodule FlorinaWeb.Manage.SettingsLive do
       current_agent={@current_agent}
       active={:settings}
     >
-      <h1 class="text-2xl font-semibold mb-1">Settings</h1>
-      <p class="text-sm text-base-content/60 mb-6">
+      <h1 class="text-2xl font-semibold mb-1 text-gray-900 dark:text-white">Settings</h1>
+      <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">
         System-wide call timing and defaults for this workspace.
       </p>
 
@@ -107,25 +107,25 @@ defmodule FlorinaWeb.Manage.SettingsLive do
           <.button type="submit" variant="primary">Save settings</.button>
         </.form>
 
-        <aside class="text-sm text-base-content/60 space-y-3">
+        <aside class="text-sm text-gray-500 dark:text-gray-400 space-y-3">
           <p>
-            <span class="font-medium text-base-content">Pre / post offset</span>
+            <span class="font-medium text-gray-900 dark:text-white">Pre / post offset</span>
             — when Florina dials relative to the meeting (negative = before).
           </p>
           <p>
-            <span class="font-medium text-base-content">Call attempts per phase</span>
+            <span class="font-medium text-gray-900 dark:text-white">Call attempts per phase</span>
             — how many times Florina tries each pre/post call.
           </p>
           <p>
-            <span class="font-medium text-base-content">Retry interval</span>
+            <span class="font-medium text-gray-900 dark:text-white">Retry interval</span>
             — wait between those attempts.
           </p>
           <p>
-            <span class="font-medium text-base-content">Token-warning threshold</span>
+            <span class="font-medium text-gray-900 dark:text-white">Token-warning threshold</span>
             — flags a generation run whose context exceeds this.
           </p>
           <p>
-            <span class="font-medium text-base-content">Default methodology</span>
+            <span class="font-medium text-gray-900 dark:text-white">Default methodology</span>
             — fallback when no agent or visit override is set.
           </p>
         </aside>

@@ -91,15 +91,15 @@ defmodule FlorinaWeb.Manage.GenerationRunsLive do
       current_agent={@current_agent}
       active={:generation_runs}
     >
-      <h1 class="text-2xl font-semibold mb-1">Generation Runs</h1>
-      <p class="text-sm text-base-content/60 mb-6">
+      <h1 class="text-2xl font-semibold mb-1 text-gray-900 dark:text-white">Generation Runs</h1>
+      <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">
         Every time Florina assembled a call script or distilled lessons.
       </p>
 
       <.form for={%{}} as={:filters} phx-change="filter" class="flex flex-wrap items-end gap-3 mb-4">
         <label class="text-sm">
-          <span class="block text-xs text-base-content/60 mb-1">Domain</span>
-          <select name="filters[domain]" class="select select-bordered select-sm">
+          <span class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Domain</span>
+          <select name="filters[domain]" class={sel()}>
             <option value="" selected={@filters["domain"] == ""}>All</option>
             <option :for={{v, l} <- domains()} value={v} selected={@filters["domain"] == v}>
               {l}
@@ -107,53 +107,63 @@ defmodule FlorinaWeb.Manage.GenerationRunsLive do
           </select>
         </label>
         <label class="text-sm">
-          <span class="block text-xs text-base-content/60 mb-1">Outcome</span>
-          <select name="filters[outcome]" class="select select-bordered select-sm">
+          <span class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Outcome</span>
+          <select name="filters[outcome]" class={sel()}>
             <option value="" selected={@filters["outcome"] == ""}>Any</option>
             <option value="success" selected={@filters["outcome"] == "success"}>Success</option>
             <option value="failures" selected={@filters["outcome"] == "failures"}>Failures</option>
           </select>
         </label>
-        <button type="button" phx-click="clear" class="btn btn-ghost btn-sm">Clear</button>
+        <button
+          type="button"
+          phx-click="clear"
+          class="rounded-md px-3 py-1.5 text-sm font-semibold text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/10"
+        >
+          Clear
+        </button>
       </.form>
 
-      <div class="overflow-x-auto rounded-lg border border-base-300">
+      <div class="overflow-x-auto rounded-lg border border-gray-200 dark:border-white/10">
         <table class="w-full text-left text-sm">
-          <thead class="bg-base-200">
+          <thead class="bg-gray-50 dark:bg-white/5">
             <tr>
-              <th class="px-3 py-2 font-semibold">When</th>
-              <th class="px-3 py-2 font-semibold">Domain</th>
-              <th class="px-3 py-2 font-semibold">Target</th>
-              <th class="px-3 py-2 font-semibold">Trigger</th>
-              <th class="px-3 py-2 font-semibold">Status</th>
-              <th class="px-3 py-2 font-semibold">Tokens</th>
+              <th class="px-3 py-2 font-semibold text-gray-900 dark:text-white">When</th>
+              <th class="px-3 py-2 font-semibold text-gray-900 dark:text-white">Domain</th>
+              <th class="px-3 py-2 font-semibold text-gray-900 dark:text-white">Target</th>
+              <th class="px-3 py-2 font-semibold text-gray-900 dark:text-white">Trigger</th>
+              <th class="px-3 py-2 font-semibold text-gray-900 dark:text-white">Status</th>
+              <th class="px-3 py-2 font-semibold text-gray-900 dark:text-white">Tokens</th>
               <th class="px-3 py-2"></th>
             </tr>
           </thead>
           <tbody>
             <tr :if={@runs == []}>
-              <td colspan="7" class="px-3 py-8 text-center text-base-content/50">No runs found.</td>
+              <td colspan="7" class="px-3 py-8 text-center text-gray-400">No runs found.</td>
             </tr>
-            <tr :for={run <- @runs} class="border-t border-base-300">
-              <td class="px-3 py-2 whitespace-nowrap text-base-content/70">
+            <tr :for={run <- @runs} class="border-t border-gray-200 dark:border-white/10">
+              <td class="px-3 py-2 whitespace-nowrap text-gray-600 dark:text-gray-300">
                 {time_label(run.created_at)}
               </td>
-              <td class="px-3 py-2">{domain_label(run.domain)}</td>
-              <td class="px-3 py-2 text-base-content/70">{target_label(run)}</td>
-              <td class="px-3 py-2 text-base-content/60">{run.triggered_by}</td>
+              <td class="px-3 py-2 text-gray-700 dark:text-gray-300">{domain_label(run.domain)}</td>
+              <td class="px-3 py-2 text-gray-600 dark:text-gray-300">{target_label(run)}</td>
+              <td class="px-3 py-2 text-gray-500 dark:text-gray-400">{run.triggered_by}</td>
               <td class="px-3 py-2">
                 <span class={[
                   "rounded-full px-2 py-0.5 text-xs font-medium",
-                  (run.success && "bg-success/10 text-success") || "bg-error/10 text-error"
+                  (run.success &&
+                     "bg-green-100 text-green-700 dark:bg-green-500/10 dark:text-green-400") ||
+                    "bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-400"
                 ]}>
                   {(run.success && "ok") || "fail"}
                 </span>
               </td>
-              <td class="px-3 py-2 text-base-content/60">{run.input_tokens}/{run.output_tokens}</td>
+              <td class="px-3 py-2 text-gray-500 dark:text-gray-400">
+                {run.input_tokens}/{run.output_tokens}
+              </td>
               <td class="px-3 py-2 text-right">
                 <.link
                   navigate={"/t/#{@tenant.slug}/manage/generation-runs/#{run.id}"}
-                  class="text-xs text-primary hover:underline"
+                  class="text-xs font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400"
                 >
                   View
                 </.link>
@@ -164,21 +174,16 @@ defmodule FlorinaWeb.Manage.GenerationRunsLive do
       </div>
 
       <div :if={@pages > 1} class="flex items-center justify-between mt-4 text-sm">
-        <span class="text-base-content/50">Page {@page} of {@pages} · {@total} runs</span>
+        <span class="text-gray-500 dark:text-gray-400">Page {@page} of {@pages} · {@total} runs</span>
         <div class="flex gap-2">
-          <button
-            phx-click="page"
-            phx-value-to={@page - 1}
-            disabled={@page <= 1}
-            class="btn btn-sm"
-          >
+          <button phx-click="page" phx-value-to={@page - 1} disabled={@page <= 1} class={pg_btn()}>
             ← Prev
           </button>
           <button
             phx-click="page"
             phx-value-to={@page + 1}
             disabled={@page >= @pages}
-            class="btn btn-sm"
+            class={pg_btn()}
           >
             Next →
           </button>
@@ -199,30 +204,34 @@ defmodule FlorinaWeb.Manage.GenerationRunsLive do
       <div class="mb-6">
         <.link
           navigate={"/t/#{@tenant.slug}/manage/generation-runs"}
-          class="text-sm text-base-content/60 hover:underline"
+          class="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
         >
           ← Generation Runs
         </.link>
-        <h1 class="text-2xl font-semibold mt-1">{domain_label(@run.domain)} · run #{@run.id}</h1>
-        <p class="text-sm text-base-content/60">
+        <h1 class="text-2xl font-semibold mt-1 text-gray-900 dark:text-white">
+          {domain_label(@run.domain)} · run #{@run.id}
+        </h1>
+        <p class="text-sm text-gray-500 dark:text-gray-400">
           {time_label(@run.created_at)} · {@run.triggered_by} ·
           <span class={[
             "rounded-full px-2 py-0.5 text-xs font-medium",
-            (@run.success && "bg-success/10 text-success") || "bg-error/10 text-error"
+            (@run.success &&
+               "bg-green-100 text-green-700 dark:bg-green-500/10 dark:text-green-400") ||
+              "bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-400"
           ]}>
             {(@run.success && "ok") || "fail"}
           </span>
           · {@run.input_tokens}/{@run.output_tokens} tokens
         </p>
-        <p class="text-sm text-base-content/60 mt-1">{target_label(@run)}</p>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{target_label(@run)}</p>
       </div>
 
       <div
         :if={decrypted(@run.error) != ""}
-        class="mb-6 rounded-lg border border-error/40 bg-error/5 p-4"
+        class="mb-6 rounded-lg border border-red-300 bg-red-50 p-4 dark:border-red-500/30 dark:bg-red-500/10"
       >
-        <h2 class="text-sm font-semibold text-error mb-1">Error</h2>
-        <pre class="whitespace-pre-wrap text-xs text-base-content/80">{decrypted(@run.error)}</pre>
+        <h2 class="text-sm font-semibold text-red-600 dark:text-red-400 mb-1">Error</h2>
+        <pre class="whitespace-pre-wrap text-xs text-gray-700 dark:text-gray-300">{decrypted(@run.error)}</pre>
       </div>
 
       <div class="space-y-6">
@@ -240,12 +249,23 @@ defmodule FlorinaWeb.Manage.GenerationRunsLive do
 
   defp section(assigns) do
     ~H"""
-    <div class="rounded-lg border border-base-300">
-      <div class="border-b border-base-300 bg-base-200 px-4 py-2 text-sm font-semibold">{@title}</div>
-      <pre class="overflow-x-auto p-4 text-xs text-base-content/80 whitespace-pre-wrap">{render_slot(@inner_block)}</pre>
+    <div class="rounded-lg border border-gray-200 dark:border-white/10">
+      <div class="border-b border-gray-200 bg-gray-50 px-4 py-2 text-sm font-semibold text-gray-900 dark:border-white/10 dark:bg-white/5 dark:text-white">
+        {@title}
+      </div>
+      <pre class="overflow-x-auto p-4 text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{render_slot(@inner_block)}</pre>
     </div>
     """
   end
+
+  # Shared TW Plus styling for filter selects and pagination buttons.
+  defp sel,
+    do:
+      "rounded-md bg-white py-1.5 pl-3 pr-8 text-sm text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:focus:outline-indigo-500"
+
+  defp pg_btn,
+    do:
+      "rounded-md bg-white px-3 py-1.5 text-sm font-semibold text-gray-900 shadow-xs ring-1 ring-inset ring-gray-300 hover:bg-gray-50 disabled:opacity-50 cursor-pointer dark:bg-white/10 dark:text-white dark:ring-0 dark:hover:bg-white/20"
 
   defp domains do
     Enum.map(Florina.Enums.mega_prompt_domain_values(), fn {_k, v} -> {v, domain_label(v)} end)

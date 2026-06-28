@@ -49,9 +49,9 @@ Manager:
 - [x] manage/agents_live (people)
 - [x] manage/methodologies_live
 - [ ] manage/mega_prompts_live
-- [ ] manage/generation_runs_live
-- [ ] manage/settings_live
-- [ ] manage/logs_live
+- [x] manage/generation_runs_live
+- [x] manage/settings_live
+- [x] manage/logs_live
 - [ ] chat_live (assistant, manager-only)
 
 Agent:
