@@ -202,14 +202,15 @@ defmodule FlorinaWeb.CalendarLive do
   # ---- Month ----------------------------------------------------------------
 
   defp month_view(assigns) do
-    assigns = assign(assigns, :month_days, month_grid_days(assigns.cursor))
+    days = Enum.filter(month_grid_days(assigns.cursor), &(Date.day_of_week(&1) <= 5))
+    assigns = assign(assigns, :month_days, days)
 
     ~H"""
     <div class="rounded-lg border border-gray-200 shadow-sm overflow-hidden dark:border-white/10">
-      <div class="grid grid-cols-7 gap-px border-b border-gray-200 bg-white text-center text-xs font-semibold text-gray-700 dark:border-white/10 dark:bg-gray-900 dark:text-gray-300">
-        <div :for={d <- ~w(Mon Tue Wed Thu Fri Sat Sun)} class="py-2">{d}</div>
+      <div class="grid grid-cols-5 gap-px border-b border-gray-200 bg-white text-center text-xs font-semibold text-gray-700 dark:border-white/10 dark:bg-gray-900 dark:text-gray-300">
+        <div :for={d <- ~w(Mon Tue Wed Thu Fri)} class="py-2">{d}</div>
       </div>
-      <div class="grid grid-cols-7 grid-rows-6 gap-px bg-gray-200 text-sm dark:bg-white/10">
+      <div class="grid grid-cols-5 grid-rows-6 gap-px bg-gray-200 text-sm dark:bg-white/10">
         <div
           :for={day <- @month_days}
           class={[
@@ -301,8 +302,9 @@ defmodule FlorinaWeb.CalendarLive do
   # ---- Week (time grid) -----------------------------------------------------
 
   defp week_view(assigns) do
-    days = Enum.map(0..6, &Date.add(week_monday(assigns.cursor), &1))
-    placed = place_week(assigns.items)
+    days = Enum.map(0..4, &Date.add(week_monday(assigns.cursor), &1))
+    weekday_items = Enum.filter(assigns.items, &(weekday(&1) <= 5))
+    placed = place_week(weekday_items)
     overflow = placed |> Enum.filter(& &1.hidden) |> Enum.frequencies_by(&weekday(&1.item))
 
     assigns =
@@ -313,7 +315,7 @@ defmodule FlorinaWeb.CalendarLive do
       <div class="isolate flex flex-auto flex-col overflow-auto bg-white dark:bg-gray-900">
         <div class="flex max-w-full flex-none flex-col">
           <div class="sticky top-0 z-30 flex-none bg-white shadow-sm ring-1 ring-black/5 sm:pr-8 dark:bg-gray-900 dark:ring-white/20">
-            <div class="grid grid-cols-7 text-sm/6 text-gray-500 sm:hidden dark:text-gray-400">
+            <div class="grid grid-cols-5 text-sm/6 text-gray-500 sm:hidden dark:text-gray-400">
               <button
                 :for={d <- @days}
                 type="button"
@@ -330,7 +332,7 @@ defmodule FlorinaWeb.CalendarLive do
               </button>
             </div>
 
-            <div class="-mr-px hidden grid-cols-7 divide-x divide-gray-100 border-r border-gray-100 text-sm/6 text-gray-500 sm:grid dark:divide-white/10 dark:border-white/10 dark:text-gray-400">
+            <div class="-mr-px hidden grid-cols-5 divide-x divide-gray-100 border-r border-gray-100 text-sm/6 text-gray-500 sm:grid dark:divide-white/10 dark:border-white/10 dark:text-gray-400">
               <div class="col-end-1 w-14"></div>
               <button
                 :for={d <- @days}
@@ -376,20 +378,18 @@ defmodule FlorinaWeb.CalendarLive do
                 <% end %>
               </div>
 
-              <div class="col-start-1 col-end-2 row-start-1 hidden grid-rows-1 divide-x divide-gray-100 sm:grid sm:grid-cols-7 dark:divide-white/5">
+              <div class="col-start-1 col-end-2 row-start-1 hidden grid-rows-1 divide-x divide-gray-100 sm:grid sm:grid-cols-5 dark:divide-white/5">
                 <div class="col-start-1 row-span-full"></div>
                 <div class="col-start-2 row-span-full"></div>
                 <div class="col-start-3 row-span-full"></div>
                 <div class="col-start-4 row-span-full"></div>
                 <div class="col-start-5 row-span-full"></div>
-                <div class="col-start-6 row-span-full"></div>
-                <div class="col-start-7 row-span-full"></div>
-                <div class="col-start-8 row-span-full w-8"></div>
+                <div class="col-start-6 row-span-full w-8"></div>
               </div>
 
               <ol
                 style="grid-template-rows: 1.75rem repeat(144, minmax(0, 1fr)) auto"
-                class="col-start-1 col-end-2 row-start-1 grid grid-cols-1 sm:grid-cols-7 sm:pr-8"
+                class="col-start-1 col-end-2 row-start-1 grid grid-cols-1 sm:grid-cols-5 sm:pr-8"
               >
                 <li
                   :for={p <- @placed}
