@@ -4,10 +4,7 @@ defmodule Florina.Integrations.Provider do
   and holds shared OAuth helpers: callback URI, signed state, JWT-claim decoding,
   and token-freshness/refresh.
   """
-  import Ecto.Query
-
   alias Florina.OAuth.Credential
-  alias Florina.TenantRepo
 
   @registry %{
     google: {:oauth_provider_google, Florina.Integrations.Providers.Google},
@@ -80,34 +77,12 @@ defmodule Florina.Integrations.Provider do
   connection. Persistence runs in the caller's tenant-pinned context.
   """
   def ensure_valid_token(%Credential{} = cred) do
+    # Refresh OUTSIDE any DB transaction — the external HTTP refresh must not run
+    # while holding a row lock / DB connection (that would starve the pool under
+    # load). Concurrent refreshes for one credential are rare and last-write-wins;
+    # Google refresh tokens don't rotate and Microsoft tolerates it.
     if token_expired?(cred) do
-      # Serialize refresh per-credential: two concurrent syncs for the same
-      # credential could both refresh, and the second write could persist a
-      # stale rotated refresh token. Lock the credential row, re-read expiry
-      # inside the txn (a peer may have just refreshed), and only one refresh
-      # happens — the latest token wins.
-      result =
-        TenantRepo.transaction(fn ->
-          locked =
-            from(c in Credential, where: c.id == ^cred.id, lock: "FOR UPDATE")
-            |> TenantRepo.one()
-
-          cond do
-            is_nil(locked) ->
-              refresh_and_persist(cred)
-
-            token_expired?(locked) ->
-              refresh_and_persist(locked)
-
-            true ->
-              {:ok, locked.access_token}
-          end
-        end)
-
-      case result do
-        {:ok, inner} -> inner
-        {:error, reason} -> {:error, {:token_refresh_failed, reason}}
-      end
+      refresh_and_persist(cred)
     else
       {:ok, cred.access_token}
     end
