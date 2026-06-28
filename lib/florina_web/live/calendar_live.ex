@@ -362,11 +362,11 @@ defmodule FlorinaWeb.CalendarLive do
             </div>
             <div class="grid flex-auto grid-cols-1 grid-rows-1">
               <div
-                style="grid-template-rows: repeat(48, minmax(3.5rem, 1fr))"
+                style="grid-template-rows: repeat(24, minmax(3.5rem, 1fr))"
                 class="col-start-1 col-end-2 row-start-1 grid divide-y divide-gray-100 dark:divide-white/5"
               >
                 <div class="row-end-1 h-7"></div>
-                <%= for h <- 0..23 do %>
+                <%= for h <- day_start_hour()..(day_end_hour() - 1) do %>
                   <div>
                     <div class="sticky left-0 z-20 -mt-2.5 -ml-14 w-14 pr-2 text-right text-xs/5 text-gray-400 dark:text-gray-500">
                       {hour_label(h)}
@@ -388,7 +388,7 @@ defmodule FlorinaWeb.CalendarLive do
               </div>
 
               <ol
-                style="grid-template-rows: 1.75rem repeat(288, minmax(0, 1fr)) auto"
+                style="grid-template-rows: 1.75rem repeat(144, minmax(0, 1fr)) auto"
                 class="col-start-1 col-end-2 row-start-1 grid grid-cols-1 sm:grid-cols-7 sm:pr-8"
               >
                 <li
@@ -741,16 +741,38 @@ defmodule FlorinaWeb.CalendarLive do
     "left: #{left}%; width: calc(#{width}% - 4px)"
   end
 
+  # Visible window for the week time grid (no point rendering 3 AM / 11 PM).
+  defp day_start_hour, do: 8
+  defp day_end_hour, do: 20
+
   defp grid_row(item) do
-    s = Florina.Tz.local(item.start_time)
-    row = 2 + div(s.hour * 60 + s.minute, 5)
-    "grid-row: #{row} / span #{span_rows(item)}"
+    start_min = minutes_into_window(item.start_time)
+    row = 2 + div(start_min, 5)
+    "grid-row: #{row} / span #{span_rows(item, start_min)}"
   end
 
-  defp span_rows(%{end_time: %DateTime{} = e, start_time: s}),
-    do: max(div(max(DateTime.diff(e, s, :minute), 5), 5), 6)
+  # Minutes from the window start (8 AM), clamped into the 8 AM–8 PM window.
+  defp minutes_into_window(dt) do
+    s = Florina.Tz.local(dt)
+    clamp(s.hour * 60 + s.minute - day_start_hour() * 60, 0, window_minutes())
+  end
 
-  defp span_rows(_), do: 6
+  defp window_minutes, do: (day_end_hour() - day_start_hour()) * 60
+
+  defp span_rows(item, start_min) do
+    end_min =
+      case item.end_time do
+        %DateTime{} = e -> minutes_into_window(e)
+        _ -> start_min + 30
+      end
+
+    # at least 30 min tall, never past the bottom of the window
+    span = max(div(end_min - start_min, 5), 6)
+    remaining = max(div(window_minutes(), 5) - div(start_min, 5), 1)
+    min(span, remaining)
+  end
+
+  defp clamp(v, lo, hi), do: v |> max(lo) |> min(hi)
 
   defp col_class(1), do: "sm:col-start-1"
   defp col_class(2), do: "sm:col-start-2"
