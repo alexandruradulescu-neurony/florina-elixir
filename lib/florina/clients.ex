@@ -106,6 +106,18 @@ defmodule Florina.Clients do
   Returns `{:ok, client}` or `{:error, changeset}`.
   """
   def delete(%Client{} = client) do
-    TenantRepo.delete(client)
+    # FKs from visits / generation-runs are :restrict, so deleting a client that
+    # still has history raises at the DB. Map that to a clean {:error, changeset}.
+    client
+    |> Ecto.Changeset.change()
+    |> Ecto.Changeset.foreign_key_constraint(:id,
+      name: :voice_visit_client_id_fkey,
+      message: "has related meetings"
+    )
+    |> Ecto.Changeset.foreign_key_constraint(:id,
+      name: :voice_generationrun_client_id_fkey,
+      message: "has related generation runs"
+    )
+    |> TenantRepo.delete()
   end
 end

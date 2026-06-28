@@ -43,8 +43,19 @@ defmodule FlorinaWeb.AuthController do
     # schema prefix and assign it so the rest of the flow works as before.
     with {:ok, %{tenant_slug: slug, provider: ^provider}} <- Provider.verify_state(conn, state),
          %Tenants.Tenant{active: true, status: "active"} = tenant <- Tenants.get_by_slug(slug) do
+      # Pin the tenant schema for this request, and guarantee it's cleared once the
+      # response is sent so a pooled connection process can't carry it into a later,
+      # unrelated request (mirrors FlorinaWeb.Plugs.ResolveTenant).
+      conn =
+        conn
+        |> assign(:tenant, tenant)
+        |> register_before_send(fn c ->
+          Process.delete(:tenant_prefix)
+          c
+        end)
+
       Process.put(:tenant_prefix, Tenants.schema_prefix(tenant))
-      complete_sign_in(assign(conn, :tenant, tenant), p, provider, code)
+      complete_sign_in(conn, p, provider, code)
     else
       _ ->
         Logger.warning("[AuthController] callback with invalid/forged state or unknown tenant")

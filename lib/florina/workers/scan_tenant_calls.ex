@@ -193,7 +193,11 @@ defmodule Florina.Workers.ScanTenantCalls do
   """
   def phase_dial_count(visit_id, phase) do
     TenantRepo.aggregate(
-      from(ca in CallAttempt, where: ca.visit_id == ^visit_id and ca.phase == ^phase),
+      from(ca in CallAttempt,
+        where:
+          ca.visit_id == ^visit_id and ca.phase == ^phase and
+            ca.status not in ["FAILED", "NO_ANSWER"]
+      ),
       :count
     ) || 0
   end

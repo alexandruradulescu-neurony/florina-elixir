@@ -79,9 +79,14 @@ defmodule Florina.Anthropic do
         )
 
       case result do
-        {:ok, %{status: 200}} -> :ok
-        {:ok, %{status: status, body: resp_body}} -> {:error, {:http, status, resp_body}}
-        {:error, reason} -> {:error, reason}
+        {:ok, %{status: 200}} ->
+          :ok
+
+        {:ok, %{status: status, body: resp_body}} ->
+          {:error, {:http, status, resp_body |> inspect() |> String.slice(0, 300)}}
+
+        {:error, reason} ->
+          {:error, reason}
       end
     end
   end
@@ -133,7 +138,7 @@ defmodule Florina.Anthropic do
            }}
 
         {:ok, %{status: status, body: resp_body}} ->
-          {:error, {:http, status, resp_body}}
+          {:error, {:http, status, resp_body |> inspect() |> String.slice(0, 300)}}
 
         {:error, reason} ->
           {:error, reason}

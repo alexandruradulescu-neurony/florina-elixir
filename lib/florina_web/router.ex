@@ -105,11 +105,6 @@ defmodule FlorinaWeb.Router do
     live "/manage/logs", Manage.LogsLive
   end
 
-  scope "/", FlorinaWeb do
-    pipe_through [:browser, :dashboard_auth]
-    live "/chat", ChatLive
-  end
-
   # Admin login / logout — browser only, no auth gate (these ARE the gate)
   scope "/admin", FlorinaWeb.Admin do
     pipe_through [:browser]

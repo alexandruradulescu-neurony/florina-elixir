@@ -56,5 +56,6 @@ defmodule Florina.Accounts.User do
     |> validate_length(:username, max: 150)
     |> validate_length(:phone_number, max: 20)
     |> unique_constraint(:username)
+    |> unique_constraint(:email, name: :voice_user_email_lower_index)
   end
 end

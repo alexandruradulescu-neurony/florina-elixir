@@ -231,8 +231,13 @@ defmodule Florina.Integrations.ElevenLabs do
   end
 
   defp extract_error(body) when is_map(body) do
-    body["detail"] || body["message"] || body["error"] || inspect(body)
+    (body["detail"] || body["message"] || body["error"] || inspect(body)) |> redact()
   end
 
-  defp extract_error(body), do: inspect(body)
+  defp extract_error(body), do: body |> inspect() |> redact()
+
+  # Never let a full provider response body (which can echo the request, incl.
+  # auth headers) reach the logs — keep only a short, bounded snippet.
+  defp redact(value) when is_binary(value), do: String.slice(value, 0, 300)
+  defp redact(value), do: value |> inspect() |> String.slice(0, 300)
 end

@@ -58,10 +58,21 @@ defmodule FlorinaWeb.Manage.ClientLive do
     client = socket.assigns.client
 
     if Visits.list_for_client(client.id) == [] do
-      {:ok, _} = Clients.delete(client)
+      case Clients.delete(client) do
+        {:ok, _} ->
+          {:noreply,
+           socket
+           |> put_flash(:info, "Client deleted.")
+           |> push_navigate(to: clients_path(socket))}
 
-      {:noreply,
-       socket |> put_flash(:info, "Client deleted.") |> push_navigate(to: clients_path(socket))}
+        {:error, _changeset} ->
+          {:noreply,
+           put_flash(
+             socket,
+             :error,
+             "This client still has history (calls or generation runs) — can't delete it."
+           )}
+      end
     else
       {:noreply,
        put_flash(socket, :error, "This client has meetings — delete or reassign those first.")}

@@ -46,6 +46,9 @@ defmodule FlorinaWeb.Endpoint do
   plug Plug.Parsers,
     parsers: [:urlencoded, :multipart, :json],
     pass: ["*/*"],
+    # Bound the request body (incl. the raw-body capture used by the webhook
+    # signature check) so an unauthenticated POST can't force unbounded buffering.
+    length: 1_000_000,
     body_reader: {FlorinaWeb.RawBodyReader, :read_body, []},
     json_decoder: Phoenix.json_library()
 
