@@ -12,19 +12,27 @@ defmodule FlorinaWeb.Admin.IndexLive do
     ~H"""
     <Layouts.app flash={@flash}>
       <div class="max-w-xl mx-auto">
-        <h1 class="text-2xl font-semibold mb-6">Operator Admin</h1>
+        <h1 class="text-2xl font-semibold mb-6 text-gray-900 dark:text-white">Operator Admin</h1>
         <ul class="space-y-3">
           <li>
-            <a href="/admin/tenants" class="text-blue-600 hover:underline text-lg font-medium">
+            <a
+              href="/admin/tenants"
+              class="text-indigo-600 hover:text-indigo-500 text-lg font-medium dark:text-indigo-400"
+            >
               Tenants
             </a>
-            <p class="text-sm text-gray-500">Register and manage tenants, monitor provisioning.</p>
+            <p class="text-sm text-gray-500 dark:text-gray-400">
+              Register and manage tenants, monitor provisioning.
+            </p>
           </li>
           <li>
-            <a href="/admin/config" class="text-blue-600 hover:underline text-lg font-medium">
+            <a
+              href="/admin/config"
+              class="text-indigo-600 hover:text-indigo-500 text-lg font-medium dark:text-indigo-400"
+            >
               Central Config
             </a>
-            <p class="text-sm text-gray-500">
+            <p class="text-sm text-gray-500 dark:text-gray-400">
               Edit canonical prompts, methodologies, scenarios, and settings. Publish to all tenants.
             </p>
           </li>

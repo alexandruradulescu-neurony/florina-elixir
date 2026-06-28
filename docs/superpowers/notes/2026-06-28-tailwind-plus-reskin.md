@@ -61,12 +61,12 @@ Agent:
 - [x] clients_live (agent client directory)
 
 Admin / other:
-- [ ] admin/index_live
+- [x] admin/index_live
 - [ ] admin/tenants_live
 - [ ] admin/agents_live
 - [ ] admin/config_live
-- [ ] tenant_chat_live
+- [x] tenant_chat_live
 
 Auth/standalone (use `Layouts.app`, not the agent shell) — revisit:
 - [ ] login / logged-out / home (controller-rendered)
-- [ ] `Layouts.app` (the non-agent shell)
+- [x] `Layouts.app` (the non-agent shell)

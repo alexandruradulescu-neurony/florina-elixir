@@ -66,17 +66,25 @@ defmodule FlorinaWeb.TenantChatLive do
     ~H"""
     <Layouts.agent_app flash={@flash} tenant={@tenant} current_agent={@current_agent} active={:chat}>
       <div class="mb-6">
-        <h1 class="text-2xl font-semibold">Assistant — {@tenant.name}</h1>
-        <p class="text-sm text-base-content/60">
+        <h1 class="text-2xl font-semibold text-gray-900 dark:text-white">
+          Assistant — {@tenant.name}
+        </h1>
+        <p class="text-sm text-gray-500 dark:text-gray-400">
           Grounded in {@tenant.name}'s clients, visits and calls.
         </p>
       </div>
       <div id="messages" class="space-y-3 mb-4">
-        <div :for={m <- @messages} class={["p-3 rounded", m.role == "user" && "bg-base-200"]}>
-          <span class="font-medium">{m.role}:</span> {m.content}
+        <div
+          :for={m <- @messages}
+          class={[
+            "p-3 rounded text-gray-700 dark:text-gray-300",
+            m.role == "user" && "bg-gray-100 dark:bg-white/10"
+          ]}
+        >
+          <span class="font-medium text-gray-900 dark:text-white">{m.role}:</span> {m.content}
         </div>
-        <div :if={@streaming != nil} class="p-3 rounded">
-          <span class="font-medium">assistant:</span> {@streaming}
+        <div :if={@streaming != nil} class="p-3 rounded text-gray-700 dark:text-gray-300">
+          <span class="font-medium text-gray-900 dark:text-white">assistant:</span> {@streaming}
         </div>
       </div>
       <form id="chat-form" phx-submit="send">
@@ -86,14 +94,11 @@ defmodule FlorinaWeb.TenantChatLive do
           value={@input}
           autocomplete="off"
           placeholder={"Ask about #{@tenant.name}'s clients, visits or calls…"}
-          class="w-full rounded-md border border-base-300 bg-base-100 px-3 py-2 text-sm text-base-content focus:outline-none focus:ring-2 focus:ring-primary/50"
+          class="w-full rounded-md bg-white px-3 py-1.5 text-sm text-gray-900 outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:focus:outline-indigo-500"
         />
-        <button
-          type="submit"
-          class="mt-2 inline-flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-content hover:opacity-90 disabled:opacity-50 cursor-pointer"
-        >
-          Send
-        </button>
+        <div class="mt-2">
+          <.button type="submit" variant="primary">Send</.button>
+        </div>
       </form>
     </Layouts.agent_app>
     """

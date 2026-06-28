@@ -37,8 +37,8 @@ defmodule FlorinaWeb.Layouts do
 
   def app(assigns) do
     ~H"""
-    <header class="flex items-center justify-between border-b border-base-300 bg-base-100 px-4 py-3 sm:px-6 lg:px-8">
-      <a href="/" class="text-lg font-semibold text-base-content">Florina</a>
+    <header class="flex items-center justify-between border-b border-gray-200 bg-white px-4 py-3 sm:px-6 lg:px-8 dark:border-white/10 dark:bg-gray-900">
+      <a href="/" class="text-lg font-semibold text-gray-900 dark:text-white">Florina</a>
       <.theme_toggle />
     </header>
 
