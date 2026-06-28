@@ -301,7 +301,12 @@ defmodule FlorinaWeb.CalendarLive do
   # ---- Week (time grid) -----------------------------------------------------
 
   defp week_view(assigns) do
-    assigns = assign(assigns, :days, Enum.map(0..6, &Date.add(week_monday(assigns.cursor), &1)))
+    days = Enum.map(0..6, &Date.add(week_monday(assigns.cursor), &1))
+    placed = place_week(assigns.items)
+    overflow = placed |> Enum.filter(& &1.hidden) |> Enum.frequencies_by(&weekday(&1.item))
+
+    assigns =
+      assign(assigns, days: days, placed: Enum.reject(placed, & &1.hidden), overflow: overflow)
 
     ~H"""
     <div class="flex h-[75vh] flex-col rounded-lg border border-gray-200 overflow-hidden dark:border-white/10">
@@ -341,6 +346,12 @@ defmodule FlorinaWeb.CalendarLive do
                     (today?(d) && "rounded-full bg-indigo-600 text-white dark:bg-indigo-500") ||
                       "text-gray-900 dark:text-white"
                   ]}>{d.day}</span>
+                  <span
+                    :if={@overflow[Date.day_of_week(d)]}
+                    class="ml-1 rounded-full bg-gray-100 px-1.5 text-[0.625rem] font-semibold text-gray-600 dark:bg-white/10 dark:text-gray-300"
+                  >
+                    +{@overflow[Date.day_of_week(d)]}
+                  </span>
                 </span>
               </button>
             </div>
@@ -381,25 +392,26 @@ defmodule FlorinaWeb.CalendarLive do
                 class="col-start-1 col-end-2 row-start-1 grid grid-cols-1 sm:grid-cols-7 sm:pr-8"
               >
                 <li
-                  :for={item <- @items}
-                  style={grid_row(item)}
-                  class={["relative mt-px flex", col_class(weekday(item))]}
+                  :for={p <- @placed}
+                  style={grid_row(p.item)}
+                  class={["relative mt-px flex", col_class(weekday(p.item))]}
                 >
-                  <% c = ev_color(item) %>
+                  <% c = ev_color(p.item) %>
                   <.event_link
-                    item={item}
+                    item={p.item}
                     slug={@tenant.slug}
+                    style={lane_style(p)}
                     class={[
-                      "group absolute inset-1 flex flex-col overflow-y-auto rounded-lg p-2 text-xs/5",
+                      "group absolute inset-y-1 flex flex-col overflow-y-auto rounded-lg p-1.5 text-xs/5",
                       c.box
                     ]}
                   >
                     <div class="order-1 flex items-center gap-1">
-                      <.avatar agent={item.agent} class="size-4 text-[0.5rem]" />
-                      <span class={["truncate font-semibold", c.title]}>{item.title}</span>
-                      <.dots :if={@manager?} pre={item.pre} post={item.post} />
+                      <.avatar agent={p.item.agent} class="size-4 text-[0.5rem]" />
+                      <span class={["truncate font-semibold", c.title]}>{p.item.title}</span>
+                      <.dots :if={@manager?} pre={p.item.pre} post={p.item.post} />
                     </div>
-                    <p class={c.time}>{fmt(item.start_time)}</p>
+                    <p class={c.time}>{fmt(p.item.start_time)}</p>
                   </.event_link>
                 </li>
               </ol>
@@ -472,6 +484,7 @@ defmodule FlorinaWeb.CalendarLive do
   attr :item, :map, required: true
   attr :slug, :string, required: true
   attr :class, :any, default: nil
+  attr :style, :string, default: nil
   slot :inner_block, required: true
 
   # Wrap meeting content in a link (manager Visits) or a plain div (agent events).
@@ -481,10 +494,11 @@ defmodule FlorinaWeb.CalendarLive do
       :if={@item.visit_id}
       navigate={"/t/#{@slug}/manage/meetings/#{@item.visit_id}"}
       class={@class}
+      style={@style}
     >
       {render_slot(@inner_block)}
     </.link>
-    <div :if={is_nil(@item.visit_id)} class={@class}>{render_slot(@inner_block)}</div>
+    <div :if={is_nil(@item.visit_id)} class={@class} style={@style}>{render_slot(@inner_block)}</div>
     """
   end
 
@@ -658,6 +672,74 @@ defmodule FlorinaWeb.CalendarLive do
 
   defp weekday(item),
     do: item.start_time |> Florina.Tz.local() |> DateTime.to_date() |> Date.day_of_week()
+
+  # Side-by-side placement: per weekday, group overlapping meetings into clusters,
+  # assign each a lane, and mark lanes ≥ 3 hidden (surfaced as a "+N" on the header).
+  defp place_week(items) do
+    items
+    |> Enum.group_by(&weekday/1)
+    |> Enum.flat_map(fn {_wd, day_items} -> lanes_for_day(day_items) end)
+  end
+
+  defp lanes_for_day(items) do
+    items
+    |> Enum.sort_by(& &1.start_time, DateTime)
+    |> cluster([])
+    |> Enum.flat_map(&assign_lanes/1)
+  end
+
+  defp cluster([], acc), do: Enum.reverse(acc)
+
+  defp cluster([ev | rest], acc) do
+    {group, remaining} = take_overlapping(rest, [ev], ev_end(ev))
+    cluster(remaining, [group | acc])
+  end
+
+  defp take_overlapping([ev | rest], group, group_end) do
+    if DateTime.compare(ev.start_time, group_end) == :lt do
+      take_overlapping(rest, [ev | group], max_dt(group_end, ev_end(ev)))
+    else
+      {Enum.reverse(group), [ev | rest]}
+    end
+  end
+
+  defp take_overlapping([], group, _group_end), do: {Enum.reverse(group), []}
+
+  defp assign_lanes(group) do
+    {placed, lanes} =
+      Enum.reduce(group, {[], %{}}, fn ev, {placed, lanes} ->
+        idx = free_lane(lanes, ev.start_time)
+        {[{ev, idx} | placed], Map.put(lanes, idx, ev_end(ev))}
+      end)
+
+    denom = map_size(lanes)
+
+    for {ev, idx} <- Enum.reverse(placed),
+        do: %{item: ev, lane: idx, denom: denom, hidden: idx >= 3}
+  end
+
+  defp free_lane(lanes, start) do
+    free =
+      for {i, e} <- lanes, DateTime.compare(e, start) != :gt, do: i
+
+    case free do
+      [] -> map_size(lanes)
+      list -> Enum.min(list)
+    end
+  end
+
+  defp ev_end(%{end_time: %DateTime{} = e}), do: e
+  defp ev_end(%{start_time: s}), do: DateTime.add(s, 30 * 60, :second)
+
+  defp max_dt(a, b), do: (DateTime.compare(a, b) == :lt && b) || a
+
+  # Horizontal lane position within the day column (capped at 3 visible lanes).
+  defp lane_style(%{lane: lane, denom: denom}) do
+    vdenom = min(denom, 3)
+    left = lane * 100 / vdenom
+    width = 100 / vdenom
+    "left: #{left}%; width: calc(#{width}% - 4px)"
+  end
 
   defp grid_row(item) do
     s = Florina.Tz.local(item.start_time)
