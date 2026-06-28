@@ -1,12 +1,18 @@
 defmodule FlorinaWeb.CalendarLive do
   @moduledoc """
-  Week-view calendar grid (Mon–Sun columns, time-of-day rows) — events are
-  positioned on a 5-minute time grid by their start/end time.
+  Calendar with Day / Week / Month views.
 
-  Managers see **client meetings only** (Visits) across the team — the things
-  Florina acts on — each clickable through to the meeting cockpit, with a
-  per-agent filter. Agents see their **full personal calendar** (every synced
-  event), since the whole schedule is useful context for them.
+  Managers see **client meetings only** (Visits) across the team — each meeting
+  carries the agent's avatar (initials) and two status dots (pre-call / post-call),
+  and clicks through to the meeting cockpit; a per-agent filter narrows the view.
+  Agents see their **full personal calendar** (every synced event).
+
+  Views:
+    * **Day** — a mini-month picker + a meeting list (handles many same-time meetings).
+    * **Week** — a Mon–Sun time grid; events placed on a 5-minute row grid.
+    * **Month** — a day-cell grid with up to 3 meeting chips per day, then "+N more".
+
+  Crowded days overflow into the Day view, which is a list and never runs out of room.
   """
   use FlorinaWeb, :live_view
 
@@ -15,9 +21,20 @@ defmodule FlorinaWeb.CalendarLive do
 
   alias Florina.{Accounts, Authz, CalendarEvents, Visits}
 
+  # Deterministic avatar colors, indexed by agent id (literal classes so Tailwind compiles them).
+  @palettes [
+    "bg-red-100 text-red-700 dark:bg-red-400/20 dark:text-red-300",
+    "bg-orange-100 text-orange-700 dark:bg-orange-400/20 dark:text-orange-300",
+    "bg-amber-100 text-amber-700 dark:bg-amber-400/20 dark:text-amber-300",
+    "bg-green-100 text-green-700 dark:bg-green-400/20 dark:text-green-300",
+    "bg-teal-100 text-teal-700 dark:bg-teal-400/20 dark:text-teal-300",
+    "bg-blue-100 text-blue-700 dark:bg-blue-400/20 dark:text-blue-300",
+    "bg-indigo-100 text-indigo-700 dark:bg-indigo-400/20 dark:text-indigo-300",
+    "bg-purple-100 text-purple-700 dark:bg-purple-400/20 dark:text-purple-300"
+  ]
+
   @impl true
   def mount(_params, _session, socket) do
-    monday = week_monday(Florina.Tz.today())
     agent = socket.assigns.current_agent
     manager? = Authz.manager?(agent)
 
@@ -27,168 +44,58 @@ defmodule FlorinaWeb.CalendarLive do
      |> assign(:scope, Authz.scope(agent))
      |> assign(:agents, (manager? && Accounts.list_agents()) || [])
      |> assign(:filter_agent_id, nil)
-     |> load_week(monday)}
+     |> assign(:view, :week)
+     |> assign(:cursor, Florina.Tz.today())
+     |> load()}
   end
+
+  # ---------------------------------------------------------------------------
+  # Events
+  # ---------------------------------------------------------------------------
 
   @impl true
   def handle_event("filter", %{"agent_id" => id}, socket),
     do: {:noreply, assign(socket, :filter_agent_id, parse_id(id))}
 
-  def handle_event("prev_week", _params, socket),
-    do: {:noreply, load_week(socket, Date.add(socket.assigns.monday, -7))}
+  def handle_event("set_view", %{"view" => v}, socket)
+      when v in ["day", "week", "month"],
+      do: {:noreply, socket |> assign(:view, String.to_existing_atom(v)) |> load()}
 
-  def handle_event("next_week", _params, socket),
-    do: {:noreply, load_week(socket, Date.add(socket.assigns.monday, 7))}
+  def handle_event("today", _params, socket),
+    do: {:noreply, socket |> assign(:cursor, Florina.Tz.today()) |> load()}
 
-  def handle_event("this_week", _params, socket),
-    do: {:noreply, load_week(socket, week_monday(Florina.Tz.today()))}
+  def handle_event("prev", _params, socket),
+    do:
+      {:noreply,
+       socket |> assign(:cursor, shift(socket.assigns.view, socket.assigns.cursor, -1)) |> load()}
 
-  @impl true
-  def render(assigns) do
-    ~H"""
-    <Layouts.agent_app
-      flash={@flash}
-      tenant={@tenant}
-      current_agent={@current_agent}
-      active={:calendar}
-    >
-      <% items = Enum.filter(@items, &(is_nil(@filter_agent_id) or &1.agent_id == @filter_agent_id)) %>
-      <div class="flex flex-wrap items-center justify-between gap-3 mb-1">
-        <div>
-          <h1 class="text-2xl font-semibold text-gray-900 dark:text-white">Calendar</h1>
-          <p class="text-sm text-gray-500 dark:text-gray-400">
-            {if @manager?, do: "Client meetings across the team.", else: "Your schedule."}
-          </p>
-        </div>
-        <div class="flex items-center gap-2">
-          <form :if={@manager?} phx-change="filter">
-            <select
-              name="agent_id"
-              class="rounded-md bg-white py-1.5 pl-3 pr-8 text-sm text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:focus:outline-indigo-500"
-            >
-              <option value="">All agents</option>
-              <option :for={a <- @agents} value={a.id} selected={@filter_agent_id == a.id}>
-                {agent_label(a)}
-              </option>
-            </select>
-          </form>
-          <button phx-click="prev_week" class={nav_btn()} aria-label="Previous week">←</button>
-          <button phx-click="this_week" class={nav_btn()}>{week_range_label(@monday)}</button>
-          <button phx-click="next_week" class={nav_btn()} aria-label="Next week">→</button>
-        </div>
-      </div>
+  def handle_event("next", _params, socket),
+    do:
+      {:noreply,
+       socket |> assign(:cursor, shift(socket.assigns.view, socket.assigns.cursor, 1)) |> load()}
 
-      <%!-- Week grid (adapted from Tailwind Plus "Week view"). Events are placed on a
-           288-row time grid via inline grid-row; columns 1–7 are Mon–Sun. --%>
-      <div class="mt-4 flex h-[75vh] flex-col rounded-lg border border-gray-200 overflow-hidden dark:border-white/10">
-        <div class="isolate flex flex-auto flex-col overflow-auto bg-white dark:bg-gray-900">
-          <div class="flex max-w-full flex-none flex-col">
-            <%!-- Day headers --%>
-            <div class="sticky top-0 z-30 flex-none bg-white shadow-sm ring-1 ring-black/5 sm:pr-8 dark:bg-gray-900 dark:ring-white/20">
-              <div class="grid grid-cols-7 text-sm/6 text-gray-500 sm:hidden dark:text-gray-400">
-                <span :for={d <- @days} class="flex flex-col items-center pt-2 pb-3">
-                  {String.first(Calendar.strftime(d, "%A"))}
-                  <span class={[
-                    "mt-1 flex size-8 items-center justify-center font-semibold",
-                    (today?(d) && "rounded-full bg-indigo-600 text-white dark:bg-indigo-500") ||
-                      "text-gray-900 dark:text-white"
-                  ]}>{d.day}</span>
-                </span>
-              </div>
+  def handle_event("prev_month", _params, socket),
+    do: {:noreply, socket |> assign(:cursor, add_months(socket.assigns.cursor, -1)) |> load()}
 
-              <div class="-mr-px hidden grid-cols-7 divide-x divide-gray-100 border-r border-gray-100 text-sm/6 text-gray-500 sm:grid dark:divide-white/10 dark:border-white/10 dark:text-gray-400">
-                <div class="col-end-1 w-14"></div>
-                <div :for={d <- @days} class="flex items-center justify-center py-3">
-                  <span class="flex items-baseline">
-                    {Calendar.strftime(d, "%a")}
-                    <span class={[
-                      "ml-1.5 flex size-8 items-center justify-center font-semibold",
-                      (today?(d) && "rounded-full bg-indigo-600 text-white dark:bg-indigo-500") ||
-                        "text-gray-900 dark:text-white"
-                    ]}>{d.day}</span>
-                  </span>
-                </div>
-              </div>
-            </div>
+  def handle_event("next_month", _params, socket),
+    do: {:noreply, socket |> assign(:cursor, add_months(socket.assigns.cursor, 1)) |> load()}
 
-            <div class="flex flex-auto">
-              <div class="sticky left-0 z-10 w-14 flex-none bg-white ring-1 ring-gray-100 dark:bg-gray-900 dark:ring-white/5">
-              </div>
-              <div class="grid flex-auto grid-cols-1 grid-rows-1">
-                <%!-- Horizontal hour lines --%>
-                <div
-                  style="grid-template-rows: repeat(48, minmax(3.5rem, 1fr))"
-                  class="col-start-1 col-end-2 row-start-1 grid divide-y divide-gray-100 dark:divide-white/5"
-                >
-                  <div class="row-end-1 h-7"></div>
-                  <%= for h <- 0..23 do %>
-                    <div>
-                      <div class="sticky left-0 z-20 -mt-2.5 -ml-14 w-14 pr-2 text-right text-xs/5 text-gray-400 dark:text-gray-500">
-                        {hour_label(h)}
-                      </div>
-                    </div>
-                    <div></div>
-                  <% end %>
-                </div>
+  def handle_event("pick_day", %{"date" => iso}, socket) do
+    case Date.from_iso8601(iso) do
+      {:ok, date} ->
+        {:noreply, socket |> assign(:cursor, date) |> assign(:view, :day) |> load()}
 
-                <%!-- Vertical day lines --%>
-                <div class="col-start-1 col-end-2 row-start-1 hidden grid-rows-1 divide-x divide-gray-100 sm:grid sm:grid-cols-7 dark:divide-white/5">
-                  <div class="col-start-1 row-span-full"></div>
-                  <div class="col-start-2 row-span-full"></div>
-                  <div class="col-start-3 row-span-full"></div>
-                  <div class="col-start-4 row-span-full"></div>
-                  <div class="col-start-5 row-span-full"></div>
-                  <div class="col-start-6 row-span-full"></div>
-                  <div class="col-start-7 row-span-full"></div>
-                  <div class="col-start-8 row-span-full w-8"></div>
-                </div>
-
-                <%!-- Events --%>
-                <ol
-                  style="grid-template-rows: 1.75rem repeat(288, minmax(0, 1fr)) auto"
-                  class="col-start-1 col-end-2 row-start-1 grid grid-cols-1 sm:grid-cols-7 sm:pr-8"
-                >
-                  <li
-                    :for={item <- items}
-                    style={grid_row(item)}
-                    class={["relative mt-px flex", col_class(weekday(item))]}
-                  >
-                    <% c = ev_color(item) %>
-                    <.link
-                      :if={item.visit_id}
-                      navigate={"/t/#{@tenant.slug}/manage/meetings/#{item.visit_id}"}
-                      class={[
-                        "group absolute inset-1 flex flex-col overflow-y-auto rounded-lg p-2 text-xs/5",
-                        c.box
-                      ]}
-                    >
-                      <p class={["order-1 font-semibold", c.title]}>{item.title}</p>
-                      <p class={c.time}>{fmt(item.start_time)}</p>
-                    </.link>
-                    <div
-                      :if={is_nil(item.visit_id)}
-                      class={[
-                        "absolute inset-1 flex flex-col overflow-y-auto rounded-lg p-2 text-xs/5",
-                        c.box
-                      ]}
-                    >
-                      <p class={["order-1 font-semibold", c.title]}>{item.title}</p>
-                      <p class={c.time}>{fmt(item.start_time)}</p>
-                    </div>
-                  </li>
-                </ol>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </Layouts.agent_app>
-    """
+      _ ->
+        {:noreply, socket}
+    end
   end
 
-  defp load_week(socket, monday) do
-    from_dt = DateTime.new!(monday, ~T[00:00:00], "Etc/UTC")
-    to_dt = DateTime.new!(Date.add(monday, 6), ~T[23:59:59], "Etc/UTC")
+  # ---------------------------------------------------------------------------
+  # Data loading
+  # ---------------------------------------------------------------------------
+
+  defp load(socket) do
+    {from_dt, to_dt} = range_for(socket.assigns.view, socket.assigns.cursor)
 
     items =
       if socket.assigns.manager? do
@@ -200,45 +107,496 @@ defmodule FlorinaWeb.CalendarLive do
         |> Enum.map(&event_item/1)
       end
 
-    # Full Mon–Sun week as columns. Past *unhandled* meetings are already retired
-    # to :MISSED (excluded by list_in_range), so past days only show real history.
-    days = Enum.map(0..6, &Date.add(monday, &1))
-
-    socket
-    |> assign(:monday, monday)
-    |> assign(:days, days)
-    |> assign(:items, items)
+    assign(socket, :items, items)
   end
 
-  # Manager item: a client meeting (Visit) — linked, with client + agent + status.
+  defp range_for(:day, cursor), do: Florina.Tz.day_bounds(cursor)
+
+  defp range_for(:week, cursor) do
+    monday = week_monday(cursor)
+    {start, _} = Florina.Tz.day_bounds(monday)
+    {_, finish} = Florina.Tz.day_bounds(Date.add(monday, 6))
+    {start, finish}
+  end
+
+  defp range_for(:month, cursor) do
+    days = month_grid_days(cursor)
+    {start, _} = Florina.Tz.day_bounds(hd(days))
+    {_, finish} = Florina.Tz.day_bounds(List.last(days))
+    {start, finish}
+  end
+
+  # ---------------------------------------------------------------------------
+  # Render
+  # ---------------------------------------------------------------------------
+
+  @impl true
+  def render(assigns) do
+    ~H"""
+    <Layouts.agent_app
+      flash={@flash}
+      tenant={@tenant}
+      current_agent={@current_agent}
+      active={:calendar}
+    >
+      <% items = Enum.filter(@items, &(is_nil(@filter_agent_id) or &1.agent_id == @filter_agent_id)) %>
+
+      <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <div>
+          <h1 class="text-2xl font-semibold text-gray-900 dark:text-white">
+            {title(@view, @cursor)}
+          </h1>
+          <p class="text-sm text-gray-500 dark:text-gray-400">
+            {if @manager?, do: "Client meetings across the team.", else: "Your schedule."}
+          </p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <form :if={@manager?} phx-change="filter">
+            <select
+              name="agent_id"
+              class="rounded-md bg-white py-1.5 pl-3 pr-8 text-sm text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:focus:outline-indigo-500"
+            >
+              <option value="">All agents</option>
+              <option :for={a <- @agents} value={a.id} selected={@filter_agent_id == a.id}>
+                {agent_label(a)}
+              </option>
+            </select>
+          </form>
+
+          <%!-- View switcher --%>
+          <div class="inline-flex">
+            <button
+              phx-click="set_view"
+              phx-value-view="day"
+              class={[seg(@view == :day), "rounded-l-md"]}
+            >
+              Day
+            </button>
+            <button phx-click="set_view" phx-value-view="week" class={[seg(@view == :week), "-ml-px"]}>
+              Week
+            </button>
+            <button
+              phx-click="set_view"
+              phx-value-view="month"
+              class={[seg(@view == :month), "-ml-px rounded-r-md"]}
+            >
+              Month
+            </button>
+          </div>
+
+          <button phx-click="prev" class={nav_btn()} aria-label="Previous">←</button>
+          <button phx-click="today" class={nav_btn()}>Today</button>
+          <button phx-click="next" class={nav_btn()} aria-label="Next">→</button>
+        </div>
+      </div>
+
+      {render_view(assign(assigns, :items, items))}
+    </Layouts.agent_app>
+    """
+  end
+
+  defp render_view(%{view: :month} = assigns), do: month_view(assigns)
+  defp render_view(%{view: :day} = assigns), do: day_view(assigns)
+  defp render_view(assigns), do: week_view(assigns)
+
+  # ---- Month ----------------------------------------------------------------
+
+  defp month_view(assigns) do
+    assigns = assign(assigns, :month_days, month_grid_days(assigns.cursor))
+
+    ~H"""
+    <div class="rounded-lg border border-gray-200 shadow-sm overflow-hidden dark:border-white/10">
+      <div class="grid grid-cols-7 gap-px border-b border-gray-200 bg-white text-center text-xs font-semibold text-gray-700 dark:border-white/10 dark:bg-gray-900 dark:text-gray-300">
+        <div :for={d <- ~w(Mon Tue Wed Thu Fri Sat Sun)} class="py-2">{d}</div>
+      </div>
+      <div class="grid grid-cols-7 grid-rows-6 gap-px bg-gray-200 text-sm dark:bg-white/10">
+        <div
+          :for={day <- @month_days}
+          class={[
+            "relative min-h-28 px-2 py-1.5",
+            (in_month?(day, @cursor) && "bg-white dark:bg-gray-900") ||
+              "bg-gray-50 text-gray-400 dark:bg-gray-900/60"
+          ]}
+        >
+          <% day_items = items_on(@items, day) %>
+          <button
+            phx-click="pick_day"
+            phx-value-date={Date.to_iso8601(day)}
+            class={[
+              "text-xs cursor-pointer",
+              (today?(day) &&
+                 "flex size-6 items-center justify-center rounded-full bg-indigo-600 font-semibold text-white dark:bg-indigo-500") ||
+                "text-gray-700 dark:text-gray-300"
+            ]}
+          >
+            {day.day}
+          </button>
+          <ol class="mt-1 space-y-1">
+            <li :for={item <- Enum.take(day_items, 3)}>
+              <.event_link item={item} slug={@tenant.slug} class="group flex items-center gap-1">
+                <.avatar agent={item.agent} class="size-4 text-[0.5rem]" />
+                <span class="flex-auto truncate text-xs text-gray-900 group-hover:text-indigo-600 dark:text-white dark:group-hover:text-indigo-400">
+                  {item.title}
+                </span>
+                <.dots :if={@manager?} pre={item.pre} post={item.post} />
+              </.event_link>
+            </li>
+            <li :if={length(day_items) > 3}>
+              <button
+                phx-click="pick_day"
+                phx-value-date={Date.to_iso8601(day)}
+                class="text-xs font-medium text-gray-500 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-indigo-400"
+              >
+                + {length(day_items) - 3} more
+              </button>
+            </li>
+          </ol>
+        </div>
+      </div>
+    </div>
+    """
+  end
+
+  # ---- Day (mini-month picker + meeting list) -------------------------------
+
+  defp day_view(assigns) do
+    ~H"""
+    <div class="lg:grid lg:grid-cols-12 lg:gap-8">
+      <div class="lg:col-span-4 xl:col-span-3">
+        <.mini_month cursor={@cursor} />
+      </div>
+
+      <ol class="mt-6 lg:mt-0 lg:col-span-8 xl:col-span-9 divide-y divide-gray-200 rounded-lg border border-gray-200 dark:divide-white/10 dark:border-white/10">
+        <li
+          :for={item <- items_on(@items, @cursor)}
+          class="flex items-center gap-4 px-4 py-3 hover:bg-gray-50 dark:hover:bg-white/5"
+        >
+          <.avatar agent={item.agent} class="size-9 text-xs" />
+          <div class="min-w-0 flex-auto">
+            <p class="truncate font-semibold text-gray-900 dark:text-white">{item.title}</p>
+            <p class="truncate text-sm text-gray-500 dark:text-gray-400">
+              {time_range(item)}{secondary(item)}
+            </p>
+          </div>
+          <.dots :if={@manager?} pre={item.pre} post={item.post} />
+          <.link
+            :if={item.visit_id}
+            navigate={"/t/#{@tenant.slug}/manage/meetings/#{item.visit_id}"}
+            class="shrink-0 text-sm font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400"
+          >
+            Open
+          </.link>
+        </li>
+        <li
+          :if={items_on(@items, @cursor) == []}
+          class="px-4 py-10 text-center text-sm text-gray-500 dark:text-gray-400"
+        >
+          Nothing scheduled for {Calendar.strftime(@cursor, "%A, %d %B")}.
+        </li>
+      </ol>
+    </div>
+    """
+  end
+
+  # ---- Week (time grid) -----------------------------------------------------
+
+  defp week_view(assigns) do
+    assigns = assign(assigns, :days, Enum.map(0..6, &Date.add(week_monday(assigns.cursor), &1)))
+
+    ~H"""
+    <div class="flex h-[75vh] flex-col rounded-lg border border-gray-200 overflow-hidden dark:border-white/10">
+      <div class="isolate flex flex-auto flex-col overflow-auto bg-white dark:bg-gray-900">
+        <div class="flex max-w-full flex-none flex-col">
+          <div class="sticky top-0 z-30 flex-none bg-white shadow-sm ring-1 ring-black/5 sm:pr-8 dark:bg-gray-900 dark:ring-white/20">
+            <div class="grid grid-cols-7 text-sm/6 text-gray-500 sm:hidden dark:text-gray-400">
+              <button
+                :for={d <- @days}
+                type="button"
+                phx-click="pick_day"
+                phx-value-date={Date.to_iso8601(d)}
+                class="flex flex-col items-center pt-2 pb-3"
+              >
+                {String.first(Calendar.strftime(d, "%A"))}
+                <span class={[
+                  "mt-1 flex size-8 items-center justify-center font-semibold",
+                  (today?(d) && "rounded-full bg-indigo-600 text-white dark:bg-indigo-500") ||
+                    "text-gray-900 dark:text-white"
+                ]}>{d.day}</span>
+              </button>
+            </div>
+
+            <div class="-mr-px hidden grid-cols-7 divide-x divide-gray-100 border-r border-gray-100 text-sm/6 text-gray-500 sm:grid dark:divide-white/10 dark:border-white/10 dark:text-gray-400">
+              <div class="col-end-1 w-14"></div>
+              <button
+                :for={d <- @days}
+                type="button"
+                phx-click="pick_day"
+                phx-value-date={Date.to_iso8601(d)}
+                class="flex items-center justify-center py-3 hover:bg-gray-50 dark:hover:bg-white/5"
+              >
+                <span class="flex items-baseline">
+                  {Calendar.strftime(d, "%a")}
+                  <span class={[
+                    "ml-1.5 flex size-8 items-center justify-center font-semibold",
+                    (today?(d) && "rounded-full bg-indigo-600 text-white dark:bg-indigo-500") ||
+                      "text-gray-900 dark:text-white"
+                  ]}>{d.day}</span>
+                </span>
+              </button>
+            </div>
+          </div>
+
+          <div class="flex flex-auto">
+            <div class="sticky left-0 z-10 w-14 flex-none bg-white ring-1 ring-gray-100 dark:bg-gray-900 dark:ring-white/5">
+            </div>
+            <div class="grid flex-auto grid-cols-1 grid-rows-1">
+              <div
+                style="grid-template-rows: repeat(48, minmax(3.5rem, 1fr))"
+                class="col-start-1 col-end-2 row-start-1 grid divide-y divide-gray-100 dark:divide-white/5"
+              >
+                <div class="row-end-1 h-7"></div>
+                <%= for h <- 0..23 do %>
+                  <div>
+                    <div class="sticky left-0 z-20 -mt-2.5 -ml-14 w-14 pr-2 text-right text-xs/5 text-gray-400 dark:text-gray-500">
+                      {hour_label(h)}
+                    </div>
+                  </div>
+                  <div></div>
+                <% end %>
+              </div>
+
+              <div class="col-start-1 col-end-2 row-start-1 hidden grid-rows-1 divide-x divide-gray-100 sm:grid sm:grid-cols-7 dark:divide-white/5">
+                <div class="col-start-1 row-span-full"></div>
+                <div class="col-start-2 row-span-full"></div>
+                <div class="col-start-3 row-span-full"></div>
+                <div class="col-start-4 row-span-full"></div>
+                <div class="col-start-5 row-span-full"></div>
+                <div class="col-start-6 row-span-full"></div>
+                <div class="col-start-7 row-span-full"></div>
+                <div class="col-start-8 row-span-full w-8"></div>
+              </div>
+
+              <ol
+                style="grid-template-rows: 1.75rem repeat(288, minmax(0, 1fr)) auto"
+                class="col-start-1 col-end-2 row-start-1 grid grid-cols-1 sm:grid-cols-7 sm:pr-8"
+              >
+                <li
+                  :for={item <- @items}
+                  style={grid_row(item)}
+                  class={["relative mt-px flex", col_class(weekday(item))]}
+                >
+                  <% c = ev_color(item) %>
+                  <.event_link
+                    item={item}
+                    slug={@tenant.slug}
+                    class={[
+                      "group absolute inset-1 flex flex-col overflow-y-auto rounded-lg p-2 text-xs/5",
+                      c.box
+                    ]}
+                  >
+                    <div class="order-1 flex items-center gap-1">
+                      <.avatar agent={item.agent} class="size-4 text-[0.5rem]" />
+                      <span class={["truncate font-semibold", c.title]}>{item.title}</span>
+                      <.dots :if={@manager?} pre={item.pre} post={item.post} />
+                    </div>
+                    <p class={c.time}>{fmt(item.start_time)}</p>
+                  </.event_link>
+                </li>
+              </ol>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    """
+  end
+
+  # ---- Mini-month picker (used in Day view) ---------------------------------
+
+  attr :cursor, Date, required: true
+
+  defp mini_month(assigns) do
+    assigns = assign(assigns, :days, month_grid_days(assigns.cursor))
+
+    ~H"""
+    <div class="text-center">
+      <div class="flex items-center text-gray-900 dark:text-white">
+        <button
+          phx-click="prev_month"
+          class="-m-1.5 flex flex-none items-center justify-center p-1.5 text-gray-400 hover:text-gray-500 dark:hover:text-white"
+        >
+          ←
+        </button>
+        <div class="flex-auto text-sm font-semibold">{Calendar.strftime(@cursor, "%B %Y")}</div>
+        <button
+          phx-click="next_month"
+          class="-m-1.5 flex flex-none items-center justify-center p-1.5 text-gray-400 hover:text-gray-500 dark:hover:text-white"
+        >
+          →
+        </button>
+      </div>
+      <div class="mt-4 grid grid-cols-7 text-xs/6 text-gray-500 dark:text-gray-400">
+        <div :for={d <- ~w(M T W T F S S)}>{d}</div>
+      </div>
+      <div class="isolate mt-2 grid grid-cols-7 gap-px overflow-hidden rounded-lg bg-gray-200 text-sm shadow-sm ring-1 ring-gray-200 dark:bg-white/10 dark:ring-white/10">
+        <button
+          :for={d <- @days}
+          type="button"
+          phx-click="pick_day"
+          phx-value-date={Date.to_iso8601(d)}
+          class={[
+            "py-1.5 hover:bg-gray-100 focus:z-10 dark:hover:bg-white/5",
+            (in_month?(d, @cursor) && "bg-white dark:bg-gray-900") ||
+              "bg-gray-50 dark:bg-gray-900/60"
+          ]}
+        >
+          <time class={[
+            "mx-auto flex size-7 items-center justify-center rounded-full",
+            d == @cursor && today?(d) && "bg-indigo-600 font-semibold text-white dark:bg-indigo-500",
+            d == @cursor && !today?(d) &&
+              "bg-gray-900 font-semibold text-white dark:bg-white dark:text-gray-900",
+            d != @cursor && today?(d) && "font-semibold text-indigo-600 dark:text-indigo-400",
+            d != @cursor && !today?(d) && in_month?(d, @cursor) && "text-gray-900 dark:text-white",
+            d != @cursor && !today?(d) && !in_month?(d, @cursor) && "text-gray-400 dark:text-gray-500"
+          ]}>
+            {d.day}
+          </time>
+        </button>
+      </div>
+    </div>
+    """
+  end
+
+  # ---- Shared bits ----------------------------------------------------------
+
+  attr :item, :map, required: true
+  attr :slug, :string, required: true
+  attr :class, :any, default: nil
+  slot :inner_block, required: true
+
+  # Wrap meeting content in a link (manager Visits) or a plain div (agent events).
+  defp event_link(assigns) do
+    ~H"""
+    <.link
+      :if={@item.visit_id}
+      navigate={"/t/#{@slug}/manage/meetings/#{@item.visit_id}"}
+      class={@class}
+    >
+      {render_slot(@inner_block)}
+    </.link>
+    <div :if={is_nil(@item.visit_id)} class={@class}>{render_slot(@inner_block)}</div>
+    """
+  end
+
+  attr :agent, :map, default: nil
+  attr :class, :string, default: "size-6 text-[0.625rem]"
+
+  defp avatar(assigns) do
+    ~H"""
+    <span
+      :if={@agent}
+      class={[
+        "inline-flex shrink-0 items-center justify-center rounded-full font-medium",
+        @class,
+        palette(@agent.id)
+      ]}
+      title={agent_label(@agent)}
+    >
+      {initials(@agent)}
+    </span>
+    """
+  end
+
+  attr :pre, :atom, required: true
+  attr :post, :atom, required: true
+
+  defp dots(assigns) do
+    ~H"""
+    <span class="ml-auto inline-flex shrink-0 items-center gap-0.5">
+      <span class={["size-1.5 rounded-full", dot(@pre)]} title={"Pre-call: #{dot_label(@pre)}"} />
+      <span class={["size-1.5 rounded-full", dot(@post)]} title={"Post-call: #{dot_label(@post)}"} />
+    </span>
+    """
+  end
+
+  defp dot(:done), do: "bg-green-500"
+  defp dot(:failed), do: "bg-red-500"
+  defp dot(:pending), do: "bg-amber-400"
+  defp dot(_), do: "bg-gray-300 dark:bg-gray-600"
+
+  defp dot_label(:done), do: "done"
+  defp dot_label(:failed), do: "failed"
+  defp dot_label(:pending), do: "in progress"
+  defp dot_label(_), do: "not yet"
+
+  defp palette(id), do: Enum.at(@palettes, rem(abs(id || 0), length(@palettes)))
+
+  defp initials(agent) do
+    case agent |> agent_label() |> String.split(~r/\s+/, trim: true) do
+      [a, b | _] -> String.upcase(String.first(a) <> String.first(b))
+      [a] -> String.upcase(String.slice(a, 0, 2))
+      _ -> "?"
+    end
+  end
+
+  defp seg(true),
+    do:
+      "px-3 py-1.5 text-sm font-semibold bg-indigo-600 text-white shadow-xs cursor-pointer dark:bg-indigo-500"
+
+  defp seg(false),
+    do:
+      "px-3 py-1.5 text-sm font-semibold bg-white text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 cursor-pointer dark:bg-white/10 dark:text-white dark:ring-0 dark:hover:bg-white/20"
+
+  defp nav_btn,
+    do:
+      "rounded-md bg-white px-3 py-1.5 text-sm font-semibold text-gray-900 shadow-xs ring-1 ring-inset ring-gray-300 hover:bg-gray-50 cursor-pointer dark:bg-white/10 dark:text-white dark:ring-0 dark:hover:bg-white/20"
+
+  # ---- Item builders --------------------------------------------------------
+
   defp visit_item(v) do
     %{
       start_time: v.start_time,
       end_time: v.end_time,
       title: v.title,
-      secondary: "#{client_label(v.client)} · #{agent_label(v.agent)}",
+      agent: v.agent,
       agent_id: v.agent_id,
+      client_name: client_label(v.client),
       status: v.status,
-      visit_id: v.id
+      visit_id: v.id,
+      pre: call_status(v.call_attempts, "PRE"),
+      post: call_status(v.call_attempts, "POST")
     }
   end
 
-  # Agent item: a raw calendar event — no link, no status.
   defp event_item(ev) do
     %{
       start_time: ev.start_time,
       end_time: ev.end_time,
       title: ev.title,
-      secondary: nil,
+      agent: nil,
       agent_id: ev.user_id,
+      client_name: nil,
       status: nil,
-      visit_id: nil
+      visit_id: nil,
+      pre: :none,
+      post: :none
     }
   end
 
-  # Legacy all-day rows already stored before the provider-level filter landed.
-  # Detect from the original payload kept in `raw` (Microsoft isAllDay; Google
-  # all-day events have a "date" but no "dateTime" on start).
+  defp call_status(attempts, phase) when is_list(attempts) do
+    atts = Enum.filter(attempts, &(&1.phase == phase))
+
+    cond do
+      atts == [] -> :none
+      Enum.any?(atts, &(&1.status == "COMPLETED")) -> :done
+      Enum.any?(atts, &(&1.status in ["FAILED", "NO_ANSWER"])) -> :failed
+      true -> :pending
+    end
+  end
+
+  defp call_status(_, _), do: :none
+
+  # Legacy all-day rows (Microsoft isAllDay; Google all-day events have date, not dateTime).
   defp all_day_event?(%{raw: raw}) when is_map(raw) do
     raw["isAllDay"] == true or
       (is_map(raw["start"]) and is_nil(raw["start"]["dateTime"]) and
@@ -247,16 +605,60 @@ defmodule FlorinaWeb.CalendarLive do
 
   defp all_day_event?(_), do: false
 
+  # ---- Date / time helpers --------------------------------------------------
+
+  defp items_on(items, date) do
+    items
+    |> Enum.filter(fn i -> DateTime.to_date(Florina.Tz.local(i.start_time)) == date end)
+    |> Enum.sort_by(& &1.start_time, DateTime)
+  end
+
   defp today?(day), do: day == Florina.Tz.today()
 
-  # ---- Week-grid placement ----------------------------------------------------
+  defp in_month?(day, cursor), do: day.month == cursor.month and day.year == cursor.year
 
-  # Mon=1 … Sun=7, matching the 7 grid columns.
+  defp week_monday(date), do: Date.add(date, -(Date.day_of_week(date) - 1))
+
+  defp month_grid_days(cursor) do
+    start = cursor |> Date.beginning_of_month() |> week_monday()
+    Enum.map(0..41, &Date.add(start, &1))
+  end
+
+  defp shift(:day, cursor, n), do: Date.add(cursor, n)
+  defp shift(:week, cursor, n), do: Date.add(cursor, n * 7)
+  defp shift(:month, cursor, n), do: add_months(cursor, n)
+
+  defp add_months(date, n) do
+    m0 = date.year * 12 + (date.month - 1) + n
+    y = div(m0, 12)
+    m = rem(m0, 12) + 1
+    last = Date.days_in_month(Date.new!(y, m, 1))
+    Date.new!(y, m, min(date.day, last))
+  end
+
+  defp title(:day, cursor), do: Calendar.strftime(cursor, "%A, %d %B %Y")
+  defp title(:week, cursor), do: week_range_label(week_monday(cursor))
+  defp title(:month, cursor), do: Calendar.strftime(cursor, "%B %Y")
+
+  defp week_range_label(monday),
+    do:
+      "#{Calendar.strftime(monday, "%d %b")} – #{Calendar.strftime(Date.add(monday, 6), "%d %b %Y")}"
+
+  defp time_range(%{start_time: s, end_time: %DateTime{} = e}), do: "#{fmt(s)} – #{fmt(e)}"
+  defp time_range(%{start_time: s}), do: fmt(s)
+
+  defp secondary(%{client_name: c, agent: a}) when is_binary(c) and not is_nil(a),
+    do: " · #{c} · #{agent_label(a)}"
+
+  defp secondary(_), do: ""
+
+  defp fmt(%DateTime{} = dt), do: Calendar.strftime(Florina.Tz.local(dt), "%H:%M")
+
+  # ---- Week-grid placement --------------------------------------------------
+
   defp weekday(item),
     do: item.start_time |> Florina.Tz.local() |> DateTime.to_date() |> Date.day_of_week()
 
-  # The events grid has a 1.75rem header row then 288 five-minute rows, so a
-  # local time T maps to row 2 + (minutes-since-midnight / 5).
   defp grid_row(item) do
     s = Florina.Tz.local(item.start_time)
     row = 2 + div(s.hour * 60 + s.minute, 5)
@@ -268,7 +670,6 @@ defmodule FlorinaWeb.CalendarLive do
 
   defp span_rows(_), do: 6
 
-  # Literal returns so Tailwind's scanner sees each class (dynamic strings aren't compiled).
   defp col_class(1), do: "sm:col-start-1"
   defp col_class(2), do: "sm:col-start-2"
   defp col_class(3), do: "sm:col-start-3"
@@ -318,19 +719,6 @@ defmodule FlorinaWeb.CalendarLive do
       time:
         "text-gray-500 group-hover:text-gray-700 dark:text-gray-400 dark:group-hover:text-gray-300"
     }
-
-  defp week_monday(date), do: Date.add(date, -(Date.day_of_week(date) - 1))
-
-  defp week_range_label(monday),
-    do:
-      "#{Calendar.strftime(monday, "%d %b")} – #{Calendar.strftime(Date.add(monday, 6), "%d %b")}"
-
-  defp fmt(%DateTime{} = dt), do: Calendar.strftime(Florina.Tz.local(dt), "%H:%M")
-
-  # Shared TW Plus secondary button styling for the week-nav controls.
-  defp nav_btn,
-    do:
-      "rounded-md bg-white px-3 py-1.5 text-sm font-semibold text-gray-900 shadow-xs ring-1 ring-inset ring-gray-300 hover:bg-gray-50 cursor-pointer dark:bg-white/10 dark:text-white dark:ring-0 dark:hover:bg-white/20"
 
   defp agent_label(nil), do: "—"
 

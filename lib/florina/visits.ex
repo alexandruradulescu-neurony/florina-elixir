@@ -165,7 +165,7 @@ defmodule Florina.Visits do
       where:
         v.start_time >= ^from_dt and v.start_time <= ^to_dt and
           v.status not in [:CANCELLED, :MISSED],
-      preload: [:agent, :client],
+      preload: [:agent, :client, :call_attempts],
       order_by: [asc: :start_time]
     )
     |> TenantRepo.all()
