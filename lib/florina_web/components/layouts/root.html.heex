@@ -11,7 +11,7 @@
     <%!-- No-flash boot: set the initial theme before first paint. Listeners live in assets/js/theme.js. --%>
     <script phx-no-format>(() => { const stored = localStorage.getItem("phx:theme"); if (stored) { document.documentElement.setAttribute("data-theme", stored); document.documentElement.setAttribute("data-theme-source", "user"); } else { const dark = matchMedia("(prefers-color-scheme: dark)").matches; document.documentElement.setAttribute("data-theme", dark ? "dark" : "light"); document.documentElement.setAttribute("data-theme-source", "system"); } })();</script>
   </head>
-  <body class="min-h-screen bg-base-100 text-base-content">
+  <body class="min-h-screen bg-white text-gray-900 dark:bg-gray-900 dark:text-white">
     {@inner_content}
   </body>
 </html>

@@ -13,6 +13,12 @@
    The heroicons installation itself is managed by your mix.exs */
 @plugin "../vendor/heroicons";
 
+/* Make Tailwind's `dark:` variant follow the app's theme toggle (which flips
+   `data-theme=dark` on <html>) instead of the OS `prefers-color-scheme`.
+   This lets Tailwind Plus components' built-in `dark:` utilities work as-is
+   alongside the semantic `base-*` tokens. */
+@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
+
 /* Semantic color tokens (light theme — Phoenix-inspired). Tailwind v4 generates
    utilities like bg-base-100, text-base-content, bg-primary, text-error, etc.
    directly from these --color-* variables. The app uses plain Tailwind with

@@ -91,20 +91,20 @@ defmodule FlorinaWeb.Layouts do
 
     <div class="lg:pl-72">
       <%!-- Top bar --%>
-      <div class="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-x-4 border-b border-base-300 bg-base-100 px-4 shadow-sm sm:gap-x-6 sm:px-6 lg:px-8">
+      <div class="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-x-4 border-b border-gray-200 bg-white px-4 shadow-xs sm:gap-x-6 sm:px-6 lg:px-8 dark:border-white/10 dark:bg-gray-900 dark:shadow-none">
         <button
           type="button"
           phx-click={show_mobile_sidebar()}
-          class="-m-2.5 p-2.5 text-base-content/70 lg:hidden"
+          class="-m-2.5 p-2.5 text-gray-700 hover:text-gray-900 lg:hidden dark:text-gray-400 dark:hover:text-white"
         >
           <span class="sr-only">Open sidebar</span>
           <.icon name="hero-bars-3" class="size-6" />
         </button>
-        <div aria-hidden="true" class="h-6 w-px bg-base-300 lg:hidden" />
+        <div aria-hidden="true" class="h-6 w-px bg-gray-200 lg:hidden dark:bg-white/10" />
 
         <div class="flex flex-1 items-center justify-end gap-x-4 self-stretch lg:gap-x-6">
           <.theme_toggle />
-          <div aria-hidden="true" class="hidden lg:block lg:h-6 lg:w-px lg:bg-base-300" />
+          <div aria-hidden="true" class="hidden lg:block lg:h-6 lg:w-px lg:bg-gray-200 dark:lg:bg-white/10" />
 
           <%!-- User menu --%>
           <div class="relative">
@@ -114,26 +114,26 @@ defmodule FlorinaWeb.Layouts do
               class="flex items-center gap-x-2"
             >
               <span class="sr-only">Open user menu</span>
-              <span class="flex size-8 items-center justify-center rounded-full bg-base-200 text-sm font-medium text-base-content">
+              <span class="flex size-8 items-center justify-center rounded-full bg-gray-100 text-sm font-medium text-gray-700 dark:bg-white/10 dark:text-white">
                 {agent_initial(@current_agent)}
               </span>
               <span class="hidden lg:flex lg:items-center">
-                <span class="text-sm font-semibold text-base-content">{agent_name(@current_agent)}</span>
-                <.icon name="hero-chevron-down" class="ml-1 size-5 text-base-content/50" />
+                <span class="text-sm font-semibold text-gray-900 dark:text-white">{agent_name(@current_agent)}</span>
+                <.icon name="hero-chevron-down" class="ml-1 size-5 text-gray-400 dark:text-gray-500" />
               </span>
             </button>
             <div
               id="user-menu"
               phx-click-away={JS.hide(to: "#user-menu")}
-              class="absolute right-0 z-10 mt-2 hidden w-44 origin-top-right rounded-md bg-base-100 py-2 shadow-lg ring-1 ring-base-300"
+              class="absolute right-0 z-10 mt-2 hidden w-44 origin-top-right rounded-md bg-white py-2 shadow-lg outline-1 outline-gray-900/5 dark:bg-gray-800 dark:shadow-none dark:outline-white/10"
             >
-              <div class="truncate border-b border-base-300 px-3 pb-2 text-xs text-base-content/60">
+              <div class="truncate border-b border-gray-200 px-3 pb-2 text-xs text-gray-500 dark:border-white/10 dark:text-gray-400">
                 {agent_email(@current_agent)}
               </div>
               <.link
                 href={"/t/#{@tenant.slug}/logout"}
                 method="delete"
-                class="block px-3 py-1.5 text-sm text-base-content hover:bg-base-200"
+                class="block px-3 py-1.5 text-sm text-gray-900 hover:bg-gray-50 dark:text-white dark:hover:bg-white/5"
               >
                 Sign out
               </.link>
@@ -160,14 +160,14 @@ defmodule FlorinaWeb.Layouts do
 
   defp sidebar(assigns) do
     ~H"""
-    <div class="flex grow flex-col gap-y-5 overflow-y-auto border-r border-base-300 bg-base-100 px-6 pb-4">
+    <div class="flex grow flex-col gap-y-5 overflow-y-auto border-r border-gray-200 bg-white px-6 pb-4 dark:border-white/10 dark:bg-gray-900">
       <div class="flex h-16 shrink-0 items-center">
-        <span class="text-lg font-semibold text-base-content">Florina</span>
+        <span class="text-lg font-semibold text-gray-900 dark:text-white">Florina</span>
       </div>
       <nav class="flex flex-1 flex-col">
         <ul role="list" class="flex flex-1 flex-col gap-y-7">
           <li>
-            <div class="text-xs font-semibold text-base-content/50">{@tenant.name}</div>
+            <div class="text-xs/6 font-semibold text-gray-400">{@tenant.name}</div>
             <ul role="list" class="-mx-2 mt-2 space-y-1">
               <.nav_item
                 label="Calendar"
@@ -206,7 +206,7 @@ defmodule FlorinaWeb.Layouts do
             </ul>
           </li>
           <li :if={@manager?}>
-            <div class="text-xs font-semibold text-base-content/50">Management</div>
+            <div class="text-xs/6 font-semibold text-gray-400">Management</div>
             <ul role="list" class="-mx-2 mt-2 space-y-1">
               <.nav_item
                 label="Dashboard"
@@ -287,16 +287,17 @@ defmodule FlorinaWeb.Layouts do
       <.link
         navigate={@href}
         class={[
-          "group flex gap-x-3 rounded-md p-2 text-sm font-semibold",
-          (@active && "bg-base-200 text-primary") ||
-            "text-base-content/70 hover:bg-base-200 hover:text-primary"
+          "group flex gap-x-3 rounded-md p-2 text-sm/6 font-semibold",
+          (@active && "bg-gray-50 text-indigo-600 dark:bg-white/5 dark:text-white") ||
+            "text-gray-700 hover:bg-gray-50 hover:text-indigo-600 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-white"
         ]}
       >
         <.icon
           name={@icon}
           class={[
             "size-6 shrink-0",
-            (@active && "text-primary") || "text-base-content/50 group-hover:text-primary"
+            (@active && "text-indigo-600 dark:text-white") ||
+              "text-gray-400 group-hover:text-indigo-600 dark:group-hover:text-white"
           ]}
         />
         {@label}
