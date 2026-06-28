@@ -5,19 +5,17 @@ defmodule Mix.Tasks.Florina.Tenants.Setup do
   alias Florina.Tenants
   alias Florina.Tenants.{Marker, Provisioner}
 
-  # database name is incidental in the schema-per-tenant model (kept only because
-  # the registry column still exists); the real isolation unit is the schema.
   @demo [
-    {"acme", "Acme Corp", "florina_tenant_acme_dev"},
-    {"globex", "Globex Inc", "florina_tenant_globex_dev"}
+    {"acme", "Acme Corp"},
+    {"globex", "Globex Inc"}
   ]
 
   @impl Mix.Task
   def run(_args) do
     Mix.Task.run("app.start")
 
-    for {slug, name, db} <- @demo do
-      {:ok, tenant} = Provisioner.provision(%{slug: slug, name: name, database: db})
+    for {slug, name} <- @demo do
+      {:ok, tenant} = Provisioner.provision(%{slug: slug, name: name})
 
       Tenants.with_prefix(tenant, fn ->
         Florina.TenantRepo.delete_all(Marker)

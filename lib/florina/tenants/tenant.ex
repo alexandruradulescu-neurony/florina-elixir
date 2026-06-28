@@ -1,5 +1,9 @@
 defmodule Florina.Tenants.Tenant do
-  @moduledoc "A tenant in the control-plane registry: which database is theirs."
+  @moduledoc """
+  A tenant in the control-plane registry: slug, name, status, and allowed SSO
+  domains. Tenant data is isolated by Postgres schema (`tenant_<id>`), derived
+  from the immutable id — there is no per-tenant database.
+  """
   use Ecto.Schema
   import Ecto.Changeset
 
@@ -8,7 +12,6 @@ defmodule Florina.Tenants.Tenant do
   schema "tenants" do
     field :slug, :string
     field :name, :string
-    field :database, :string
     field :active, :boolean, default: true
     field :status, :string, default: "active"
     field :allowed_email_domains, {:array, :string}, default: []
@@ -17,8 +20,8 @@ defmodule Florina.Tenants.Tenant do
 
   def changeset(tenant, attrs) do
     tenant
-    |> cast(attrs, [:slug, :name, :database, :active, :status, :allowed_email_domains])
-    |> validate_required([:slug, :name, :database])
+    |> cast(attrs, [:slug, :name, :active, :status, :allowed_email_domains])
+    |> validate_required([:slug, :name])
     |> validate_inclusion(:status, @valid_statuses)
     |> normalize_domains()
     |> unique_constraint(:slug)

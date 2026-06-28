@@ -21,14 +21,14 @@ defmodule Florina.Release do
   @doc """
   Onboard a tenant in production. Run against the RUNNING release node:
 
-      bin/florina rpc 'Florina.Release.provision_tenant("acme", "Acme Corp", "florina_tenant_acme")'
+      bin/florina rpc 'Florina.Release.provision_tenant("acme", "Acme Corp")'
 
-  Creates the tenant's own database on the configured Postgres, runs the
-  per-tenant migrations into it, and registers it in the control-plane.
-  Idempotent — safe to run again.
+  Registers the tenant in the control-plane, creates its Postgres schema
+  (`tenant_<id>`) on the shared database, runs the per-tenant migrations into it,
+  and seeds central config. Idempotent — safe to run again.
   """
-  def provision_tenant(slug, name, database) do
-    Florina.Tenants.Provisioner.provision(%{slug: slug, name: name, database: database})
+  def provision_tenant(slug, name) do
+    Florina.Tenants.Provisioner.provision(%{slug: slug, name: name})
   end
 
   @doc """

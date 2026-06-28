@@ -2,7 +2,7 @@ defmodule Florina.Workers.ProvisionTenant do
   @moduledoc """
   Oban worker that provisions a tenant database in the background.
 
-  Args: %{"slug" => slug, "name" => name, "database" => database}
+  Args: %{"slug" => slug, "name" => name}
 
   On success: sets tenant status to "active".
   On error: sets tenant status to "failed" and logs the error.
@@ -19,10 +19,10 @@ defmodule Florina.Workers.ProvisionTenant do
   alias Florina.Tenants.Provisioner
 
   @impl Oban.Worker
-  def perform(%Oban.Job{args: %{"slug" => slug, "name" => name, "database" => database}}) do
-    Logger.info("[ProvisionTenant] starting provisioning for tenant=#{slug} db=#{database}")
+  def perform(%Oban.Job{args: %{"slug" => slug, "name" => name}}) do
+    Logger.info("[ProvisionTenant] starting provisioning for tenant=#{slug}")
 
-    {:ok, _tenant} = Provisioner.provision(%{slug: slug, name: name, database: database})
+    {:ok, _tenant} = Provisioner.provision(%{slug: slug, name: name})
     Logger.info("[ProvisionTenant] provisioning succeeded for tenant=#{slug}")
     Tenants.set_status(slug, "active")
     :ok

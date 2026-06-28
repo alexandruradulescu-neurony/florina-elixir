@@ -25,30 +25,22 @@ defmodule FlorinaWeb.Admin.TenantsLive do
 
   @impl true
   def handle_event("validate", %{"tenant" => params}, socket) do
-    params = maybe_suggest_database(params)
     {:noreply, assign(socket, :form, to_form(params, as: :tenant))}
   end
 
   def handle_event("add_tenant", %{"tenant" => params}, socket) do
-    params = maybe_suggest_database(params)
-
     with :ok <- validate_slug(params["slug"]),
          :ok <- check_slug_unique(params["slug"]) do
       register_attrs = %{
         slug: params["slug"],
         name: params["name"],
-        database: params["database"],
         status: "provisioning",
         active: true
       }
 
       case Tenants.register(register_attrs) do
         {:ok, _tenant} ->
-          %{
-            "slug" => params["slug"],
-            "name" => params["name"],
-            "database" => params["database"]
-          }
+          %{"slug" => params["slug"], "name" => params["name"]}
           |> ProvisionTenant.new()
           |> Oban.insert()
 
@@ -139,7 +131,7 @@ defmodule FlorinaWeb.Admin.TenantsLive do
       tenant ->
         Tenants.set_status(slug, "provisioning")
 
-        %{"slug" => tenant.slug, "name" => tenant.name, "database" => tenant.database}
+        %{"slug" => tenant.slug, "name" => tenant.name}
         |> ProvisionTenant.new()
         |> Oban.insert()
 
@@ -185,7 +177,6 @@ defmodule FlorinaWeb.Admin.TenantsLive do
               <tr>
                 <th class="px-4 py-3 font-semibold">Name</th>
                 <th class="px-4 py-3 font-semibold">Slug</th>
-                <th class="px-4 py-3 font-semibold">Database</th>
                 <th class="px-4 py-3 font-semibold">Status</th>
                 <th class="px-4 py-3 font-semibold">Active</th>
                 <th class="px-4 py-3 font-semibold">Domains</th>
@@ -198,9 +189,6 @@ defmodule FlorinaWeb.Admin.TenantsLive do
                 <td class="px-4 py-3 font-medium text-gray-900 dark:text-white">{tenant.name}</td>
                 <td class="px-4 py-3 font-mono text-xs text-gray-700 dark:text-gray-300">
                   {tenant.slug}
-                </td>
-                <td class="px-4 py-3 font-mono text-xs text-gray-700 dark:text-gray-300">
-                  {tenant.database}
                 </td>
                 <td class="px-4 py-3">
                   <span class={[
@@ -303,7 +291,7 @@ defmodule FlorinaWeb.Admin.TenantsLive do
                 </td>
               </tr>
               <tr :if={@tenants == []}>
-                <td colspan="8" class="px-4 py-6 text-center text-gray-400 text-sm">
+                <td colspan="7" class="px-4 py-6 text-center text-gray-400 text-sm">
                   No tenants yet.
                 </td>
               </tr>
@@ -349,20 +337,6 @@ defmodule FlorinaWeb.Admin.TenantsLive do
                 required
               />
               <p class="text-xs text-gray-400 mt-1">Lowercase, URL-safe (a-z, 0-9, -, _)</p>
-            </div>
-            <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Database name
-              </label>
-              <input
-                type="text"
-                name="tenant[database]"
-                value={@form[:database] && @form[:database].value}
-                placeholder="florina_tenant_acme"
-                class={[admin_input(), "font-mono"]}
-                required
-              />
-              <p class="text-xs text-gray-400 mt-1">Auto-suggested from slug; edit if needed.</p>
             </div>
             <button
               type="submit"
@@ -431,20 +405,7 @@ defmodule FlorinaWeb.Admin.TenantsLive do
   # ---------------------------------------------------------------------------
 
   defp build_form do
-    to_form(%{"name" => "", "slug" => "", "database" => ""}, as: :tenant)
-  end
-
-  # Auto-suggest the database name from the slug if the database field is empty
-  # or still matches the previous auto-suggestion pattern.
-  defp maybe_suggest_database(%{"slug" => slug} = params) do
-    current_db = params["database"] || ""
-    suggested = "florina_tenant_#{slug}"
-
-    if current_db == "" or String.starts_with?(current_db, "florina_tenant_") do
-      Map.put(params, "database", suggested)
-    else
-      params
-    end
+    to_form(%{"name" => "", "slug" => ""}, as: :tenant)
   end
 
   defp validate_slug(nil), do: {:error, "Slug is required."}
