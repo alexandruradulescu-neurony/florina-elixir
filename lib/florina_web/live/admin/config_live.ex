@@ -170,6 +170,7 @@ defmodule FlorinaWeb.Admin.ConfigLive do
           "pre_call_offset_minutes" => s.pre_call_offset_minutes,
           "post_call_offset_minutes" => s.post_call_offset_minutes,
           "retry_interval_minutes" => s.retry_interval_minutes,
+          "max_call_attempts_per_phase" => s.max_call_attempts_per_phase,
           "max_context_tokens_warn" => s.max_context_tokens_warn
         },
         as: :settings
@@ -318,6 +319,13 @@ defmodule FlorinaWeb.Admin.ConfigLive do
                   type="number"
                 />
                 <.text_field
+                  label="Max call attempts per phase"
+                  name="settings[max_call_attempts_per_phase]"
+                  form={@edit_form}
+                  field={:max_call_attempts_per_phase}
+                  type="number"
+                />
+                <.text_field
                   label="Max context tokens (warn)"
                   name="settings[max_context_tokens_warn]"
                   form={@edit_form}
@@ -340,6 +348,10 @@ defmodule FlorinaWeb.Admin.ConfigLive do
           <.kv_row label="Pre-call offset" value={"#{@settings.pre_call_offset_minutes} min"} />
           <.kv_row label="Post-call offset" value={"#{@settings.post_call_offset_minutes} min"} />
           <.kv_row label="Retry interval" value={"#{@settings.retry_interval_minutes} min"} />
+          <.kv_row
+            label="Max call attempts per phase"
+            value={to_string(@settings.max_call_attempts_per_phase)}
+          />
           <.kv_row
             label="Max context tokens (warn)"
             value={to_string(@settings.max_context_tokens_warn)}

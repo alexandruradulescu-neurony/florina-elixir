@@ -263,6 +263,7 @@ defmodule Florina.CentralConfig do
         pre_call_offset_minutes: settings.pre_call_offset_minutes,
         post_call_offset_minutes: settings.post_call_offset_minutes,
         retry_interval_minutes: settings.retry_interval_minutes,
+        max_call_attempts_per_phase: settings.max_call_attempts_per_phase,
         max_context_tokens_warn: settings.max_context_tokens_warn,
         default_methodology_id: settings.default_methodology_id,
         is_overridden: false,
@@ -370,6 +371,7 @@ defmodule Florina.CentralConfig do
         pre_call_offset_minutes: settings.pre_call_offset_minutes,
         post_call_offset_minutes: settings.post_call_offset_minutes,
         retry_interval_minutes: settings.retry_interval_minutes,
+        max_call_attempts_per_phase: settings.max_call_attempts_per_phase,
         max_context_tokens_warn: settings.max_context_tokens_warn,
         default_methodology_id: settings.default_methodology_id,
         updated_at: now
@@ -382,6 +384,7 @@ defmodule Florina.CentralConfig do
              :pre_call_offset_minutes,
              :post_call_offset_minutes,
              :retry_interval_minutes,
+             :max_call_attempts_per_phase,
              :max_context_tokens_warn,
              :default_methodology_id,
              :updated_at
