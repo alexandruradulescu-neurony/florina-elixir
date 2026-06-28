@@ -4,9 +4,9 @@
 
 **Goal:** Add a weekly/monthly calendar page showing all visits across agents with visual day-by-day layout and agent filtering.
 
-**Architecture:** A single Django CBV serves both week and month views via a `view` query param. A new selector (`get_visits_for_range`) fetches visits across a date range. The template uses pure Tailwind CSS grid (7 columns for days) with DaisyUI cards for visit entries — no JavaScript calendar libraries needed.
+**Architecture:** A single Django CBV serves both week and month views via a `view` query param. A new selector (`get_visits_for_range`) fetches visits across a date range. The template uses pure Tailwind CSS grid (7 columns for days) with Tailwind card components for visit entries — no JavaScript calendar libraries needed.
 
-**Tech Stack:** Django CBV, Tailwind CSS grid, DaisyUI 4.12.10 components, existing Visit model
+**Tech Stack:** Django CBV, Tailwind CSS grid, existing Visit model
 
 ---
 

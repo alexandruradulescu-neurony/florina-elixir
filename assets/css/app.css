@@ -15,8 +15,8 @@
 
 /* Semantic color tokens (light theme — Phoenix-inspired). Tailwind v4 generates
    utilities like bg-base-100, text-base-content, bg-primary, text-error, etc.
-   directly from these --color-* variables. These replace the former daisyUI
-   theme plugins. */
+   directly from these --color-* variables. The app uses plain Tailwind with
+   these hand-rolled tokens — no component-library theme plugins. */
 /* Theme colors via an indirection layer. The Tailwind @theme tokens point at
    plain `--app-*` custom properties (light in :root, dark in :root[data-theme=dark]).
    Tailwind generates bg-base-100 / text-base-content / bg-primary / … from the

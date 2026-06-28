@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Replace the current Tailwind/DaisyUI shell with the new Editorial-Minimalism-×-Warm-Scheduling design system foundation — tokens, fonts, icons, a new `base.html` shell (264 px white sidebar + two-row header), and 3 reusable component partials. No screen-level redesigns in this pass.
+**Goal:** Replace the current Tailwind (CDN) shell with the new Editorial-Minimalism-×-Warm-Scheduling design system foundation — tokens, fonts, icons, a new `base.html` shell (264 px white sidebar + two-row header), and 3 reusable component partials. No screen-level redesigns in this pass.
 
-**Architecture:** Drop Tailwind CDN + DaisyUI entirely. Ship the design package's tokens and icon CSS sprite as Django static files. Hand-roll a `shell.css` containing the sidebar, header, canvas, and reusable component classes (extracted from the design's `dashboard.css` chrome region). Rewrite `base.html` to consume them with role-aware nav. Patch the three small auth-adjacent screens (`login`, `logged_out`, `home`) so they don't render bare. Every other template breaks visually — accepted transition cost.
+**Architecture:** Drop the Tailwind CDN shell entirely. Ship the design package's tokens and icon CSS sprite as Django static files. Hand-roll a `shell.css` containing the sidebar, header, canvas, and reusable component classes (extracted from the design's `dashboard.css` chrome region). Rewrite `base.html` to consume them with role-aware nav. Patch the three small auth-adjacent screens (`login`, `logged_out`, `home`) so they don't render bare. Every other template breaks visually — accepted transition cost.
 
 **Tech Stack:** Django 4.2 templates, hand-rolled CSS (no preprocessor), Google Fonts (Nunito + Nunito Sans, loaded via `<link>` tag), Flaticon UIcons filled-rounded family (shipped as a CSS sprite with inline data-URL `mask-image`).
 
@@ -978,7 +978,7 @@ These URL names were cross-checked against `voice/urls.py` on 2026-05-26. If a f
 cat voice/templates/voice/base.html | head -50
 ```
 
-Note which `{% load %}` tags are present. The new file drops `{% load voice_tags %}` (no longer needed for DaisyUI filters) but keeps the option to re-add it later if other templates use other filters.
+Note which `{% load %}` tags are present. The new file drops `{% load voice_tags %}` (no longer needed for the old component-library filters) but keeps the option to re-add it later if other templates use other filters.
 
 - [ ] **Step 2: Replace the entire file**
 
@@ -1408,7 +1408,7 @@ No commit for this task. The foundation is done when all smoke checks pass on th
 - Mobile layout. Spec says secondary; no investment.
 - Notifications popover or search modal — header buttons are placeholders.
 - Profile dropdown — admin block "Logout" is a direct link.
-- Removing `voice_tags` template tag library or its `daisyui_alert_class` filter. Other templates may still load it; safer to leave it in place even though the new `base.html` doesn't use it.
+- Removing `voice_tags` template tag library or its legacy alert-class filter. Other templates may still load it; safer to leave it in place even though the new `base.html` doesn't use it.
 - Cleaning up Tailwind class names in un-redesigned templates. They render as dead string content with no effect; we leave them until each screen is redesigned.
 - Adding Django tests for template rendering. This pass is pure visual chrome; verification is manual.
 

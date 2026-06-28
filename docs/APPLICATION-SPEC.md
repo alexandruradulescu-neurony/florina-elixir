@@ -250,7 +250,7 @@ An internal pass surfaced these. They are **leads, not verdicts** — verify eac
 > - **[FIXED]** Visit idempotency backstopped by a partial unique index `(agent_id, provider, calendar_event_id)`; concurrent syncs can't duplicate.
 > - **[FIXED]** First webhook matched by `call_attempt_id` now persists the `conversation_id` as `external_call_id`.
 > - **[FIXED]** CRM-derived `client_name`/`client_industry` are sanitized (control-char flatten, fence-close defang, length cap) before prompt interpolation.
-> - **[FIXED]** daisyUI removed — color tokens moved to a Tailwind `@theme` block with a `:root[data-theme=dark]` override; components hand-rolled in plain Tailwind. LiveViews now wrap in `<Layouts.app>`; `flash_group` only inside `layouts.ex`. Root inline theme script moved to `assets/js/theme.js` (tiny no-flash boot snippet remains).
+> - **[FIXED]** Component-library theming removed — color tokens moved to a Tailwind `@theme` block with a `:root[data-theme=dark]` override; components hand-rolled in plain Tailwind. LiveViews now wrap in `<Layouts.app>`; `flash_group` only inside `layouts.ex`. Root inline theme script moved to `assets/js/theme.js` (tiny no-flash boot snippet remains).
 > - **Note:** the old `voice_googleoauthcredential` drop (flagged for data migration) is moot — it already ran on an empty table in the clean-rebuild prod tenant; nothing to migrate.
 
 **Auth / access control**

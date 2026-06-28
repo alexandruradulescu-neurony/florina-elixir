@@ -2,7 +2,7 @@
 
 ## Summary
 
-Transform the current top-navbar layout into a modern dashboard application with a persistent dark sidebar, teal/emerald accent color, and clean content area. All 22 templates will be updated. No new dependencies — continues using Tailwind CSS + DaisyUI via CDN.
+Transform the current top-navbar layout into a modern dashboard application with a persistent dark sidebar, teal/emerald accent color, and clean content area. All 22 templates will be updated. No new dependencies — continues using Tailwind CSS via CDN.
 
 ## Design Decisions
 
@@ -11,7 +11,7 @@ Transform the current top-navbar layout into a modern dashboard application with
 - **Sidebar**: Persistent on desktop (220px), hidden on mobile with hamburger toggle
 - **Mobile**: Sidebar slides in as a drawer overlay from the left. Tap outside (on overlay backdrop) to close.
 - **Both roles use sidebar**: Managers see full nav, agents see their subset
-- **DaisyUI theme**: Keep `light` theme, override accent colors via Tailwind config
+- **Theme**: Keep the light theme, override accent colors via Tailwind config
 - **No JS libraries**: Sidebar toggle is vanilla JS (one click handler)
 
 ## Sidebar Structure
@@ -126,7 +126,7 @@ No functional changes to any template — just structural wrapping.
 | Text primary | Slate 900 | `#0f172a` |
 | Text secondary | Slate 500 | `#64748b` |
 
-## DaisyUI Theme Override
+## Theme Override
 
 In the Tailwind config block in base.html:
 ```js
@@ -139,20 +139,10 @@ tailwind.config = {
       }
     }
   },
-  daisyui: {
-    themes: [{
-      light: {
-        ...require("daisyui/src/theming/themes")["light"],
-        primary: '#14b8a6',
-        'primary-focus': '#0d9488',
-        'primary-content': '#ffffff',
-      }
-    }],
-  },
 }
 ```
 
-Since we use CDN, we'll set the DaisyUI primary via CSS custom properties instead:
+Since we use the CDN build, we set the primary accent via CSS custom properties instead:
 ```css
 [data-theme="light"] {
   --p: 168 64% 40%;  /* teal-500 in HSL */

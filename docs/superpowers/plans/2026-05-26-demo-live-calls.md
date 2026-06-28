@@ -444,7 +444,7 @@ class VisitManagerNotesForm(forms.ModelForm):
         }
 ```
 
-(Note we strip the DaisyUI/Tailwind `class=` attrs because the form is rendered in the new design's `.form-row` chrome which provides styling.)
+(Note we strip the Tailwind `class=` attrs because the form is rendered in the new design's `.form-row` chrome which provides styling.)
 
 **Step 2: Verify**
 

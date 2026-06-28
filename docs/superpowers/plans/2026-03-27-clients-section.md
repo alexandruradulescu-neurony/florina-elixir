@@ -6,7 +6,7 @@
 
 **Architecture:** Two new views (ClientListView, ClientDetailView) following the existing CBV pattern with SuperuserRequiredMixin. New selectors for enriched client data. Two new templates following the modernized design system (teal accent, rounded-xl, border-slate-200). Sidebar nav gets a "Clients" entry under the "Manage" group.
 
-**Tech Stack:** Django 4.2, Tailwind CSS + DaisyUI via CDN, existing Client model + selectors
+**Tech Stack:** Django 4.2, Tailwind CSS via CDN, existing Client model + selectors
 
 ---
 

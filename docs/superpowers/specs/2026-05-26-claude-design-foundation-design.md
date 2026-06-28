@@ -9,7 +9,7 @@
 
 ## 1. Goal
 
-Replace the current Tailwind/DaisyUI shell of the Sales Assistant Django app with the new "Editorial Minimalism × Warm Scheduling" design system from the Claude Design export. This pass delivers the **foundation only**: design tokens, fonts, icons, the new `base.html` shell (264 px white sidebar + two-row header), and a small set of reusable component partials. No screen-level redesigns are in scope.
+Replace the current Tailwind (CDN) shell of the Sales Assistant Django app with the new "Editorial Minimalism × Warm Scheduling" design system from the Claude Design export. This pass delivers the **foundation only**: design tokens, fonts, icons, the new `base.html` shell (264 px white sidebar + two-row header), and a small set of reusable component partials. No screen-level redesigns are in scope.
 
 The new shell becomes visible on every authenticated page immediately. Un-redesigned screens will look stylistically broken until their content is rebuilt in later passes — this is an accepted transition cost.
 
@@ -19,7 +19,7 @@ The new shell becomes visible on every authenticated page immediately. Un-redesi
 |---|---|---|
 | 1 | Foundation only this pass; screens follow in later passes | Lower risk; allows the user to see the shell live before committing to screen work |
 | 2 | New shell visible on every page (replace `base.html`) | Avoids a feature-flag/coexistence complexity tax |
-| 3 | Drop Tailwind CDN + DaisyUI; hand-rolled CSS like the design package | The design spec explicitly rejects framework defaults ("anti-slop"); the design ships its own tokens |
+| 3 | Drop the Tailwind CDN shell; hand-rolled CSS like the design package | The design spec explicitly rejects framework defaults ("anti-slop"); the design ships its own tokens |
 | 4 | Accept ugly transition for un-redesigned screens | Forces fast redesign cadence; avoids transitional CSS that lingers |
 | 5 | Both Manager and Sales Agent roles get the new shell with role-aware nav | Consistent product look; one shell, two nav configurations |
 | 6 | Sidebar matches design exactly: Dashboard, Visits, Calendar, Live Agent \| Agents, Clients, Methodologies, Calls. Prompts and Logs drop from sidebar (still reachable by URL) | Matches the design package; Prompts/Logs are internal-feeling and can be moved under Settings later |
@@ -57,7 +57,7 @@ Fonts load from Google Fonts CDN — no local font files. The italic-Nunito TTF 
 
 ### Delete
 
-Nothing. Tailwind/DaisyUI script + style tags are removed from `base.html`; class names in other templates become dead string content with no effect.
+Nothing. Tailwind CDN script + style tags are removed from `base.html`; class names in other templates become dead string content with no effect.
 
 ## 4. `base.html` structure
 
@@ -72,7 +72,7 @@ Nothing. Tailwind/DaisyUI script + style tags are removed from `base.html`; clas
 <link rel="stylesheet" href="{% static 'css/shell.css' %}">
 ```
 
-No Tailwind. No DaisyUI. No CDN scripts beyond Google Fonts.
+No Tailwind. No component library. No CDN scripts beyond Google Fonts.
 
 ### 4.2 Block contract (the API screens fill)
 
@@ -130,7 +130,7 @@ The current shell renders unauthenticated requests as a centered card with no si
 
 ### 4.6 Messages framework (toasts)
 
-Current shell renders Django `messages` as DaisyUI alerts. New shell renders them as a fixed top-right stack of zinc cards with hairline border, color-keyed by tag using the same variants as `status_pill` (info → cyan, success → green, warning → amber, error → rose). No DaisyUI, no JavaScript framework — just static CSS positioning.
+Current shell renders Django `messages` as component-library alerts. New shell renders them as a fixed top-right stack of zinc cards with hairline border, color-keyed by tag using the same variants as `status_pill` (info → cyan, success → green, warning → amber, error → rose). No component library, no JavaScript framework — just static CSS positioning.
 
 ## 5. Component partials
 
@@ -203,7 +203,7 @@ Pure visual change, no business logic — no automated tests. Manual checks:
 ### Known transition issues to call out, not fix
 
 - Templates that override the old `{% block page_title %}` / `{% block page_header %}` render with a blank header. These will be repaired when each screen is redesigned in its own pass.
-- DaisyUI classes used inline in template bodies (e.g., `alert alert-success`) have no effect. Same fix path.
+- Old component-library classes used inline in template bodies (e.g., `alert alert-success`) have no effect. Same fix path.
 
 ## 8. Explicitly out of scope
 
