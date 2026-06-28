@@ -19,10 +19,14 @@ defmodule Florina.Settings.GlobalSettings do
     field :max_call_attempts_per_phase, :integer, default: 2
     field :max_context_tokens_warn, :integer, default: 50_000
 
-    # Per-tenant Pipedrive (CRM) credentials. Each tenant syncs its own CRM, so
-    # these are tenant-private and never published from the central config.
+    # Per-tenant CRM credentials. Each tenant syncs its own CRM, so these are
+    # tenant-private and never published from the central config.
+    # `crm_provider` selects which CRM is active: "pipedrive" | "hubspot".
+    # Both providers' credentials are kept so switching doesn't lose them.
+    field :crm_provider, :string, default: "pipedrive"
     field :pipedrive_api_token, :string
     field :pipedrive_domain, :string
+    field :hubspot_api_token, :string
 
     field :is_overridden, :boolean, default: false
 
@@ -37,11 +41,18 @@ defmodule Florina.Settings.GlobalSettings do
     :retry_interval_minutes,
     :max_call_attempts_per_phase,
     :max_context_tokens_warn,
+    :crm_provider,
     :pipedrive_api_token,
     :pipedrive_domain,
+    :hubspot_api_token,
     :default_methodology_id,
     :is_overridden
   ]
+
+  @crm_providers ~w(pipedrive hubspot)
+
+  @doc "Valid CRM provider values."
+  def crm_providers, do: @crm_providers
 
   @doc "Get-or-create the singleton settings row (pk=1) using TenantRepo."
   def load do
@@ -67,5 +78,6 @@ defmodule Florina.Settings.GlobalSettings do
   def changeset(settings, attrs) do
     settings
     |> cast(attrs, @cast_fields)
+    |> validate_inclusion(:crm_provider, @crm_providers)
   end
 end

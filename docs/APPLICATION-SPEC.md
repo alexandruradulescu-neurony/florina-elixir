@@ -17,7 +17,7 @@ Florina is an AI sales-assistant SaaS, delivered as a **multi-tenant** Phoenix a
 - **Outbound AI voice calls** before/after sales meetings (via ElevenLabs Conversational AI over a Twilio bridge), with LLM-assembled call prompts.
 - **LLM prompt assembly + post-call lessons distillation** (Anthropic Claude).
 - **Calendar sync** (Google + Microsoft) that turns meetings into "visits" and drives call scheduling; plus a merged all-agents calendar view.
-- **CRM sync** (Pipedrive) to enrich client records.
+- **CRM sync** (per-tenant: Pipedrive or HubSpot) to enrich client records.
 - **Agent self-service sign-in** (Google/Microsoft SSO), gated by per-company email domain.
 - **Operator admin console** to manage tenants and publish central configuration.
 

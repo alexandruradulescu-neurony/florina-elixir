@@ -399,9 +399,7 @@ defmodule Florina.Workers.CalendarSync do
     if is_nil(client.crm_id) or client.crm_id == "" do
       nil
     else
-      pd = Application.get_env(:florina, :pipedrive_client, Florina.Integrations.Pipedrive)
-
-      case pd.do_get_organization_deals(client.crm_id) do
+      case Florina.Integrations.CRM.get_organization_deals(client.crm_id) do
         {:ok, deals} when is_list(deals) ->
           # Prefer an open deal; fall back to the most-recent deal of any status.
           # The Pipedrive impl already sorts open/won first, then by update_time desc.

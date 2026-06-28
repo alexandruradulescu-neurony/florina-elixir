@@ -1,12 +1,14 @@
 defmodule Florina.Integrations.ClientSync do
   @moduledoc """
-  Syncs client/organization data from Pipedrive into the local `voice_client` table.
+  Syncs client/organization data from the tenant's CRM into the local
+  `voice_client` table.
 
   Mirrors Django's `voice/services/client_sync.py` — pure orchestration over:
-  - `Florina.Integrations.Pipedrive` behaviour (data source)
+  - `Florina.Integrations.CRM` facade (data source — Pipedrive or HubSpot per
+    the tenant's `crm_provider` setting)
   - `Florina.Clients` context (local persistence)
 
-  Fully testable with `Florina.Integrations.Pipedrive.Stub` — no real HTTP needed.
+  Fully testable with the provider stubs — no real HTTP needed.
 
   ## Usage
 
@@ -20,7 +22,7 @@ defmodule Florina.Integrations.ClientSync do
   require Logger
 
   alias Florina.Clients
-  alias Florina.Integrations.Pipedrive, as: PD
+  alias Florina.Integrations.CRM
 
   # Maximum number of items stored per enrichment list to avoid DB bloat.
   @max_contacts 20
@@ -34,7 +36,7 @@ defmodule Florina.Integrations.ClientSync do
   Returns `{:ok, %{created: int, updated: int, errors: [String.t()]}}`.
   """
   def sync_all do
-    case PD.list_organizations() do
+    case CRM.list_organizations() do
       {:ok, orgs} ->
         results = %{created: 0, updated: 0, errors: []}
         now = DateTime.utc_now() |> DateTime.truncate(:second)
@@ -55,7 +57,7 @@ defmodule Florina.Integrations.ClientSync do
         |> then(fn r -> {:ok, %{r | errors: Enum.reverse(r.errors)}} end)
 
       {:error, reason} ->
-        {:error, {:pipedrive_error, reason}}
+        {:error, {:crm_error, reason}}
     end
   end
 
@@ -65,7 +67,7 @@ defmodule Florina.Integrations.ClientSync do
   Returns `{:ok, %Florina.Clients.Client{}}` on success, `{:error, reason}` otherwise.
   """
   def sync_one(crm_id) when is_binary(crm_id) do
-    case PD.get_organization(crm_id) do
+    case CRM.get_organization(crm_id) do
       {:ok, nil} ->
         {:error, :not_found}
 
@@ -79,7 +81,7 @@ defmodule Florina.Integrations.ClientSync do
         end
 
       {:error, reason} ->
-        {:error, {:pipedrive_error, reason}}
+        {:error, {:crm_error, reason}}
     end
   end
 
@@ -175,7 +177,7 @@ defmodule Florina.Integrations.ClientSync do
   # Fetches and maps organization contacts (persons) from Pipedrive.
   # Returns a bounded list of `%{name, email, phone}` maps.
   defp fetch_contacts(crm_id) do
-    case PD.get_organization_persons(crm_id) do
+    case CRM.get_organization_persons(crm_id) do
       {:ok, persons} ->
         persons
         |> Enum.take(@max_contacts)
@@ -196,7 +198,7 @@ defmodule Florina.Integrations.ClientSync do
   # Fetches and maps deal history from Pipedrive.
   # Returns a bounded list of `%{title, value, currency, status}` maps.
   defp fetch_deal_history(crm_id) do
-    case PD.get_organization_deals(crm_id) do
+    case CRM.get_organization_deals(crm_id) do
       {:ok, deals} ->
         deals
         |> Enum.take(@max_deals)
@@ -233,7 +235,7 @@ defmodule Florina.Integrations.ClientSync do
   end
 
   defp fetch_notes(crm_id) do
-    case PD.get_organization_notes(crm_id) do
+    case CRM.get_organization_notes(crm_id) do
       {:ok, notes} ->
         Enum.map(notes, fn n ->
           %{
@@ -250,7 +252,7 @@ defmodule Florina.Integrations.ClientSync do
   end
 
   defp fetch_activities(crm_id) do
-    case PD.get_organization_activities(crm_id) do
+    case CRM.get_organization_activities(crm_id) do
       {:ok, activities} ->
         Enum.map(activities, fn a ->
           %{

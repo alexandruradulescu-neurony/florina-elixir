@@ -53,7 +53,8 @@ config :florina,
   elevenlabs_client: Florina.Integrations.ElevenLabs.Stub,
   oauth_provider_google: Florina.Integrations.Providers.Stub,
   oauth_provider_microsoft: Florina.Integrations.Providers.Stub,
-  pipedrive_client: Florina.Integrations.Pipedrive.Stub
+  pipedrive_client: Florina.Integrations.Pipedrive.Stub,
+  hubspot_client: Florina.Integrations.Hubspot.Stub
 
 # Placeholder keys — ensure config keys exist (stubs don't use them)
 config :florina,

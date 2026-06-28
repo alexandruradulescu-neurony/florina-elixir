@@ -180,7 +180,7 @@ defmodule FlorinaWeb.Admin.TenantsLive do
                 <th class="px-4 py-3 font-semibold">Status</th>
                 <th class="px-4 py-3 font-semibold">Active</th>
                 <th class="px-4 py-3 font-semibold">Domains</th>
-                <th class="px-4 py-3 font-semibold">CRM (Pipedrive)</th>
+                <th class="px-4 py-3 font-semibold">CRM</th>
                 <th class="px-4 py-3 font-semibold">Actions</th>
               </tr>
             </thead>
@@ -236,17 +236,37 @@ defmodule FlorinaWeb.Admin.TenantsLive do
                     class="flex flex-col gap-1"
                   >
                     <input type="hidden" name="slug" value={tenant.slug} />
+                    <select
+                      name="crm_provider"
+                      class="rounded px-2 py-1 text-xs w-40 bg-white text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 dark:bg-white/5 dark:text-white dark:outline-white/10"
+                    >
+                      <option
+                        value="pipedrive"
+                        selected={crm_provider(@crm, tenant.slug) == "pipedrive"}
+                      >
+                        Pipedrive
+                      </option>
+                      <option value="hubspot" selected={crm_provider(@crm, tenant.slug) == "hubspot"}>
+                        HubSpot
+                      </option>
+                    </select>
                     <input
                       type="text"
                       name="pipedrive_domain"
                       value={crm_domain(@crm, tenant.slug)}
-                      placeholder="domain"
+                      placeholder="Pipedrive domain"
                       class="rounded px-2 py-1 text-xs font-mono w-40 bg-white text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 dark:bg-white/5 dark:text-white dark:outline-white/10"
                     />
                     <input
                       type="password"
                       name="pipedrive_api_token"
-                      placeholder={crm_token_placeholder(@crm, tenant.slug)}
+                      placeholder={token_ph(@crm, tenant.slug, :pd)}
+                      class="rounded px-2 py-1 text-xs font-mono w-40 bg-white text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 dark:bg-white/5 dark:text-white dark:outline-white/10"
+                    />
+                    <input
+                      type="password"
+                      name="hubspot_api_token"
+                      placeholder={token_ph(@crm, tenant.slug, :hs)}
                       class="rounded px-2 py-1 text-xs font-mono w-40 bg-white text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 dark:bg-white/5 dark:text-white dark:outline-white/10"
                     />
                     <button class="text-xs font-medium text-indigo-600 hover:text-indigo-500 self-start dark:text-indigo-400">
@@ -371,10 +391,16 @@ defmodule FlorinaWeb.Admin.TenantsLive do
   defp read_crm(tenant) do
     with_tenant(tenant, fn ->
       s = Settings.get()
-      %{domain: s.pipedrive_domain, has_token: present?(s.pipedrive_api_token)}
+
+      %{
+        provider: s.crm_provider || "pipedrive",
+        domain: s.pipedrive_domain,
+        has_pd_token: present?(s.pipedrive_api_token),
+        has_hs_token: present?(s.hubspot_api_token)
+      }
     end)
   rescue
-    _ -> %{domain: nil, has_token: false}
+    _ -> %{provider: "pipedrive", domain: nil, has_pd_token: false, has_hs_token: false}
   end
 
   # Run `fun` with the tenant's schema prefix pinned, always clearing it after so
@@ -390,11 +416,14 @@ defmodule FlorinaWeb.Admin.TenantsLive do
   end
 
   defp crm_domain(crm, slug), do: get_in(crm, [slug, :domain]) || ""
+  defp crm_provider(crm, slug), do: get_in(crm, [slug, :provider]) || "pipedrive"
 
-  defp crm_token_placeholder(crm, slug) do
-    if get_in(crm, [slug, :has_token]),
+  defp token_ph(crm, slug, which) do
+    key = if which == :pd, do: :has_pd_token, else: :has_hs_token
+
+    if get_in(crm, [slug, key]),
       do: "•••••• (set — blank keeps it)",
-      else: "API token"
+      else: if(which == :pd, do: "Pipedrive token", else: "HubSpot token")
   end
 
   defp present?(v) when v in [nil, ""], do: false

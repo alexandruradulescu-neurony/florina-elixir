@@ -127,7 +127,8 @@ config :florina,
   elevenlabs_client: Florina.Integrations.ElevenLabs,
   oauth_provider_google: Florina.Integrations.Providers.Google,
   oauth_provider_microsoft: Florina.Integrations.Providers.Microsoft,
-  pipedrive_client: Florina.Integrations.Pipedrive
+  pipedrive_client: Florina.Integrations.Pipedrive,
+  hubspot_client: Florina.Integrations.Hubspot
 
 # ElevenLabs — global keys (set in runtime.exs for prod from env)
 config :florina,

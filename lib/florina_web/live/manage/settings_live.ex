@@ -61,6 +61,9 @@ defmodule FlorinaWeb.Manage.SettingsLive do
 
   defp assign_form(socket, changeset), do: assign(socket, :form, to_form(changeset))
 
+  defp token_placeholder(saved) when saved in [nil, ""], do: "Paste the API token"
+  defp token_placeholder(_saved), do: "•••••••• (a token is saved — leave blank to keep it)"
+
   @impl true
   def render(assigns) do
     ~H"""
@@ -145,36 +148,63 @@ defmodule FlorinaWeb.Manage.SettingsLive do
       </div>
 
       <div class="mt-12 border-t border-gray-200 dark:border-white/10 pt-8 max-w-xl">
-        <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
-          CRM integration (Pipedrive)
-        </h2>
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-white">CRM integration</h2>
         <p class="text-sm text-gray-500 dark:text-gray-400 mb-5">
-          This workspace syncs its own Pipedrive account. Leave the token blank to
-          keep the current one; leave both blank to fall back to the system default.
+          Choose your CRM, then enter that CRM's credentials below. Florina syncs clients
+          from the CRM you select here. A blank token keeps the one already saved.
         </p>
         <.form
           :let={f}
-          for={to_form(%{"pipedrive_domain" => @settings.pipedrive_domain || ""}, as: :crm)}
+          for={
+            to_form(
+              %{
+                "crm_provider" => @settings.crm_provider || "pipedrive",
+                "pipedrive_domain" => @settings.pipedrive_domain || ""
+              },
+              as: :crm
+            )
+          }
           phx-submit="save_crm"
           class="space-y-5"
         >
           <.input
-            field={f[:pipedrive_domain]}
-            type="text"
-            label="Pipedrive domain"
-            placeholder="yourcompany"
+            field={f[:crm_provider]}
+            type="select"
+            label="CRM provider"
+            options={[{"Pipedrive", "pipedrive"}, {"HubSpot", "hubspot"}]}
           />
-          <.input
-            field={f[:pipedrive_api_token]}
-            type="password"
-            label="Pipedrive API token"
-            placeholder={
-              if @settings.pipedrive_api_token,
-                do: "•••••••• (a token is saved — leave blank to keep it)",
-                else: "Paste your Pipedrive API token"
-            }
-          />
-          <.button type="submit" variant="primary">Save CRM credentials</.button>
+
+          <fieldset class="border border-gray-200 dark:border-white/10 rounded-lg p-4 space-y-4">
+            <legend class="px-1 text-sm font-medium text-gray-700 dark:text-gray-300">
+              Pipedrive
+            </legend>
+            <.input
+              field={f[:pipedrive_domain]}
+              type="text"
+              label="Pipedrive domain"
+              placeholder="yourcompany"
+            />
+            <.input
+              field={f[:pipedrive_api_token]}
+              type="password"
+              label="Pipedrive API token"
+              placeholder={token_placeholder(@settings.pipedrive_api_token)}
+            />
+          </fieldset>
+
+          <fieldset class="border border-gray-200 dark:border-white/10 rounded-lg p-4 space-y-4">
+            <legend class="px-1 text-sm font-medium text-gray-700 dark:text-gray-300">
+              HubSpot
+            </legend>
+            <.input
+              field={f[:hubspot_api_token]}
+              type="password"
+              label="HubSpot private-app token"
+              placeholder={token_placeholder(@settings.hubspot_api_token)}
+            />
+          </fieldset>
+
+          <.button type="submit" variant="primary">Save CRM settings</.button>
         </.form>
       </div>
     </Layouts.agent_app>

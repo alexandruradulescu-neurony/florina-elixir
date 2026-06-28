@@ -30,19 +30,30 @@ defmodule Florina.Settings do
   An empty/blank value clears the field (so the global env fallback applies).
   """
   def update_crm(attrs) do
-    token = blank_to_nil(attrs[:pipedrive_api_token] || attrs["pipedrive_api_token"])
-    domain = blank_to_nil(attrs[:pipedrive_domain] || attrs["pipedrive_domain"])
+    provider = get(attrs, :crm_provider)
+    pd_token = blank_to_nil(get(attrs, :pipedrive_api_token))
+    pd_domain = blank_to_nil(get(attrs, :pipedrive_domain))
+    hs_token = blank_to_nil(get(attrs, :hubspot_api_token))
 
-    # Always set the domain (blank clears it). Only overwrite the token when a new
-    # one is supplied — a blank token field keeps the existing secret, so editing
-    # the domain alone doesn't wipe the token.
-    changes = %{pipedrive_domain: domain}
-    changes = if token, do: Map.put(changes, :pipedrive_api_token, token), else: changes
+    # Always set the selected provider and the Pipedrive domain (blank clears it).
+    # Only overwrite a token when a new one is supplied — a blank token field keeps
+    # the existing secret, so switching provider / editing the domain doesn't wipe
+    # the other CRM's saved token.
+    changes =
+      %{pipedrive_domain: pd_domain}
+      |> maybe_put(:crm_provider, blank_to_nil(provider))
+      |> maybe_put(:pipedrive_api_token, pd_token)
+      |> maybe_put(:hubspot_api_token, hs_token)
 
     GlobalSettings.load()
     |> GlobalSettings.changeset(changes)
     |> TenantRepo.update()
   end
+
+  defp get(attrs, key), do: attrs[key] || attrs[to_string(key)]
+
+  defp maybe_put(map, _key, nil), do: map
+  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 
   defp blank_to_nil(v) when is_binary(v) do
     case String.trim(v) do
