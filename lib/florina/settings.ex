@@ -30,30 +30,37 @@ defmodule Florina.Settings do
   An empty/blank value clears the field (so the global env fallback applies).
   """
   def update_crm(attrs) do
-    provider = get(attrs, :crm_provider)
-    pd_token = blank_to_nil(get(attrs, :pipedrive_api_token))
-    pd_domain = blank_to_nil(get(attrs, :pipedrive_domain))
-    hs_token = blank_to_nil(get(attrs, :hubspot_api_token))
-
-    # Always set the selected provider and the Pipedrive domain (blank clears it).
-    # Only overwrite a token when a new one is supplied — a blank token field keeps
-    # the existing secret, so switching provider / editing the domain doesn't wipe
-    # the other CRM's saved token.
+    # Only touch fields that were actually submitted, so a form that hides one
+    # provider's fields (conditional UI) doesn't wipe that provider's saved creds.
+    # Tokens are keep-on-blank (a blank field keeps the existing secret); the
+    # Pipedrive domain is set when present (a present-but-blank value clears it).
     changes =
-      %{pipedrive_domain: pd_domain}
-      |> maybe_put(:crm_provider, blank_to_nil(provider))
-      |> maybe_put(:pipedrive_api_token, pd_token)
-      |> maybe_put(:hubspot_api_token, hs_token)
+      %{}
+      |> put_present(attrs, :crm_provider, :nonblank)
+      |> put_present(attrs, :pipedrive_domain, :allow_blank)
+      |> put_present(attrs, :pipedrive_api_token, :nonblank)
+      |> put_present(attrs, :hubspot_api_token, :nonblank)
 
     GlobalSettings.load()
     |> GlobalSettings.changeset(changes)
     |> TenantRepo.update()
   end
 
-  defp get(attrs, key), do: attrs[key] || attrs[to_string(key)]
+  defp put_present(map, attrs, key, mode) do
+    if has_key?(attrs, key) do
+      case {mode, blank_to_nil(fetch(attrs, key))} do
+        # blank token / provider → keep the existing value
+        {:nonblank, nil} -> map
+        # allow_blank → set it (nil clears the field)
+        {_mode, value} -> Map.put(map, key, value)
+      end
+    else
+      map
+    end
+  end
 
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
+  defp has_key?(attrs, key), do: Map.has_key?(attrs, key) or Map.has_key?(attrs, to_string(key))
+  defp fetch(attrs, key), do: attrs[key] || attrs[to_string(key)]
 
   defp blank_to_nil(v) when is_binary(v) do
     case String.trim(v) do

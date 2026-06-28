@@ -21,6 +21,7 @@ defmodule FlorinaWeb.Manage.SettingsLive do
      socket
      |> assign(:methodologies, Methodologies.list_active())
      |> assign(:settings, settings)
+     |> assign(:crm_provider, settings.crm_provider || "pipedrive")
      |> assign_form(GlobalSettings.changeset(settings, %{}))}
   end
 
@@ -46,12 +47,19 @@ defmodule FlorinaWeb.Manage.SettingsLive do
     end
   end
 
+  # Live toggle of which provider's credential fields are shown (not persisted
+  # until Save). Fired by the provider dropdown's phx-change.
+  def handle_event("select_crm", %{"crm" => %{"crm_provider" => provider}}, socket) do
+    {:noreply, assign(socket, :crm_provider, provider)}
+  end
+
   def handle_event("save_crm", %{"crm" => params}, socket) do
     case Settings.update_crm(params) do
       {:ok, settings} ->
         {:noreply,
          socket
          |> assign(:settings, settings)
+         |> assign(:crm_provider, settings.crm_provider || "pipedrive")
          |> put_flash(:info, "CRM credentials saved.")}
 
       {:error, _changeset} ->
@@ -158,12 +166,13 @@ defmodule FlorinaWeb.Manage.SettingsLive do
           for={
             to_form(
               %{
-                "crm_provider" => @settings.crm_provider || "pipedrive",
+                "crm_provider" => @crm_provider,
                 "pipedrive_domain" => @settings.pipedrive_domain || ""
               },
               as: :crm
             )
           }
+          id="crm-form"
           phx-submit="save_crm"
           class="space-y-5"
         >
@@ -172,9 +181,13 @@ defmodule FlorinaWeb.Manage.SettingsLive do
             type="select"
             label="CRM provider"
             options={[{"Pipedrive", "pipedrive"}, {"HubSpot", "hubspot"}]}
+            phx-change="select_crm"
           />
 
-          <fieldset class="border border-gray-200 dark:border-white/10 rounded-lg p-4 space-y-4">
+          <fieldset
+            :if={@crm_provider == "pipedrive"}
+            class="border border-gray-200 dark:border-white/10 rounded-lg p-4 space-y-4"
+          >
             <legend class="px-1 text-sm font-medium text-gray-700 dark:text-gray-300">
               Pipedrive
             </legend>
@@ -192,7 +205,10 @@ defmodule FlorinaWeb.Manage.SettingsLive do
             />
           </fieldset>
 
-          <fieldset class="border border-gray-200 dark:border-white/10 rounded-lg p-4 space-y-4">
+          <fieldset
+            :if={@crm_provider == "hubspot"}
+            class="border border-gray-200 dark:border-white/10 rounded-lg p-4 space-y-4"
+          >
             <legend class="px-1 text-sm font-medium text-gray-700 dark:text-gray-300">
               HubSpot
             </legend>
@@ -202,6 +218,10 @@ defmodule FlorinaWeb.Manage.SettingsLive do
               label="HubSpot private-app token"
               placeholder={token_placeholder(@settings.hubspot_api_token)}
             />
+            <p class="text-xs text-gray-400">
+              Create a Private App in HubSpot (Settings → Integrations → Private Apps) with
+              CRM read scopes, then paste its access token here.
+            </p>
           </fieldset>
 
           <.button type="submit" variant="primary">Save CRM settings</.button>

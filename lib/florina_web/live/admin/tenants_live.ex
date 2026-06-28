@@ -20,6 +20,8 @@ defmodule FlorinaWeb.Admin.TenantsLive do
      socket
      |> assign(:tenants, tenants)
      |> assign(:crm, load_crm(tenants))
+     # Per-row, unsaved provider selection (slug => provider) for conditional fields.
+     |> assign(:crm_sel, %{})
      |> assign(:form, build_form())}
   end
 
@@ -102,6 +104,11 @@ defmodule FlorinaWeb.Admin.TenantsLive do
     end
   end
 
+  # Live toggle of which provider's fields show for one row (not persisted yet).
+  def handle_event("select_crm_row", %{"slug" => slug, "crm_provider" => provider}, socket) do
+    {:noreply, assign(socket, :crm_sel, Map.put(socket.assigns.crm_sel, slug, provider))}
+  end
+
   def handle_event("save_crm", %{"slug" => slug} = params, socket) do
     case Tenants.get_by_slug(slug) do
       nil ->
@@ -115,7 +122,9 @@ defmodule FlorinaWeb.Admin.TenantsLive do
             {:noreply,
              socket
              |> put_flash(:info, "CRM credentials saved for #{slug}.")
-             |> assign(:crm, load_crm(socket.assigns.tenants))}
+             |> assign(:crm, load_crm(socket.assigns.tenants))
+             # Drop the unsaved selection so the row reflects the freshly saved value.
+             |> assign(:crm_sel, Map.delete(socket.assigns.crm_sel, slug))}
 
           _ ->
             {:noreply, put_flash(socket, :error, "Could not save CRM credentials for #{slug}.")}
@@ -238,19 +247,25 @@ defmodule FlorinaWeb.Admin.TenantsLive do
                     <input type="hidden" name="slug" value={tenant.slug} />
                     <select
                       name="crm_provider"
+                      phx-change="select_crm_row"
+                      phx-value-slug={tenant.slug}
                       class="rounded px-2 py-1 text-xs w-40 bg-white text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 dark:bg-white/5 dark:text-white dark:outline-white/10"
                     >
                       <option
                         value="pipedrive"
-                        selected={crm_provider(@crm, tenant.slug) == "pipedrive"}
+                        selected={crm_selected(@crm_sel, @crm, tenant.slug) == "pipedrive"}
                       >
                         Pipedrive
                       </option>
-                      <option value="hubspot" selected={crm_provider(@crm, tenant.slug) == "hubspot"}>
+                      <option
+                        value="hubspot"
+                        selected={crm_selected(@crm_sel, @crm, tenant.slug) == "hubspot"}
+                      >
                         HubSpot
                       </option>
                     </select>
                     <input
+                      :if={crm_selected(@crm_sel, @crm, tenant.slug) == "pipedrive"}
                       type="text"
                       name="pipedrive_domain"
                       value={crm_domain(@crm, tenant.slug)}
@@ -258,12 +273,14 @@ defmodule FlorinaWeb.Admin.TenantsLive do
                       class="rounded px-2 py-1 text-xs font-mono w-40 bg-white text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 dark:bg-white/5 dark:text-white dark:outline-white/10"
                     />
                     <input
+                      :if={crm_selected(@crm_sel, @crm, tenant.slug) == "pipedrive"}
                       type="password"
                       name="pipedrive_api_token"
                       placeholder={token_ph(@crm, tenant.slug, :pd)}
                       class="rounded px-2 py-1 text-xs font-mono w-40 bg-white text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 dark:bg-white/5 dark:text-white dark:outline-white/10"
                     />
                     <input
+                      :if={crm_selected(@crm_sel, @crm, tenant.slug) == "hubspot"}
                       type="password"
                       name="hubspot_api_token"
                       placeholder={token_ph(@crm, tenant.slug, :hs)}
@@ -417,6 +434,9 @@ defmodule FlorinaWeb.Admin.TenantsLive do
 
   defp crm_domain(crm, slug), do: get_in(crm, [slug, :domain]) || ""
   defp crm_provider(crm, slug), do: get_in(crm, [slug, :provider]) || "pipedrive"
+
+  # The provider to display for a row: the unsaved selection if any, else the saved one.
+  defp crm_selected(crm_sel, crm, slug), do: Map.get(crm_sel, slug) || crm_provider(crm, slug)
 
   defp token_ph(crm, slug, which) do
     key = if which == :pd, do: :has_pd_token, else: :has_hs_token
