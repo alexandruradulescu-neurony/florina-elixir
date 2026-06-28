@@ -70,7 +70,8 @@ defmodule Florina.MixProject do
       {:cloak, "~> 1.1"},
       {:cloak_ecto, "~> 1.3"},
       {:bcrypt_elixir, "~> 3.0"},
-      {:tz, "~> 0.28"}
+      {:tz, "~> 0.28"},
+      {:credo, "~> 1.7", only: [:dev, :test], runtime: false}
     ]
   end
 
@@ -93,7 +94,13 @@ defmodule Florina.MixProject do
         "esbuild florina --minify",
         "phx.digest"
       ],
-      precommit: ["compile --warnings-as-errors", "deps.unlock --unused", "format", "test"]
+      precommit: [
+        "compile --warnings-as-errors",
+        "deps.unlock --unused",
+        "format",
+        "credo",
+        "test"
+      ]
     ]
   end
 end

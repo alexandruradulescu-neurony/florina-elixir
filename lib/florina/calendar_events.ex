@@ -42,6 +42,7 @@ defmodule Florina.CalendarEvents do
   def list_events_between(%DateTime{} = from_dt, %DateTime{} = to_dt, scope \\ :all) do
     Event
     |> where([e], e.start_time >= ^from_dt and e.start_time <= ^to_dt)
+    |> where([e], is_nil(e.status) or e.status != "cancelled")
     |> scope_events(scope)
     |> order_by([e], e.start_time)
     |> TenantRepo.all()

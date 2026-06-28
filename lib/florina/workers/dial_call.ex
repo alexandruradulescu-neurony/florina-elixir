@@ -68,6 +68,12 @@ defmodule Florina.Workers.DialCall do
     end
   end
 
+  defp do_dial(%Visit{status: status} = visit, phase, _tenant_slug)
+       when status in [:CANCELLED, :MISSED, :COMPLETE] do
+    Logger.info("[DialCall] visit=#{visit.id} phase=#{phase} status=#{status} terminal — skip")
+    :ok
+  end
+
   defp do_dial(visit, phase, _tenant_slug) do
     case check_calendar_freshness(visit, phase) do
       :cancelled ->
