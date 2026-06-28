@@ -86,16 +86,16 @@ defmodule FlorinaWeb.Manage.MethodologiesLive do
       current_agent={@current_agent}
       active={:methodologies}
     >
-      <h1 class="text-2xl font-semibold mb-4">Methodologies</h1>
+      <h1 class="text-2xl font-semibold mb-4 text-gray-900 dark:text-white">Methodologies</h1>
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div class="space-y-2">
           <div
             :for={m <- @methodologies}
-            class="flex items-center justify-between rounded-lg border border-base-300 px-3 py-2"
+            class="flex items-center justify-between rounded-lg border border-gray-200 px-3 py-2 dark:border-white/10"
           >
             <div>
-              <div class="text-sm font-medium">{m.name}</div>
-              <div class="text-xs text-base-content/60">
+              <div class="text-sm font-medium text-gray-900 dark:text-white">{m.name}</div>
+              <div class="text-xs text-gray-500 dark:text-gray-400">
                 {(m.is_active && "active") || "inactive"}
               </div>
             </div>
@@ -103,7 +103,7 @@ defmodule FlorinaWeb.Manage.MethodologiesLive do
               <button
                 phx-click="edit"
                 phx-value-id={m.id}
-                class="text-xs text-primary hover:underline"
+                class="text-xs font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400"
               >
                 Edit
               </button>
@@ -111,26 +111,26 @@ defmodule FlorinaWeb.Manage.MethodologiesLive do
                 phx-click="delete"
                 phx-value-id={m.id}
                 data-confirm={"Delete #{m.name}?"}
-                class="text-xs text-error hover:underline"
+                class="text-xs font-medium text-red-600 hover:text-red-500 dark:text-red-400"
               >
                 Delete
               </button>
             </div>
           </div>
-          <p :if={@methodologies == []} class="text-sm text-base-content/40">
+          <p :if={@methodologies == []} class="text-sm text-gray-400">
             No methodologies yet.
           </p>
         </div>
 
-        <div class="rounded-lg border border-base-300 p-4 h-fit">
+        <div class="rounded-lg border border-gray-200 p-4 h-fit dark:border-white/10">
           <div class="flex items-center justify-between mb-3">
-            <h2 class="text-lg font-medium">
+            <h2 class="text-lg font-medium text-gray-900 dark:text-white">
               {(@editing && "Edit methodology") || "New methodology"}
             </h2>
             <button
               :if={@editing}
               phx-click="new"
-              class="text-xs text-base-content/60 hover:underline"
+              class="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
             >
               + New
             </button>

@@ -105,30 +105,30 @@ defmodule FlorinaWeb.Manage.AgentsLive do
       current_agent={@current_agent}
       active={:agents}
     >
-      <h1 class="text-2xl font-semibold mb-1">People</h1>
-      <p class="text-sm text-base-content/60 mb-4">
+      <h1 class="text-2xl font-semibold mb-1 text-gray-900 dark:text-white">People</h1>
+      <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
         People appear here after their first sign-in. Managers see everything; agents see only their own.
       </p>
-      <div class="overflow-hidden border border-base-300 rounded-lg">
+      <div class="overflow-hidden border border-gray-200 rounded-lg dark:border-white/10">
         <table class="w-full text-sm text-left">
-          <thead class="bg-base-200 text-xs uppercase tracking-wider text-base-content/60">
+          <thead class="bg-gray-50 text-xs uppercase tracking-wider text-gray-500 dark:bg-white/5 dark:text-gray-400">
             <tr>
-              <th class="px-4 py-3">User</th>
-              <th class="px-4 py-3">Email</th>
-              <th class="px-4 py-3">Role</th>
-              <th class="px-4 py-3">Active</th>
+              <th class="px-4 py-3 font-semibold">User</th>
+              <th class="px-4 py-3 font-semibold">Email</th>
+              <th class="px-4 py-3 font-semibold">Role</th>
+              <th class="px-4 py-3 font-semibold">Active</th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-base-300">
-            <tr :for={u <- @users} class="hover:bg-base-200/50">
-              <td class="px-4 py-3 font-medium">{u.username}</td>
-              <td class="px-4 py-3">{u.email}</td>
+          <tbody class="divide-y divide-gray-200 dark:divide-white/10">
+            <tr :for={u <- @users} class="hover:bg-gray-50 dark:hover:bg-white/5">
+              <td class="px-4 py-3 font-medium text-gray-900 dark:text-white">{u.username}</td>
+              <td class="px-4 py-3 text-gray-700 dark:text-gray-300">{u.email}</td>
               <td class="px-4 py-3">
                 <form id={"role-form-#{u.id}"} phx-change="set_role">
                   <input type="hidden" name="user_id" value={u.id} />
                   <select
                     name="role"
-                    class="border border-base-300 rounded px-2 py-1 text-xs bg-base-100"
+                    class="rounded px-2 py-1 text-xs bg-white text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 dark:bg-white/5 dark:text-white dark:outline-white/10"
                   >
                     <option value="agent" selected={u.role == :agent}>agent</option>
                     <option value="manager" selected={u.role == :manager}>manager</option>
@@ -139,15 +139,19 @@ defmodule FlorinaWeb.Manage.AgentsLive do
                 <button
                   phx-click="toggle_active"
                   phx-value-id={u.id}
-                  class={["text-xs hover:underline", (u.active && "text-error") || "text-primary"]}
+                  class={[
+                    "text-xs font-medium hover:underline",
+                    (u.active && "text-red-600 dark:text-red-400") ||
+                      "text-indigo-600 dark:text-indigo-400"
+                  ]}
                 >
                   {if u.active, do: "Deactivate", else: "Activate"}
                 </button>
-                <span :if={!u.active} class="ml-2 text-xs text-base-content/40">(inactive)</span>
+                <span :if={!u.active} class="ml-2 text-xs text-gray-400">(inactive)</span>
               </td>
             </tr>
             <tr :if={@users == []}>
-              <td colspan="4" class="px-4 py-6 text-center text-base-content/40 text-sm">
+              <td colspan="4" class="px-4 py-6 text-center text-gray-400 text-sm">
                 No people yet.
               </td>
             </tr>
@@ -155,9 +159,9 @@ defmodule FlorinaWeb.Manage.AgentsLive do
         </table>
       </div>
 
-      <div class="mt-8 max-w-2xl rounded-lg border border-base-300 p-5">
-        <h2 class="text-lg font-medium mb-1">Add a person</h2>
-        <p class="text-sm text-base-content/60 mb-4">
+      <div class="mt-8 max-w-2xl rounded-lg border border-gray-200 p-5 dark:border-white/10">
+        <h2 class="text-lg font-medium mb-1 text-gray-900 dark:text-white">Add a person</h2>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
           Pre-create someone by email. They appear here right away; when they first
           sign in with Google or Microsoft their account links up automatically and
           keeps the role you set. Their email domain must be allowed for this tenant.

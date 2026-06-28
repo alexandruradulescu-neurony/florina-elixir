@@ -45,9 +45,9 @@ Manager:
 - [x] manage/meeting_form_live (new/edit)
 - [x] manage/calls_live (programmed calls)
 - [x] manage/clients_live
-- [ ] manage/client_live (detail)
-- [ ] manage/agents_live (people)
-- [ ] manage/methodologies_live
+- [x] manage/client_live (detail)
+- [x] manage/agents_live (people)
+- [x] manage/methodologies_live
 - [ ] manage/mega_prompts_live
 - [ ] manage/generation_runs_live
 - [ ] manage/settings_live

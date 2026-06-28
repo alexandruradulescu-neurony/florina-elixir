@@ -110,11 +110,11 @@ defmodule FlorinaWeb.Manage.ClientLive do
       <div class="mb-6">
         <.link
           navigate={"/t/#{@tenant.slug}/manage/clients"}
-          class="text-sm text-base-content/60 hover:underline"
+          class="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
         >
           ← Clients
         </.link>
-        <h1 class="text-2xl font-semibold mt-1">
+        <h1 class="text-2xl font-semibold mt-1 text-gray-900 dark:text-white">
           {if @live_action == :new, do: "New client", else: @client.name}
         </h1>
       </div>
@@ -144,15 +144,18 @@ defmodule FlorinaWeb.Manage.ClientLive do
         </.button>
       </.form>
 
-      <div :if={@live_action == :edit} class="max-w-2xl mt-10 rounded-lg border border-error/40 p-5">
-        <h2 class="text-sm font-semibold text-error mb-1">Danger zone</h2>
-        <p class="text-xs text-base-content/60 mb-3">
+      <div
+        :if={@live_action == :edit}
+        class="max-w-2xl mt-10 rounded-lg border border-red-300 p-5 dark:border-red-500/30"
+      >
+        <h2 class="text-sm font-semibold text-red-600 dark:text-red-400 mb-1">Danger zone</h2>
+        <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
           Deleting a client is permanent. It's blocked while the client still has meetings.
         </p>
         <button
           phx-click="delete"
           data-confirm={"Delete #{@client.name}? This can't be undone."}
-          class="text-sm text-error hover:underline"
+          class="text-sm font-medium text-red-600 hover:text-red-500 dark:text-red-400"
         >
           Delete client
         </button>
