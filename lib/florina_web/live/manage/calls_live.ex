@@ -60,23 +60,43 @@ defmodule FlorinaWeb.Manage.CallsLive do
       current_agent={@current_agent}
       active={:programmed_calls}
     >
-      <h1 class="text-2xl font-semibold mb-1">Programmed Calls</h1>
-      <p class="text-sm text-base-content/60 mb-6">
+      <h1 class="text-2xl font-semibold mb-1 text-gray-900 dark:text-white">Programmed Calls</h1>
+      <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">
         Every pre- and post-call Florina has scheduled or placed.
       </p>
 
       <div class="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
-        <.stat label="Total" value={@stats.total} tone="bg-base-200 text-base-content" />
-        <.stat label="Scheduled" value={@stats.scheduled} tone="bg-base-200 text-base-content" />
-        <.stat label="Active" value={@stats.active} tone="bg-info/10 text-info" />
-        <.stat label="Completed" value={@stats.completed} tone="bg-success/10 text-success" />
-        <.stat label="Failed" value={@stats.failed} tone="bg-error/10 text-error" />
+        <.stat
+          label="Total"
+          value={@stats.total}
+          tone="bg-gray-100 text-gray-700 dark:bg-white/10 dark:text-gray-200"
+        />
+        <.stat
+          label="Scheduled"
+          value={@stats.scheduled}
+          tone="bg-gray-100 text-gray-700 dark:bg-white/10 dark:text-gray-200"
+        />
+        <.stat
+          label="Active"
+          value={@stats.active}
+          tone="bg-blue-100 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400"
+        />
+        <.stat
+          label="Completed"
+          value={@stats.completed}
+          tone="bg-green-100 text-green-700 dark:bg-green-500/10 dark:text-green-400"
+        />
+        <.stat
+          label="Failed"
+          value={@stats.failed}
+          tone="bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-400"
+        />
       </div>
 
       <.form for={%{}} as={:filters} phx-change="filter" class="flex flex-wrap items-end gap-3 mb-4">
         <label class="text-sm">
-          <span class="block text-xs text-base-content/60 mb-1">Status</span>
-          <select name="filters[status]" class="select select-bordered select-sm">
+          <span class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Status</span>
+          <select name="filters[status]" class={filter_select()}>
             <option value="" selected={@filters["status"] == ""}>All</option>
             <option :for={s <- status_options()} value={s} selected={@filters["status"] == s}>
               {s}
@@ -84,16 +104,16 @@ defmodule FlorinaWeb.Manage.CallsLive do
           </select>
         </label>
         <label class="text-sm">
-          <span class="block text-xs text-base-content/60 mb-1">Phase</span>
-          <select name="filters[phase]" class="select select-bordered select-sm">
+          <span class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Phase</span>
+          <select name="filters[phase]" class={filter_select()}>
             <option value="" selected={@filters["phase"] == ""}>All</option>
             <option value="PRE" selected={@filters["phase"] == "PRE"}>Pre-call</option>
             <option value="POST" selected={@filters["phase"] == "POST"}>Post-call</option>
           </select>
         </label>
         <label class="text-sm">
-          <span class="block text-xs text-base-content/60 mb-1">Agent</span>
-          <select name="filters[agent_id]" class="select select-bordered select-sm">
+          <span class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Agent</span>
+          <select name="filters[agent_id]" class={filter_select()}>
             <option value="" selected={@filters["agent_id"] == ""}>All</option>
             <option
               :for={a <- @agents}
@@ -104,46 +124,57 @@ defmodule FlorinaWeb.Manage.CallsLive do
             </option>
           </select>
         </label>
-        <button type="button" phx-click="clear" class="btn btn-ghost btn-sm">Clear</button>
+        <button
+          type="button"
+          phx-click="clear"
+          class="rounded-md px-3 py-1.5 text-sm font-semibold text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/10"
+        >
+          Clear
+        </button>
       </.form>
 
-      <div class="overflow-x-auto rounded-lg border border-base-300">
+      <div class="overflow-x-auto rounded-lg border border-gray-200 dark:border-white/10">
         <table class="w-full text-left text-sm">
-          <thead class="bg-base-200">
+          <thead class="bg-gray-50 dark:bg-white/5">
             <tr>
-              <th class="px-3 py-2 font-semibold">Time</th>
-              <th class="px-3 py-2 font-semibold">Agent</th>
-              <th class="px-3 py-2 font-semibold">Context</th>
-              <th class="px-3 py-2 font-semibold">Phase</th>
-              <th class="px-3 py-2 font-semibold">Status</th>
-              <th class="px-3 py-2 font-semibold">Details</th>
+              <th class="px-3 py-2 font-semibold text-gray-900 dark:text-white">Time</th>
+              <th class="px-3 py-2 font-semibold text-gray-900 dark:text-white">Agent</th>
+              <th class="px-3 py-2 font-semibold text-gray-900 dark:text-white">Context</th>
+              <th class="px-3 py-2 font-semibold text-gray-900 dark:text-white">Phase</th>
+              <th class="px-3 py-2 font-semibold text-gray-900 dark:text-white">Status</th>
+              <th class="px-3 py-2 font-semibold text-gray-900 dark:text-white">Details</th>
             </tr>
           </thead>
           <tbody>
             <tr :if={@calls == []}>
-              <td colspan="6" class="px-3 py-8 text-center text-base-content/50">
+              <td colspan="6" class="px-3 py-8 text-center text-gray-400">
                 No calls match these filters.
               </td>
             </tr>
-            <tr :for={call <- @calls} class="border-t border-base-300 align-top">
-              <td class="px-3 py-2 whitespace-nowrap text-base-content/70">
+            <tr
+              :for={call <- @calls}
+              class="border-t border-gray-200 align-top dark:border-white/10"
+            >
+              <td class="px-3 py-2 whitespace-nowrap text-gray-600 dark:text-gray-300">
                 {time_label(call.updated_at)}
               </td>
-              <td class="px-3 py-2 whitespace-nowrap">
+              <td class="px-3 py-2 whitespace-nowrap text-gray-700 dark:text-gray-300">
                 {agent_name(call.visit && call.visit.agent)}
               </td>
               <td class="px-3 py-2">
                 <.link
                   :if={call.visit}
                   navigate={"/t/#{@tenant.slug}/manage/meetings/#{call.visit.id}"}
-                  class="text-primary hover:underline"
+                  class="text-indigo-600 hover:text-indigo-500 dark:text-indigo-400"
                 >
                   {context_label(call.visit)}
                 </.link>
-                <span :if={is_nil(call.visit)} class="text-base-content/40">—</span>
+                <span :if={is_nil(call.visit)} class="text-gray-400">—</span>
               </td>
               <td class="px-3 py-2">
-                <span class="rounded bg-base-200 px-2 py-0.5 text-xs font-medium">{call.phase}</span>
+                <span class="rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700 dark:bg-white/10 dark:text-gray-200">
+                  {call.phase}
+                </span>
               </td>
               <td class="px-3 py-2">
                 <span class={[
@@ -154,9 +185,14 @@ defmodule FlorinaWeb.Manage.CallsLive do
                 </span>
               </td>
               <td class="px-3 py-2 max-w-md">
-                <div :if={call.summary_title} class="font-medium">{call.summary_title}</div>
-                <div :if={call.summary} class="text-base-content/70">{call.summary}</div>
-                <div :if={snippet(call.transcript)} class="mt-1 text-xs text-base-content/50 italic">
+                <div :if={call.summary_title} class="font-medium text-gray-900 dark:text-white">
+                  {call.summary_title}
+                </div>
+                <div :if={call.summary} class="text-gray-600 dark:text-gray-300">{call.summary}</div>
+                <div
+                  :if={snippet(call.transcript)}
+                  class="mt-1 text-xs text-gray-400 italic"
+                >
                   {snippet(call.transcript)}
                 </div>
                 <audio :if={call.recording_url} controls src={call.recording_url} class="mt-1 h-8" />
@@ -164,7 +200,7 @@ defmodule FlorinaWeb.Manage.CallsLive do
                   :if={
                     blank?(call.summary_title) and blank?(call.summary) and blank?(call.transcript)
                   }
-                  class="text-base-content/40"
+                  class="text-gray-400"
                 >
                   —
                 </span>
@@ -192,11 +228,24 @@ defmodule FlorinaWeb.Manage.CallsLive do
 
   defp status_options, do: Enum.map(Florina.Enums.call_status_values(), fn {_k, v} -> v end)
 
-  defp status_tone("COMPLETED"), do: "bg-success/10 text-success"
-  defp status_tone(s) when s in ["INITIATED", "IN_PROGRESS"], do: "bg-info/10 text-info"
-  defp status_tone("SCHEDULED"), do: "bg-base-200 text-base-content"
-  defp status_tone(s) when s in ["FAILED", "NO_ANSWER"], do: "bg-error/10 text-error"
-  defp status_tone(_), do: "bg-base-200 text-base-content"
+  # Shared TW Plus select styling for the filter dropdowns.
+  defp filter_select,
+    do:
+      "rounded-md bg-white py-1.5 pl-3 pr-8 text-sm text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:focus:outline-indigo-500"
+
+  defp status_tone("COMPLETED"),
+    do: "bg-green-100 text-green-700 dark:bg-green-500/10 dark:text-green-400"
+
+  defp status_tone(s) when s in ["INITIATED", "IN_PROGRESS"],
+    do: "bg-blue-100 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400"
+
+  defp status_tone("SCHEDULED"),
+    do: "bg-gray-100 text-gray-700 dark:bg-white/10 dark:text-gray-200"
+
+  defp status_tone(s) when s in ["FAILED", "NO_ANSWER"],
+    do: "bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-400"
+
+  defp status_tone(_), do: "bg-gray-100 text-gray-700 dark:bg-white/10 dark:text-gray-200"
 
   defp status_label("IN_PROGRESS"), do: "In progress"
   defp status_label("NO_ANSWER"), do: "No answer"

@@ -136,11 +136,11 @@ defmodule FlorinaWeb.Manage.MeetingFormLive do
       <div class="mb-6">
         <.link
           navigate={"/t/#{@tenant.slug}/manage/meetings"}
-          class="text-sm text-base-content/60 hover:underline"
+          class="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
         >
           ← Meetings
         </.link>
-        <h1 class="text-2xl font-semibold mt-1">
+        <h1 class="text-2xl font-semibold mt-1 text-gray-900 dark:text-white">
           {if @live_action == :new, do: "New meeting", else: "Edit meeting"}
         </h1>
       </div>
@@ -194,7 +194,7 @@ defmodule FlorinaWeb.Manage.MeetingFormLive do
           </.button>
           <.link
             navigate={"/t/#{@tenant.slug}/manage/meetings"}
-            class="btn btn-ghost"
+            class="inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/10"
           >
             Cancel
           </.link>

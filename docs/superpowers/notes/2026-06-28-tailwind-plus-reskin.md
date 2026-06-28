@@ -28,23 +28,23 @@ library. Multi-session effort; this file is the source of truth for what's done.
 
 ## Shared widgets — `lib/florina_web/components/core_components.ex` (TODO)
 Re-skin once, benefits every page. Check the catalog for each:
-- [ ] buttons (`elements/buttons`)
-- [ ] form inputs / selects / textareas (`forms/*`)
-- [ ] tables (`lists/tables`)
-- [ ] cards / list containers (`layout/cards`, `lists/stacked-lists`)
-- [ ] badges / pills (`elements/badges`)
+- [x] buttons (`elements/buttons`)
+- [x] form inputs / selects / textareas (`forms/*`)
+- [x] tables (`lists/tables`)
+- [x] cards / list containers (`layout/cards`, `lists/stacked-lists`)
+- [x] badges / pills (`elements/badges`)
 - [ ] modal (`overlays/modal-dialogs`)
-- [ ] flash / alerts (`feedback/alerts`)
-- [ ] headings (`headings/page-headings`, `headings/section-headings`)
+- [x] flash / alerts (`feedback/alerts`)
+- [x] headings (`headings/page-headings`, `headings/section-headings`)
 
 ## Pages — `lib/florina_web/live/` (TODO, one by one)
 Manager:
-- [ ] manage/dashboard_live
-- [ ] manage/meetings_live
-- [ ] manage/meeting_live (detail)
-- [ ] manage/meeting_form_live (new/edit)
-- [ ] manage/calls_live (programmed calls)
-- [ ] manage/clients_live
+- [x] manage/dashboard_live
+- [x] manage/meetings_live
+- [x] manage/meeting_live (detail)
+- [x] manage/meeting_form_live (new/edit)
+- [x] manage/calls_live (programmed calls)
+- [x] manage/clients_live
 - [ ] manage/client_live (detail)
 - [ ] manage/agents_live (people)
 - [ ] manage/methodologies_live
