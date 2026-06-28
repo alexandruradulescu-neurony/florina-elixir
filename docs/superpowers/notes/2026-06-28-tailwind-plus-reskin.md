@@ -48,14 +48,14 @@ Manager:
 - [x] manage/client_live (detail)
 - [x] manage/agents_live (people)
 - [x] manage/methodologies_live
-- [ ] manage/mega_prompts_live
+- [x] manage/mega_prompts_live
 - [x] manage/generation_runs_live
 - [x] manage/settings_live
 - [x] manage/logs_live
-- [ ] chat_live (assistant, manager-only)
+- [x] chat_live (assistant, manager-only)
 
 Agent:
-- [ ] agent_today_live (My Day)
+- [x] agent_today_live (My Day)
 - [ ] calls_live (call-me)
 - [ ] calendar_live (shared manager+agent)
 - [ ] clients_live (agent client directory)
