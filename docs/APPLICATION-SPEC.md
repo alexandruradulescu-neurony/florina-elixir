@@ -21,7 +21,7 @@ Florina is an AI sales-assistant SaaS, delivered as a **multi-tenant** Phoenix a
 - **Agent self-service sign-in** (Google/Microsoft SSO), gated by per-company email domain.
 - **Operator admin console** to manage tenants and publish central configuration.
 
-Each customer ("tenant") is **physically isolated in its own Postgres database**. A central "control-plane" database holds the tenant registry, operator admins, and the canonical configuration that is published down to tenants.
+Each customer ("tenant") is isolated in its own **Postgres schema** (`tenant_<id>`) on a single shared database, selected per request/job via the Ecto query prefix. A central "control-plane" schema holds the tenant registry, operator admins, and the canonical configuration that is published down to tenants.
 
 ---
 
@@ -39,30 +39,27 @@ Each customer ("tenant") is **physically isolated in its own Postgres database**
 
 ## 3. Architecture — multitenancy
 
-### Two repos
-- **`Florina.Repo`** — the fixed **control-plane** database. The *only* entry in `:ecto_repos`, so `mix ecto.migrate` and `Release.migrate/0` touch only this DB. Owns: `tenants`, `admins`, `oban_jobs` (+ Oban support tables), and the **canonical** central-config tables.
-- **`Florina.TenantRepo`** — a **dynamic** repo with *no* compile-time database, deliberately omitted from `:ecto_repos`. Every process that touches tenant data must first call `Florina.TenantRepo.put_dynamic_repo(pid)` to bind itself (process-dictionary local) to a specific tenant pool. With no binding, any `TenantRepo.*` query fails. All per-tenant contexts use only `TenantRepo`.
+### One database, one pool, schema-per-tenant
+There is exactly **one** Postgres database and **one** connection pool, `Florina.Repo` — the only entry in `:ecto_repos`, so `mix ecto.migrate` / `Release.migrate/0` apply the **control-plane** migrations (`priv/repo/migrations/`). The control-plane schema (`public`) owns: `tenants`, `admins`, `oban_jobs` (+ Oban support tables), and the **canonical** central-config tables.
 
-### Connection manager
-`Florina.Tenants.ConnectionManager` (GenServer singleton, started before the Endpoint) keeps a `slug => pid` map of live `TenantRepo` pools (one `DBConnection` pool per tenant per node, `tenant_pool_size` default **2**). `ensure_started(slug)` returns a cached live pid, restarts a dead one, or starts a new pool from the control-plane tenant row. Individual tenant pools are **not** independently supervised — a pool crash is detected only on the next `ensure_started`.
+`Florina.TenantRepo` is a thin proxy over `Florina.Repo`: every query it runs is given `prefix: Process.get(:tenant_prefix)`, so it lands in that tenant's schema. With **no** pinned prefix it **fails closed** — `TenantRepo.*` raises rather than silently reading the wrong schema. All per-tenant contexts use only `TenantRepo`.
 
-### Tenant resolution (request → pinned repo)
-- HTTP: `FlorinaWeb.Plugs.ResolveTenant` resolves the slug from the path param `/t/:tenant_slug` (primary) or subdomain (fallback), loads the control-plane `Tenant`, **requires `active: true`**, calls `ConnectionManager.ensure_started`, pins `TenantRepo`, assigns `:tenant`. **Fails closed** (404 + halt) on any miss.
+### Tenant resolution (request → pinned schema prefix)
+- HTTP: `FlorinaWeb.Plugs.ResolveTenant` resolves the slug from the path param `/t/:tenant_slug` (primary) or subdomain (fallback), loads the control-plane `Tenant`, **requires `active: true` and `status: "active"`**, pins `Process.put(:tenant_prefix, "tenant_<id>")`, assigns `:tenant`, and registers a before-send callback that **clears the prefix** when the response is sent (so a pooled process can't carry it into a later, unrelated request). **Fails closed** (404 + halt) on any miss.
 - The `:tenant_session` pipeline then writes `tenant.slug` into the session so LiveView can re-resolve on the socket.
-- LiveView: `FlorinaWeb.TenantHook` (`on_mount`) re-resolves from `session["tenant_slug"]`, same `active: true` check, pins the repo, assigns `:tenant`. Fails closed (halt + redirect "/").
+- LiveView: `FlorinaWeb.TenantHook` (`on_mount`) re-resolves from `session["tenant_slug"]`, same accessibility check, pins the prefix, assigns `:tenant`. Fails closed (halt + redirect "/").
+- The schema name is derived from the tenant's immutable **id** (`Tenants.schema_prefix/1` → `tenant_<id>`), never the mutable slug.
 
 ### Provisioning
-`Florina.Tenants.Provisioner.provision/1` (idempotent): create DB → register control-plane row → start pool → run per-tenant migrations → seed central config. Pieces:
-- `DatabaseProvisioner` behaviour (config-selected; default `SamePostgres` uses `Ecto.Adapters.Postgres.storage_up/down` on the same server) — **swappable** to move tenant DBs elsewhere.
-- `ConnectionOpts` parses the control-plane config / `DATABASE_URL` into per-tenant pool opts and into discrete params for `storage_up`.
-- `Migrator.migrate_one/all` runs `priv/tenant_repo/migrations/` against each tenant via `dynamic_repo:`.
+`Florina.Tenants.Provisioner.provision/1` (idempotent): register control-plane row → `CREATE SCHEMA IF NOT EXISTS "tenant_<id>"` → run per-tenant migrations into that schema → seed central config. Pieces:
+- `Migrator.migrate_one/all` runs `priv/tenant_repo/migrations/` against `Florina.Repo` with `prefix: "tenant_<id>"`; each schema keeps its own `schema_migrations` table. On prod boot, `Florina.Tenants.BootMigrator` applies pending tenant migrations to every tenant before Oban/Endpoint start.
 - `Florina.Workers.ProvisionTenant` (Oban) wraps it for the admin UI; sets status `active`/`failed`.
 
 ### Isolation invariants (claims to attack)
-- No cross-tenant FK/joins possible (separate physical DBs).
-- `put_dynamic_repo` is process-local; no global "current tenant"; each web request and each Oban job pins independently.
+- No cross-tenant reads: `TenantRepo` queries are scoped to the pinned schema prefix, and with no prefix they raise (fail closed) rather than hit a default schema.
+- The prefix is process-local (`:tenant_prefix` in the process dictionary); no global "current tenant"; each web request and each Oban job pins independently and clears on completion.
 - A tenant with `active != true` (or `status != "active"`) is refused at the gate and excluded from cron fan-out (`Tenants.list_active/0`).
-- **Not isolated:** the Cloak encryption key is **one per environment**, shared across all tenants; the Oban jobs table (with tenant slugs in args) lives in the control-plane DB; all tenant DBs share one Postgres server + role (the app role has `CREATEDB`).
+- **Not isolated:** the Cloak encryption key is **one per environment**, shared across all tenants; the Oban jobs table (with tenant slugs in args) lives in the control-plane (`public`) schema; all tenant schemas share one Postgres database + role.
 
 ---
 
@@ -200,7 +197,7 @@ Canonical config lives in the control-plane (`CentralConfig`, `Florina.Repo`). O
 ---
 
 ## 12. Config, supervision & deploy
-**Supervision order** (`application.ex`, one_for_one): Telemetry → **Vault** → **Repo** → **ConnectionManager** → DNSCluster → PubSub → **Oban** → **Endpoint**; then `Admins.ensure_seed_from_env()` runs post-start (rescues all errors).
+**Supervision order** (`application.ex`, one_for_one): Telemetry → **Vault** → **LoginRateLimiter** → **Repo** → **BootMigrator** (applies pending per-tenant migrations before Oban/Endpoint; prod only) → DNSCluster → PubSub → **Oban** → **Endpoint**; then `Admins.ensure_seed_from_env()` runs post-start (rescues all errors).
 
 **Required at prod boot (raise if missing):** `FIELD_ENCRYPTION_KEY`, `DATABASE_URL`, `SECRET_KEY_BASE`, `DASHBOARD_PASS`. **Optional (feature silently degrades if absent):** all integration keys (`ANTHROPIC_API_KEY`, `ELEVENLABS_*`, `GOOGLE_*`, `MICROSOFT_*`, `PIPEDRIVE_*`), `OAUTH_REDIRECT_BASE`, `PHX_HOST`/`TENANT_BASE_HOST`, `POOL_SIZE`, `ECTO_IPV6`, `DNS_CLUSTER_QUERY`, `DASHBOARD_USER`, `ADMIN_EMAIL`/`ADMIN_PASSWORD`. `ELEVENLABS_WEBHOOK_SECRET` is read in all envs.
 

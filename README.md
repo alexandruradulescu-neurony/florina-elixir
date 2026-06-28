@@ -12,22 +12,26 @@ Django app, one slice at a time, rather than rewriting everything at once. The f
 real slice to move here will be the **real-time features** (voice calls + the live
 agent chat), where Elixir's strengths matter most.
 
-This app must eventually honor the **database-per-tenant** isolation model defined for
-the live app. See the design specs:
+Each customer ("tenant") is isolated using a dedicated **Postgres schema**
+(`tenant_<id>`) on a single shared database, selected per request/job via the Ecto
+query prefix. A central "control-plane" schema holds the tenant registry, operator
+admins, and the canonical configuration published down to tenants. (This supersedes the
+original *database-per-tenant* design in the Track 1 spec.) See the design specs:
 
 - [Elixir / Phoenix / Oban port (Track 2)](docs/superpowers/specs/2026-06-24-elixir-phoenix-port-design.md)
-- [Multitenancy — database-per-tenant (Track 1)](docs/superpowers/specs/2026-06-24-multitenancy-database-per-tenant-design.md)
+- [Multitenancy — original database-per-tenant design (Track 1, superseded by schema-per-tenant)](docs/superpowers/specs/2026-06-24-multitenancy-database-per-tenant-design.md)
 
-## Current status: runnable skeleton
+## Current status
 
-This repository currently contains a **clean, runnable foundation only**:
+Built on:
 
 - Phoenix 1.8 (with LiveView) on the Bandit web server
-- Oban wired up for background jobs (Postgres-backed), with an example worker
-- PostgreSQL via Ecto
+- Oban for background jobs (Postgres-backed)
+- PostgreSQL via Ecto, with schema-per-tenant isolation (see above)
 
-Not yet built, on purpose: the voice/chat slice and any multitenancy plumbing. Those
-come next, per the specs above.
+The multitenancy plumbing, the voice-call pipeline, the live agent chat, agent SSO
+(Google/Microsoft), calendar sync, and the manager/agent prompt-control surface are all
+implemented. See `docs/APPLICATION-SPEC.md` for the architecture.
 
 ## Running it locally
 

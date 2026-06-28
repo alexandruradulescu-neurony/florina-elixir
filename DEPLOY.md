@@ -5,10 +5,11 @@ Railway auto-detects the Dockerfile and builds it.
 
 ## What this deploy is
 
-A **standalone** instance of the Phoenix app with its **own** PostgreSQL database —
-great for running the app live and testing the ElevenLabs webhook. It is **not yet
-connected to the live Django app's data**; that link (a shared, per-tenant database) is
-the multitenancy slice planned separately.
+A **standalone** instance of the Phoenix app with its own PostgreSQL database. Each
+tenant is isolated by a Postgres **schema** (`tenant_<id>`) on that single database; the
+control-plane schema holds the tenant registry, operator admins, and canonical config.
+This is a self-contained codebase — it does **not** connect to the live Django app at
+runtime.
 
 ## One-time Railway setup
 
@@ -43,8 +44,8 @@ the multitenancy slice planned separately.
 
 ## After it's live
 
-- Point the ElevenLabs webhook URL to `https://<your-domain>/webhooks/elevenlabs`, with
-  the matching `ELEVENLABS_WEBHOOK_SECRET` set.
+- Point the ElevenLabs webhook URL to `https://<your-domain>/t/<tenant-slug>/webhooks/elevenlabs`
+  (the webhook route is tenant-scoped), with the matching `ELEVENLABS_WEBHOOK_SECRET` set.
 - (Later) Twilio → `https://<your-domain>/webhooks/twilio` once that slice ships.
 
 ## Optional local sanity check (build the production release)
@@ -56,12 +57,13 @@ SECRET_KEY_BASE=$(mix phx.gen.secret) PHX_SERVER=true \
   _build/prod/rel/florina/bin/server
 ```
 
-## Multi-tenant database foundation (local)
+## Multi-tenant foundation (local)
 
-Phoenix can route each customer to their own physically separate database.
+Each customer's data lives in its own Postgres **schema** (`tenant_<id>`) on the single
+shared database, selected per request/job via the Ecto query prefix.
 
 - Tenant is resolved from the **URL path** (`/t/:tenant_slug/...`), with subdomain as a fallback.
-- The control-plane database (the main app DB) holds a `tenants` registry.
+- The control-plane schema (the main app DB) holds a `tenants` registry.
 - Set up two local demo tenants: `mix florina.tenants.setup`
 - See it work:
   - `http://localhost:4000/t/acme/whoami` vs `http://localhost:4000/t/globex/whoami`
