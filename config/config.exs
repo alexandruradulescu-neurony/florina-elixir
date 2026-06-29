@@ -20,14 +20,20 @@ config :florina, Oban,
   # an LLM call (lessons distill) that can take 30-40s; the 15s default could cut it
   # short and force a token-wasting retry.
   shutdown_grace_period: 60_000,
+  # INVARIANT: the SUM of these concurrencies must stay below the jobs pool
+  # (JOBS_POOL_SIZE, default 20) minus a few connections for Oban's own notifier/
+  # cron/pruner — otherwise jobs contend for connections, hit checkout timeouts,
+  # fail, and retry-storm. Current sum = 18. To scale throughput, raise BOTH this
+  # and JOBS_POOL_SIZE together, bounded by Postgres max_connections (see
+  # runtime.exs connection-budget note).
   queues: [
-    default: 10,
+    default: 5,
     # Fan-out cron schedulers (lightweight, high-priority)
-    scheduler: 5,
+    scheduler: 3,
     # Outbound call workers (rate-limited)
-    calls: 5,
+    calls: 3,
     # Sync jobs (calendar + CRM + call status polling)
-    sync: 10,
+    sync: 5,
     # Tenant provisioning (creates databases; intentionally low concurrency)
     provisioning: 2
   ],

@@ -1,6 +1,10 @@
 defmodule Florina.Repo.Migrations.CreateVoiceCallattemptDevMirror do
-  # DEV/TEST ONLY. In production the `voice_callattempt` table is owned and
-  # migrated by Django. This mirror exists so local dev/test has the table.
+  # The real `voice_callattempt` is PER-TENANT (schema `tenant_<id>`, created in
+  # the tenant baseline) and is reached only via TenantRepo. This control-plane
+  # (public) copy exists for local dev/test fixtures that touch the table without
+  # a tenant prefix pinned. In prod it's an unused, empty table — harmless; not
+  # worth env-gating a migration to avoid. (Was previously described as
+  # "owned by Django" — stale: this is a standalone rebuild, no Django at runtime.)
   use Ecto.Migration
 
   def change do

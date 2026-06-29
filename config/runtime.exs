@@ -43,7 +43,13 @@ if config_env() == :prod do
          tag: "AES.GCM.V1", key: Base.decode64!(field_encryption_key), iv_length: 12}
     ]
 
-  config :florina, :anthropic_api_key, System.get_env("ANTHROPIC_API_KEY")
+  # Required: prompt generation, post-call lessons, and chat all depend on it.
+  # Fail loud at boot (like the other required secrets) rather than degrading
+  # silently at call time and retry-storming Oban jobs.
+  config :florina,
+         :anthropic_api_key,
+         System.get_env("ANTHROPIC_API_KEY") ||
+           raise("environment variable ANTHROPIC_API_KEY is missing.")
 
   # Apply pending per-tenant migrations automatically on boot (see application.ex)
   # so deploys that add tenant migrations don't need a manual migrate_tenants rpc.
@@ -94,9 +100,20 @@ if config_env() == :prod do
   # Dedicated background-job pool: SAME database, separate connection pool, so a
   # burst of Oban jobs can't starve the web tier's connections. Oban and worker
   # tenant-queries (via TenantRepo, pinned in Workers.Tenant) use this pool.
+  #
+  # SIZING: must exceed the SUM of Oban queue concurrencies (config.exs, currently
+  # 18) plus a few connections for Oban's own notifier/cron/pruner — otherwise
+  # jobs contend for connections and retry-storm. Default 20 covers that.
+  #
+  # CONNECTION BUDGET (Postgres max_connections, currently 100): a deploy briefly
+  # overlaps the OLD node, the NEW node, and the separate pre-deploy migrate node.
+  # Keep `2 × (POOL_SIZE + JOBS_POOL_SIZE) + migrate_pool + ~5 reserved ≤ 100`.
+  # At defaults: 2×(20+20) + 2 + 5 = 87. Raise POOL_SIZE/JOBS_POOL_SIZE together
+  # ONLY within that ceiling (or move to a bigger DB plan / a pooler like
+  # PgBouncer to go higher).
   config :florina, Florina.JobsRepo,
     url: database_url,
-    pool_size: String.to_integer(System.get_env("JOBS_POOL_SIZE") || "10"),
+    pool_size: String.to_integer(System.get_env("JOBS_POOL_SIZE") || "20"),
     socket_options: maybe_ipv6
 
   config :florina, :jobs_repo, Florina.JobsRepo

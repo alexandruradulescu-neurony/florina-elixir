@@ -14,7 +14,9 @@ config :florina, FlorinaWeb.Endpoint,
   force_ssl: [
     rewrite_on: [:x_forwarded_proto],
     exclude: [
-      # paths: ["/health"],
+      # Liveness probe must not be redirected to HTTPS (an internal HTTP check
+      # would otherwise get a 301 and could mark the instance unhealthy).
+      paths: ["/healthz"],
       hosts: ["localhost", "127.0.0.1"]
     ]
   ]

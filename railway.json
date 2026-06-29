@@ -1,7 +1,7 @@
 {
   "$schema": "https://railway.com/railway.schema.json",
   "deploy": {
-    "preDeployCommand": ["/app/bin/migrate"],
+    "preDeployCommand": ["sh", "-c", "POOL_SIZE=2 /app/bin/migrate"],
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 3
   }
