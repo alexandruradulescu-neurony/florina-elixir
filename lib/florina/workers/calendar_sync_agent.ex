@@ -368,6 +368,7 @@ defmodule Florina.Workers.CalendarSyncAgent do
       |> maybe_change(existing.start_time, event.start_time, :start_time)
       |> maybe_change(existing.end_time, event.end_time, :end_time)
       |> maybe_change(existing.title, event.title, :title)
+      |> maybe_restore_status(existing.status)
 
     if map_size(changes) > 0 do
       case Visits.update(existing, changes) do
@@ -378,6 +379,15 @@ defmodule Florina.Workers.CalendarSyncAgent do
       :skipped
     end
   end
+
+  # A visit we previously retired to :CANCELLED (organizer cancel, or the agent
+  # declining) that now shows up as an active, attended meeting again — the
+  # process_event cond above has already excluded cancelled/declined events — must
+  # be brought back to :PLANNED. Otherwise the scheduler stays silent forever about
+  # a meeting the agent is once again attending. Only :CANCELLED is reopened;
+  # :COMPLETE / :MISSED are left as-is.
+  defp maybe_restore_status(changes, :CANCELLED), do: Map.put(changes, :status, :PLANNED)
+  defp maybe_restore_status(changes, _status), do: changes
 
   defp create_visit(agent, provider, client, event) do
     crm_deal_id = resolve_crm_deal(client)
