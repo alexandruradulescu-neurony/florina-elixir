@@ -205,7 +205,11 @@ defmodule Florina.Workers.CalendarSyncAgent do
          %{id: event_id, attendees: attendees} = event
        ) do
     cond do
-      Map.get(event, :status) == "cancelled" ->
+      # Organizer cancelled (status "cancelled"), OR the agent declined the invite
+      # (event stays on the calendar, status "confirmed", but their RSVP is
+      # "declined"). Either way the agent isn't attending → retire the visit so the
+      # call scheduler stops dialing about it.
+      Map.get(event, :status) == "cancelled" or Map.get(event, :declined, false) ->
         cancel_existing_visit(event_id, agent.id, provider)
 
       true ->

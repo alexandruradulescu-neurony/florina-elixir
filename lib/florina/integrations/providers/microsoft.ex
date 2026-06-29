@@ -241,6 +241,9 @@ defmodule Florina.Integrations.Providers.Microsoft do
         description: item["bodyPreview"] || "",
         location: get_in(item, ["location", "displayName"]),
         status: if(item["isCancelled"], do: "cancelled", else: "confirmed"),
+        # The signed-in owner's own RSVP. A declined invite keeps the event with
+        # isCancelled=false, so this is the only signal the agent rejected it.
+        declined: get_in(item, ["responseStatus", "response"]) == "declined",
         raw: item
       }
     end

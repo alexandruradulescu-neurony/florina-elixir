@@ -191,12 +191,23 @@ defmodule Florina.Integrations.Providers.Google do
         description: item["description"] || "",
         location: item["location"],
         status: item["status"] || "confirmed",
+        # The calendar owner's own RSVP. A declined invite stays on the calendar
+        # with status "confirmed" (only the organizer cancelling sets "cancelled"),
+        # so this is the only signal that the agent rejected the meeting.
+        declined: owner_declined?(item),
         raw: item
       }
     end
   end
 
   defp normalize(_), do: nil
+
+  # True when the signed-in calendar owner (the `self` attendee) declined.
+  defp owner_declined?(item) do
+    item
+    |> Map.get("attendees", [])
+    |> Enum.any?(fn a -> a["self"] == true and a["responseStatus"] == "declined" end)
+  end
 
   # All-day events carry only "date" (no "dateTime") on start.
   defp all_day?(item) when is_map(item), do: is_nil(get_in(item, ["start", "dateTime"]))
