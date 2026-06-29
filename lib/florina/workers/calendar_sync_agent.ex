@@ -51,6 +51,7 @@ defmodule Florina.Workers.CalendarSyncAgent do
 
   alias Florina.TenantRepo
   alias Florina.Accounts
+  alias Florina.Accounts.User
   alias Florina.OAuth
   alias Florina.Integrations.Provider
   alias Florina.CalendarEvents
@@ -67,6 +68,12 @@ defmodule Florina.Workers.CalendarSyncAgent do
         nil ->
           # Agent removed between fan-out and execution — nothing to do.
           Logger.info("[CalendarSyncAgent] tenant=#{slug} agent=#{agent_id} not found — skipping")
+          :ok
+
+        %User{active: false} ->
+          # Deactivated after fan-out (jobs are jittered, so there's a real gap
+          # between enqueue and run) — don't sync a disabled agent's calendar.
+          Logger.info("[CalendarSyncAgent] tenant=#{slug} agent=#{agent_id} inactive — skipping")
           :ok
 
         agent ->

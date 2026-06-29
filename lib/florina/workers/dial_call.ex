@@ -202,8 +202,30 @@ defmodule Florina.Workers.DialCall do
   defp timely?(_visit, _phase), do: true
 
   defp run_dial(visit, phase) do
-    # Ensure assembled prompt exists; assemble on-the-fly if absent.
-    # This mirrors Django's inline assemble_pre_call / assemble_post_call calls.
+    # Eligibility checks FIRST — before any prompt assembly. A visit created while
+    # the agent was active can reach dial time after the agent was deactivated (or
+    # lost its phone); skipping here avoids wasted assembly work and, importantly,
+    # avoids creating a spurious FAILED attempt for an agent we'd never call.
+    agent = get_in(visit, [Access.key(:agent)])
+    phone = get_in(agent, [Access.key(:phone_number)])
+
+    cond do
+      is_nil(agent) or agent.active == false ->
+        Logger.warning("[DialCall] visit=#{visit.id} agent inactive/missing — skip")
+        :ok
+
+      phone in [nil, ""] ->
+        Logger.warning("[DialCall] visit=#{visit.id} agent has no phone — skip")
+        :ok
+
+      true ->
+        dial_eligible(visit, phase, phone)
+    end
+  end
+
+  # Agent is active and has a phone — now resolve/assemble the prompt and dial.
+  # Mirrors Django's inline assemble_pre_call / assemble_post_call calls.
+  defp dial_eligible(visit, phase, phone) do
     {prompt, first_message} = resolve_prompt(visit, phase)
 
     if is_nil(prompt) or String.trim(prompt) == "" do
@@ -211,32 +233,16 @@ defmodule Florina.Workers.DialCall do
       create_failed_attempt(visit.id, phase)
       :ok
     else
-      agent = get_in(visit, [Access.key(:agent)])
-      phone = get_in(agent, [Access.key(:phone_number)])
+      case create_scheduled_attempt_capped(visit.id, phase) do
+        {:ok, attempt} ->
+          fire_call(attempt, phone, prompt, first_message, visit)
 
-      cond do
-        # A visit created while the agent was active can reach dial time after the
-        # agent has been deactivated — don't call on behalf of a disabled account.
-        is_nil(agent) or agent.active == false ->
-          Logger.warning("[DialCall] visit=#{visit.id} agent inactive/missing — skip")
+        :cap_reached ->
+          Logger.info(
+            "[DialCall] visit=#{visit.id} phase=#{phase} cap reached at insert — aborting dial"
+          )
+
           :ok
-
-        phone in [nil, ""] ->
-          Logger.warning("[DialCall] visit=#{visit.id} agent has no phone — skip")
-          :ok
-
-        true ->
-          case create_scheduled_attempt_capped(visit.id, phase) do
-            {:ok, attempt} ->
-              fire_call(attempt, phone, prompt, first_message, visit)
-
-            :cap_reached ->
-              Logger.info(
-                "[DialCall] visit=#{visit.id} phase=#{phase} cap reached at insert — aborting dial"
-              )
-
-              :ok
-          end
       end
     end
   end

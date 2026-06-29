@@ -78,7 +78,7 @@ defmodule Florina.Workers.ScanTenantCalls do
       |> TenantRepo.all()
 
     Enum.reduce(visits, 0, fn visit, acc ->
-      if phone_missing?(visit),
+      if agent_unavailable?(visit),
         do: acc,
         else: enqueue_pre_if_due(visit, now, half_window, tenant_slug, settings, acc)
     end)
@@ -120,7 +120,7 @@ defmodule Florina.Workers.ScanTenantCalls do
       |> TenantRepo.all()
 
     Enum.reduce(visits, 0, fn visit, acc ->
-      if phone_missing?(visit),
+      if agent_unavailable?(visit),
         do: acc,
         else: enqueue_post_if_due(visit, now, half_window, tenant_slug, settings, acc)
     end)
@@ -223,7 +223,11 @@ defmodule Florina.Workers.ScanTenantCalls do
     |> Oban.insert()
   end
 
-  defp phone_missing?(%Visit{agent: %{phone_number: nil}}), do: true
-  defp phone_missing?(%Visit{agent: %{phone_number: ""}}), do: true
-  defp phone_missing?(_), do: false
+  # A visit is not dial-eligible if its agent is missing, deactivated, or has no
+  # phone — skip enqueueing a DialCall for it at all (DialCall re-checks as a
+  # backstop, but this avoids the wasted job + prompt assembly).
+  defp agent_unavailable?(%Visit{agent: nil}), do: true
+  defp agent_unavailable?(%Visit{agent: %{active: false}}), do: true
+  defp agent_unavailable?(%Visit{agent: %{phone_number: phone}}) when phone in [nil, ""], do: true
+  defp agent_unavailable?(_), do: false
 end
