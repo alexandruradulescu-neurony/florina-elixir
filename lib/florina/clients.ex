@@ -34,9 +34,18 @@ defmodule Florina.Clients do
   end
 
   @doc "Gets a client by ID. Returns `nil` if not found."
-  def get(id) do
-    TenantRepo.get(Client, id)
+  def get(id) when is_integer(id), do: TenantRepo.get(Client, id)
+
+  # Tolerate a non-integer id (e.g. a hand-edited URL) — return nil instead of
+  # raising Ecto.Query.CastError against the bigint primary key.
+  def get(id) when is_binary(id) do
+    case Integer.parse(id) do
+      {int, ""} -> TenantRepo.get(Client, int)
+      _ -> nil
+    end
   end
+
+  def get(_), do: nil
 
   @doc """
   Finds the first client matching the given email domain.

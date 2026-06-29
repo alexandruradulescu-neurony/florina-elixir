@@ -5,8 +5,12 @@ defmodule Florina.Tenants.Subdomain do
   anything else returns nil so resolution fails closed.
   """
   def extract(host, base) when is_binary(host) and is_binary(base) do
-    case String.split(host, ".", parts: 2) do
-      [sub, ^base] when sub != "" -> sub
+    # Hosts are case-insensitive; downcase both so `Acme.example.com` resolves to
+    # the same (lowercase-stored) slug as `acme.example.com`.
+    base_lc = String.downcase(base)
+
+    case String.split(String.downcase(host), ".", parts: 2) do
+      [sub, ^base_lc] when sub != "" -> sub
       _ -> nil
     end
   end

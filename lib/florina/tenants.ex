@@ -15,19 +15,29 @@ defmodule Florina.Tenants do
   """
   def schema_prefix(%Tenant{id: id}) when is_integer(id), do: "tenant_#{id}"
 
+  @doc "PubSub topic carrying tenant-lifecycle events (e.g. disable) for a slug."
+  def pubsub_topic(slug) when is_binary(slug), do: "tenant:" <> slug
+
   @doc "Run `fun` with the tenant's schema prefix pinned on the current process."
   def with_prefix(%Tenant{} = tenant, fun) when is_function(fun, 0) do
-    previous = Process.get(:tenant_prefix)
+    prev_prefix = Process.get(:tenant_prefix)
+    prev_repo = Process.get(:tenant_repo)
     Process.put(:tenant_prefix, schema_prefix(tenant))
+    # with_prefix runs in web/CLI/provisioning contexts → use the default (web)
+    # pool. Clear :tenant_repo so the two per-process states stay in lockstep and
+    # this block can't inherit a caller's jobs-pool pin; both are restored after.
+    Process.delete(:tenant_repo)
 
     try do
       fun.()
     after
-      if previous,
-        do: Process.put(:tenant_prefix, previous),
-        else: Process.delete(:tenant_prefix)
+      restore_pdict(:tenant_prefix, prev_prefix)
+      restore_pdict(:tenant_repo, prev_repo)
     end
   end
+
+  defp restore_pdict(key, nil), do: Process.delete(key)
+  defp restore_pdict(key, value), do: Process.put(key, value)
 
   def list, do: Repo.all(from t in Tenant, order_by: t.slug)
 
@@ -38,7 +48,10 @@ defmodule Florina.Tenants do
         from t in Tenant, where: t.status == "active" and t.active == true, order_by: t.slug
       )
 
-  def get_by_slug(slug) when is_binary(slug), do: Repo.get_by(Tenant, slug: slug)
+  # Slugs are stored normalized (lowercase, see Tenant.changeset); look up
+  # case-insensitively so a differently-cased URL/host resolves to the same tenant
+  # instead of failing closed by accident.
+  def get_by_slug(slug) when is_binary(slug), do: Repo.get_by(Tenant, slug: String.downcase(slug))
   def get_by_slug(_), do: nil
 
   @doc """
@@ -78,9 +91,10 @@ defmodule Florina.Tenants do
         {:error, :not_found}
 
       tenant ->
-        tenant
-        |> Tenant.changeset(%{status: status})
-        |> Repo.update()
+        result = tenant |> Tenant.changeset(%{status: status}) |> Repo.update()
+        # Any move OFF "active" (failed/provisioning) disconnects live sessions.
+        if match?({:ok, _}, result) and status != "active", do: broadcast_disabled(tenant.slug)
+        result
     end
   end
 
@@ -91,10 +105,17 @@ defmodule Florina.Tenants do
         {:error, :not_found}
 
       tenant ->
-        tenant
-        |> Tenant.changeset(%{active: active})
-        |> Repo.update()
+        result = tenant |> Tenant.changeset(%{active: active}) |> Repo.update()
+        if match?({:ok, _}, result) and active == false, do: broadcast_disabled(tenant.slug)
+        result
     end
+  end
+
+  # Tell every connected LiveView for this tenant to disconnect (TenantHook
+  # subscribes to pubsub_topic/1). Safe no-op when there are no subscribers
+  # (e.g. BootMigrator marking a tenant failed during startup).
+  defp broadcast_disabled(slug) do
+    Phoenix.PubSub.broadcast(Florina.PubSub, pubsub_topic(slug), {:tenant_disabled, slug})
   end
 
   @doc """

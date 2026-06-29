@@ -21,11 +21,20 @@ defmodule Florina.Tenants.Tenant do
   def changeset(tenant, attrs) do
     tenant
     |> cast(attrs, [:slug, :name, :active, :status, :allowed_email_domains])
+    |> update_change(:slug, &normalize_slug/1)
     |> validate_required([:slug, :name])
+    |> validate_format(:slug, ~r/\A[a-z0-9_-]+\z/,
+      message: "may only contain lowercase letters, numbers, hyphens and underscores"
+    )
     |> validate_inclusion(:status, @valid_statuses)
     |> normalize_domains()
     |> unique_constraint(:slug)
   end
+
+  # Canonicalize the slug at the write boundary so resolution is consistent
+  # everywhere (every creation path goes through this changeset).
+  defp normalize_slug(slug) when is_binary(slug), do: slug |> String.trim() |> String.downcase()
+  defp normalize_slug(other), do: other
 
   defp normalize_domains(changeset) do
     case Ecto.Changeset.get_change(changeset, :allowed_email_domains) do

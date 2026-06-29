@@ -18,13 +18,15 @@ defmodule Florina.Application do
         # Dedicated background-job pool (same DB, separate pool) — only when
         # configured (prod); nil in dev/test and filtered out below.
         jobs_repo_child(),
+        # PubSub starts before BootMigrator (which may broadcast a tenant-disabled
+        # event when it marks a tenant failed) and before the Endpoint/LiveViews.
+        {Phoenix.PubSub, name: Florina.PubSub},
         # Apply pending per-tenant migrations BEFORE Oban + the Endpoint start, so
-        # jobs/requests never hit an out-of-date schema. Blocking + fail-loud: a
-        # migration error aborts boot (and the deploy). Gated by
-        # :migrate_tenants_on_boot (prod); a no-op in dev/test.
+        # jobs/requests never hit an out-of-date schema. Blocking; a single tenant's
+        # migration failure isolates that tenant (marked failed) and boot continues.
+        # Gated by :migrate_tenants_on_boot (prod); a no-op in dev/test.
         Florina.Tenants.BootMigrator,
         {DNSCluster, query: Application.get_env(:florina, :dns_cluster_query) || :ignore},
-        {Phoenix.PubSub, name: Florina.PubSub},
         # Background job processing (Oban)
         {Oban, Application.fetch_env!(:florina, Oban)},
         # Start a worker by calling: Florina.Worker.start_link(arg)

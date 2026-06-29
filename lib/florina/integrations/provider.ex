@@ -68,7 +68,8 @@ defmodule Florina.Integrations.Provider do
     with {:ok, claims} <- decode_claims(id_token),
          :ok <- validate_audience(provider, claims),
          :ok <- validate_issuer(provider, claims),
-         :ok <- validate_expiry(claims) do
+         :ok <- validate_expiry(claims),
+         :ok <- validate_not_before(claims) do
       {:ok, claims}
     end
   end
@@ -133,6 +134,20 @@ defmodule Florina.Integrations.Provider do
 
       _ ->
         {:error, :missing_expiry}
+    end
+  end
+
+  # `nbf` is optional (absent ⇒ ok); when present, reject a token that isn't yet
+  # valid (beyond the small clock-skew leeway).
+  defp validate_not_before(claims) do
+    case claims["nbf"] do
+      nbf when is_integer(nbf) ->
+        if nbf <= System.system_time(:second) + @id_token_leeway_seconds,
+          do: :ok,
+          else: {:error, :not_yet_valid}
+
+      _ ->
+        :ok
     end
   end
 

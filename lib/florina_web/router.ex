@@ -3,13 +3,19 @@ defmodule FlorinaWeb.Router do
 
   import FlorinaWeb.AgentAuth, only: [fetch_current_agent: 2, require_authenticated_agent: 2]
 
+  # Conservative CSP (defense-in-depth; HEEx auto-escaping is the primary XSS
+  # guard). 'unsafe-inline' is needed for the no-flash theme boot script and
+  # framework inline styles; media/img https: allow the HMAC-authenticated call
+  # recording audio; ws/wss carry the LiveView socket.
+  @csp "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; media-src 'self' https:; connect-src 'self' ws: wss:; frame-ancestors 'self'; base-uri 'self'; object-src 'none'"
+
   pipeline :browser do
     plug :accepts, ["html"]
     plug :fetch_session
     plug :fetch_live_flash
     plug :put_root_layout, html: {FlorinaWeb.Layouts, :root}
     plug :protect_from_forgery
-    plug :put_secure_browser_headers
+    plug :put_secure_browser_headers, %{"content-security-policy" => @csp}
   end
 
   pipeline :api do

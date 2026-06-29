@@ -47,11 +47,22 @@ defmodule Florina.Visits do
   do `.select_related("agent", "client", "methodology")` and
   `.prefetch_related("call_attempts")`.
   """
-  def get_with_associations(id) do
+  def get_with_associations(id) when is_integer(id) do
     Visit
     |> preload([:agent, :client, :methodology, :scenario, :call_attempts])
     |> TenantRepo.get(id)
   end
+
+  # Tolerate a non-integer id (e.g. a hand-edited URL) — return nil instead of
+  # raising Ecto.Query.CastError against the bigint primary key.
+  def get_with_associations(id) when is_binary(id) do
+    case Integer.parse(id) do
+      {int, ""} -> get_with_associations(int)
+      _ -> nil
+    end
+  end
+
+  def get_with_associations(_), do: nil
 
   # ---------------------------------------------------------------------------
   # List / filter queries

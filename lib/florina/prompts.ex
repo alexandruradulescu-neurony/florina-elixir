@@ -124,12 +124,23 @@ defmodule Florina.Prompts do
   end
 
   @doc "One run with all associations, or nil. Encrypted fields decrypt on read."
-  def get_run(id) do
+  def get_run(id) when is_integer(id) do
     case TenantRepo.get(GenerationRun, id) do
       nil -> nil
       run -> TenantRepo.preload(run, [:visit, :client, :mega_prompt, :created_by])
     end
   end
+
+  # Tolerate a non-integer id (e.g. a hand-edited URL) — return nil instead of
+  # raising Ecto.Query.CastError against the bigint primary key.
+  def get_run(id) when is_binary(id) do
+    case Integer.parse(id) do
+      {int, ""} -> get_run(int)
+      _ -> nil
+    end
+  end
+
+  def get_run(_), do: nil
 
   defp runs_query(filters) do
     GenerationRun

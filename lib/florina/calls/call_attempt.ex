@@ -3,6 +3,11 @@ defmodule Florina.Calls.CallAttempt do
   use Ecto.Schema
   import Ecto.Changeset
 
+  alias Florina.Enums
+
+  @status_values Enum.map(Enums.call_status_values(), fn {_k, v} -> v end)
+  @phase_values Enum.map(Enums.call_phase_values(), fn {_k, v} -> v end)
+
   @timestamps_opts [type: :utc_datetime, inserted_at: :created_at, updated_at: :updated_at]
 
   schema "voice_callattempt" do
@@ -31,6 +36,8 @@ defmodule Florina.Calls.CallAttempt do
       :analysis
     ])
     |> validate_required([:status])
+    |> validate_inclusion(:status, @status_values)
+    |> validate_inclusion(:phase, @phase_values)
   end
 
   @doc "Changeset for creating a new CallAttempt row (used by Oban workers)."
@@ -47,6 +54,8 @@ defmodule Florina.Calls.CallAttempt do
       :analysis
     ])
     |> validate_required([:visit_id, :phase, :status])
+    |> validate_inclusion(:status, @status_values)
+    |> validate_inclusion(:phase, @phase_values)
     |> foreign_key_constraint(:visit_id)
   end
 end
