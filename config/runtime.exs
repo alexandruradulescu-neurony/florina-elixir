@@ -105,12 +105,13 @@ if config_env() == :prod do
   # 18) plus a few connections for Oban's own notifier/cron/pruner — otherwise
   # jobs contend for connections and retry-storm. Default 20 covers that.
   #
-  # CONNECTION BUDGET (Postgres max_connections, currently 100): a deploy briefly
-  # overlaps the OLD node, the NEW node, and the separate pre-deploy migrate node.
-  # Keep `2 × (POOL_SIZE + JOBS_POOL_SIZE) + migrate_pool + ~5 reserved ≤ 100`.
-  # At defaults: 2×(20+20) + 2 + 5 = 87. Raise POOL_SIZE/JOBS_POOL_SIZE together
-  # ONLY within that ceiling (or move to a bigger DB plan / a pooler like
-  # PgBouncer to go higher).
+  # CONNECTION BUDGET (Postgres max_connections, currently 100): at deploy cutover
+  # the OLD and NEW app containers briefly overlap — peak ≈
+  # 2 × (POOL_SIZE + JOBS_POOL_SIZE). The pre-deploy migrate node runs BEFORE the
+  # new container starts, so it doesn't stack on top of both. At defaults:
+  # 2 × (20 + 20) = 80, leaving ~20 headroom under 100. Raise POOL_SIZE/
+  # JOBS_POOL_SIZE together ONLY within that ceiling (or move to a bigger DB plan
+  # / a pooler like PgBouncer to go higher).
   config :florina, Florina.JobsRepo,
     url: database_url,
     pool_size: String.to_integer(System.get_env("JOBS_POOL_SIZE") || "20"),
