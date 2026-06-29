@@ -52,10 +52,32 @@ defmodule Florina.Integrations.Provider do
     "#{base}/auth/#{provider}/callback"
   end
 
+  @id_token_leeway_seconds 60
+
   @doc """
-  Decode (NOT cryptographically verify) the claims of an id_token. Safe here:
-  the id_token is received directly from the provider's TLS token endpoint
-  (authorization-code flow), never through the browser.
+  Validate an id_token's registered claims and return them, or `{:error, reason}`.
+
+  We do NOT verify the JWS signature: in the authorization-code flow the id_token
+  is fetched directly from the provider's token endpoint over TLS, so per OIDC
+  Core §3.1.3.7 the TLS server identity authenticates the issuer in place of the
+  signature. We DO validate the claims TLS doesn't cover — audience (the token
+  was issued for THIS app, not another client), issuer (it came from the expected
+  provider), and expiry — which the previous decode-only path skipped.
+  """
+  def verify_id_token(provider, id_token) when is_atom(provider) and is_binary(id_token) do
+    with {:ok, claims} <- decode_claims(id_token),
+         :ok <- validate_audience(provider, claims),
+         :ok <- validate_issuer(provider, claims),
+         :ok <- validate_expiry(claims) do
+      {:ok, claims}
+    end
+  end
+
+  def verify_id_token(_provider, _id_token), do: {:error, :invalid_id_token}
+
+  @doc """
+  Decode (NOT cryptographically verify) the claims of an id_token. Prefer
+  `verify_id_token/2`, which also validates audience/issuer/expiry.
   """
   def decode_claims(id_token) when is_binary(id_token) do
     with [_h, payload, _s] <- String.split(id_token, "."),
@@ -68,6 +90,51 @@ defmodule Florina.Integrations.Provider do
   end
 
   def decode_claims(_), do: {:error, :invalid_id_token}
+
+  # aud must equal our OAuth client id for that provider (it may be a string or
+  # a list of audiences). A missing client-id config fails closed.
+  defp validate_audience(provider, claims) do
+    expected = audience(provider)
+
+    cond do
+      expected in [nil, ""] -> {:error, :missing_audience_config}
+      expected in List.wrap(claims["aud"]) -> :ok
+      true -> {:error, :bad_audience}
+    end
+  end
+
+  defp audience(:google), do: Application.get_env(:florina, :google_client_id)
+  defp audience(:microsoft), do: Application.get_env(:florina, :microsoft_client_id)
+
+  defp validate_issuer(:google, claims) do
+    if claims["iss"] in ["https://accounts.google.com", "accounts.google.com"],
+      do: :ok,
+      else: {:error, :bad_issuer}
+  end
+
+  # Entra ID issuer is tenant-specific (https://login.microsoftonline.com/<tid>/v2.0),
+  # so match the host + the /v2.0 suffix rather than a fixed string.
+  defp validate_issuer(:microsoft, claims) do
+    case URI.parse(to_string(claims["iss"])) do
+      %URI{host: "login.microsoftonline.com", path: path} when is_binary(path) ->
+        if String.ends_with?(path, "/v2.0"), do: :ok, else: {:error, :bad_issuer}
+
+      _ ->
+        {:error, :bad_issuer}
+    end
+  end
+
+  defp validate_expiry(claims) do
+    now = System.system_time(:second)
+
+    case claims["exp"] do
+      exp when is_integer(exp) ->
+        if exp + @id_token_leeway_seconds >= now, do: :ok, else: {:error, :expired}
+
+      _ ->
+        {:error, :missing_expiry}
+    end
+  end
 
   @doc """
   Return a valid access token for the credential, refreshing if within 60s of

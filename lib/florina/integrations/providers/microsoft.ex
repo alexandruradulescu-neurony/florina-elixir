@@ -73,21 +73,32 @@ defmodule Florina.Integrations.Providers.Microsoft do
 
   @impl Florina.Integrations.OAuthProvider
   def fetch_identity(tokens) do
-    with {:ok, claims} <- Provider.decode_claims(tokens[:id_token] || tokens["id_token"]) do
+    with {:ok, claims} <-
+           Provider.verify_id_token(:microsoft, tokens[:id_token] || tokens["id_token"]) do
       email = claims["email"] || claims["preferred_username"]
 
       {:ok,
        %{
          email: email,
-         # Forced true: Entra ID does not emit an `email_verified` claim. Safe
-         # because this provider is locked to WORK/SCHOOL accounts only
-         # (MICROSOFT_TENANT=organizations), so the email/UPN is an
-         # org-controlled, DNS-verified address — and the sign-in domain gate
-         # rejects anything outside the tenant's allowed_email_domains.
-         email_verified: is_binary(email),
+         email_verified: email_verified?(claims, email),
          name: claims["name"],
          subject: claims["oid"] || claims["sub"]
        }}
+    end
+  end
+
+  # Entra ID has no standard `email_verified` claim. Honor `xms_edov` (email
+  # domain owner verified) when the token carries it — so an explicit false is
+  # respected instead of forced true. Otherwise fall back to the work/school
+  # assumption: this provider is locked to org accounts (MICROSOFT_TENANT=
+  # organizations), where the email/UPN is an org-controlled, DNS-verified
+  # address, and the sign-in domain gate rejects anything outside the tenant's
+  # allowed_email_domains.
+  defp email_verified?(claims, email) do
+    case claims["xms_edov"] do
+      v when v in [true, "true"] -> true
+      v when v in [false, "false"] -> false
+      _ -> is_binary(email)
     end
   end
 

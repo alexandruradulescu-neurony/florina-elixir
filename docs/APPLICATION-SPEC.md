@@ -70,7 +70,7 @@ Custom timestamp convention on most `voice_*` schemas: `@timestamps_opts [type: 
 ### Control-plane (`Florina.Repo`)
 | Table | Module | Notable |
 |---|---|---|
-| `tenants` | `Florina.Tenants.Tenant` | `slug` (unique), `database`, `active` (bool), `status` (`provisioning\|active\|failed`, app-validated only, no DB CHECK), `allowed_email_domains` (text[], lowercased/trimmed) |
+| `tenants` | `Florina.Tenants.Tenant` | `slug` (unique), `active` (bool), `status` (`provisioning\|active\|failed`, app-validated only, no DB CHECK), `allowed_email_domains` (text[], lowercased/trimmed). Data isolated by Postgres schema `tenant_<id>` — no per-tenant database column. |
 | `admins` | `Florina.Admins.Admin` | `email` (unique), `hashed_password` (bcrypt), `password` virtual |
 | `voice_methodology` | `CentralConfig.Methodology` | canonical; `created_by_id` is a plain bigint (NO FK here) |
 | `voice_scenario` | `CentralConfig.Scenario` | `name` + `slug` unique |
@@ -109,21 +109,21 @@ Per-tenant migration order is in `priv/tenant_repo/migrations/` (note `encrypt_s
 Static → RequestId → Telemetry → Parsers (**custom `RawBodyReader` caches the raw body** for webhook HMAC) → MethodOverride → Head → **Session (cookie, signed, `SameSite=Lax`, NOT encrypted)** → Router.
 
 ### Pipelines
-`:browser` (session+CSRF+secure headers), `:webhook` (json only), `:resolve_tenant` (ResolveTenant plug), `:tenant_session` (write slug to session), `:agent_auth` (`fetch_current_agent` + `require_authenticated_agent`), `:require_admin` (RequireAdmin plug), `:dashboard_auth` (shared Basic-Auth from `:florina, :dashboard_auth`).
+`:browser` (session+CSRF+secure headers), `:webhook` (json only), `:resolve_tenant` (ResolveTenant plug), `:tenant_session` (write slug to session), `:agent_auth` (`fetch_current_agent` + `require_authenticated_agent`), `:require_admin` (RequireAdmin plug).
 
 ### Routes (summary)
 - `POST /t/:slug/webhooks/elevenlabs` — `[:webhook, :resolve_tenant]` — HMAC-verified inbound.
 - `GET /` — home. `GET /healthz` — no pipeline, plain "ok".
-- `GET /t/:slug/login`, `GET /t/:slug/auth/:provider/start`, `GET /t/:slug/auth/:provider/callback`, `DELETE /t/:slug/logout` — `[:browser, :resolve_tenant, :tenant_session]` (no agent gate — these establish the session).
+- `GET /t/:slug/login`, `GET /t/:slug/auth/:provider/start`, `DELETE /t/:slug/logout` — `[:browser, :resolve_tenant, :tenant_session]` (no agent gate — these establish the session).
+- `GET /auth/:provider/callback` — `[:browser]` only, **not** tenant-scoped: one redirect URI per provider; the tenant is recovered from the signed `state` and pinned in the controller.
 - `LIVE /t/:slug/calls | /chat | /calendar` — `[:browser, :resolve_tenant, :tenant_session, :agent_auth]` (agent-gated).
-- `LIVE /chat` (global demo `ChatLive`) — `[:browser, :dashboard_auth]`.
+- `LIVE /t/:slug/chat` (`TenantChatLive`) — agent-gated like the other tenant LiveViews.
 - `GET/POST /admin/login`, `DELETE /admin/logout` — `[:browser]`. `LIVE /admin | /admin/tenants | /admin/config` — `[:browser, :require_admin]`.
 - `GET /t/:slug/whoami` — `[:browser, :resolve_tenant]` (diagnostic; **no auth**).
 
-### Three auth mechanisms
-1. **Operator admin** — `Florina.Admins.authenticate/2` (bcrypt, timing-safe, dummy-verify on miss). HTTP guard `Plugs.RequireAdmin` (session `admin_id`); LiveView `Admin.AdminAuth` on_mount. Session renewed on login, dropped on logout. First admin seeded from `ADMIN_EMAIL`/`ADMIN_PASSWORD` at boot if `admins` empty.
-2. **Shared dashboard Basic-Auth** — gates the global `/chat` demo only (`DASHBOARD_USER`/`DASHBOARD_PASS`).
-3. **Agent SSO** — `FlorinaWeb.AuthController` + `FlorinaWeb.AgentAuth`. Sign-in callback security chain (`/t/:slug/auth/:provider/callback`):
+### Two auth mechanisms
+1. **Operator admin** — `Florina.Admins.authenticate/2` (bcrypt, timing-safe, dummy-verify on miss). HTTP guard `Plugs.RequireAdmin` (session `admin_id`); LiveView `Admin.AdminAuth` on_mount. Session renewed on login, dropped on logout. First admin seeded from `ADMIN_EMAIL`/`ADMIN_PASSWORD` at boot if `admins` empty. Login throttled per-email by `Florina.Auth.LoginRateLimiter`.
+2. **Agent SSO** — `FlorinaWeb.AuthController` + `FlorinaWeb.AgentAuth`. Sign-in callback security chain (`GET /auth/:provider/callback`, fixed path):
    1. tenant resolved (`active: true`) and pinned;
    2. provider ∈ `~w(google microsoft)` (else 400);
    3. **state verify** — `Phoenix.Token.verify` (salt `"agent_oauth_state"`, max_age 600s); payload pattern-pinned to **both** `^tenant_slug` and `^provider` (rejects cross-tenant/provider replay);
@@ -155,11 +155,11 @@ HMAC-SHA256 over `"{timestamp}.{raw_body}"`, header `t=..,v0=..`, `Plug.Crypto.s
 
 ## 7. External integrations
 
-All external credentials are **global (shared across tenants)** via app config/env — there is **one** ElevenLabs account, **one** Anthropic key, **one** Pipedrive token, and **one** OAuth app per provider. Per-agent *user* tokens are per-tenant. Each integration uses a behaviour/config-swap so tests inject stubs (`:elevenlabs_client`, `:anthropic_client`, `:pipedrive_client`, `:oauth_provider_google`, `:oauth_provider_microsoft`).
+Most external credentials are **global (shared across tenants)** via app config/env — **one** ElevenLabs account, **one** Anthropic key, and **one** OAuth app per provider. **CRM credentials are per-tenant** (each tenant's Pipedrive/HubSpot token + provider choice live encrypted in its `voice_globalsettings`; there is no global CRM fallback). Per-agent *user* OAuth tokens are per-tenant. Each integration uses a behaviour/config-swap so tests inject stubs (`:elevenlabs_client`, `:anthropic_client`, `:pipedrive_client`, `:oauth_provider_google`, `:oauth_provider_microsoft`).
 
 - **ElevenLabs** (`integrations/eleven_labs.ex`) — `initiate_call` (POST twilio outbound-call with prompt override), `get_conversation`/`fetch_transcript` (multi-URL fallback for API-version drift). `receive_timeout: 30s`. Signature verify in `eleven_labs_signature.ex`.
 - **Anthropic** (`anthropic.ex` + `anthropic/sse.ex`) — `stream_chat` (LiveView chat, SSE → `:on_delta`) and `complete` (blocking; Assembler/Lessons). Model `claude-sonnet-4-6` (global). Key `ANTHROPIC_API_KEY`.
-- **Pipedrive** (`integrations/pipedrive.ex`) — read org/deal/person/note/activity (paginated), `create_note` (write). Auth via `api_token` **query param**. `receive_timeout: 15–30s`.
+- **CRM** (`integrations/crm.ex` facade → `pipedrive.ex` | `hubspot.ex`, per-tenant `crm_provider`) — read org/deal/person/note/activity (paginated); `create_note` is Pipedrive-only. Pipedrive auth via `x-api-token` **header** (kept out of URLs/logs); HubSpot via Bearer Private-App token. `receive_timeout: 15s`.
 - **OAuth providers** — `Provider` dispatcher + shared helpers (redirect_uri, sign/verify state, decode_claims, `ensure_valid_token` with 60s skew). `Providers.Google` (scopes openid/email/profile/calendar.readonly; `access_type=offline`, `prompt=consent`) + `Providers.Microsoft` (Graph; default `MICROSOFT_TENANT=organizations` = work/school only; `Calendars.Read`; `$top=250`, no pagination). Behaviours `OAuthProvider`/`CalendarProvider`.
 - **ClientSync** (`integrations/client_sync.ex`) — Pipedrive → `voice_client` upsert + bounded enrichment (≤20 contacts/deals/interactions); per-org errors collected, sub-fetch failures swallowed to `[]`. Client domain derived from Pipedrive `cc_email`.
 
@@ -199,7 +199,7 @@ Canonical config lives in the control-plane (`CentralConfig`, `Florina.Repo`). O
 ## 12. Config, supervision & deploy
 **Supervision order** (`application.ex`, one_for_one): Telemetry → **Vault** → **LoginRateLimiter** → **Repo** → **BootMigrator** (applies pending per-tenant migrations before Oban/Endpoint; prod only) → DNSCluster → PubSub → **Oban** → **Endpoint**; then `Admins.ensure_seed_from_env()` runs post-start (rescues all errors).
 
-**Required at prod boot (raise if missing):** `FIELD_ENCRYPTION_KEY`, `DATABASE_URL`, `SECRET_KEY_BASE`, `DASHBOARD_PASS`. **Optional (feature silently degrades if absent):** all integration keys (`ANTHROPIC_API_KEY`, `ELEVENLABS_*`, `GOOGLE_*`, `MICROSOFT_*`, `PIPEDRIVE_*`), `OAUTH_REDIRECT_BASE`, `PHX_HOST`/`TENANT_BASE_HOST`, `POOL_SIZE`, `ECTO_IPV6`, `DNS_CLUSTER_QUERY`, `DASHBOARD_USER`, `ADMIN_EMAIL`/`ADMIN_PASSWORD`. `ELEVENLABS_WEBHOOK_SECRET` is read in all envs.
+**Required at prod boot (raise if missing):** `FIELD_ENCRYPTION_KEY`, `DATABASE_URL`, `SECRET_KEY_BASE`. **Optional (feature silently degrades if absent):** global integration keys (`ANTHROPIC_API_KEY`, `ELEVENLABS_*`, `GOOGLE_*`, `MICROSOFT_*`), `OAUTH_REDIRECT_BASE`, `PHX_HOST`/`TENANT_BASE_HOST`, `POOL_SIZE`, `ECTO_IPV6`, `DNS_CLUSTER_QUERY`, `ADMIN_EMAIL`/`ADMIN_PASSWORD`. `ELEVENLABS_WEBHOOK_SECRET` is read in all envs. (CRM credentials are per-tenant, entered in the UI — no global `PIPEDRIVE_*` env.)
 
 **Release ops** (`Florina.Release`): `migrate/0` (control-plane), `migrate_tenants/0` (all tenant DBs), `provision_tenant/3`, `create_admin/2`. `railway.json` `preDeployCommand` runs `bin/migrate` (control-plane) before traffic; **per-tenant migrations now auto-apply at boot in prod** (`:migrate_tenants_on_boot`, async + best-effort per tenant) — `migrate_tenants/0` remains available for manual runs. Docker runs as `nobody`; `bin/server` sets `PHX_SERVER`.
 
@@ -249,6 +249,16 @@ An internal pass surfaced these. They are **leads, not verdicts** — verify eac
 > - **[FIXED]** CRM-derived `client_name`/`client_industry` are sanitized (control-char flatten, fence-close defang, length cap) before prompt interpolation.
 > - **[FIXED]** Component-library theming removed — color tokens moved to a Tailwind `@theme` block with a `:root[data-theme=dark]` override; components hand-rolled in plain Tailwind. LiveViews now wrap in `<Layouts.app>`; `flash_group` only inside `layouts.ex`. Root inline theme script moved to `assets/js/theme.js` (tiny no-flash boot snippet remains).
 > - **Note:** the old `voice_googleoauthcredential` drop (flagged for data migration) is moot — it already ran on an empty table in the clean-rebuild prod tenant; nothing to migrate.
+>
+> **Resolution status (2026-06-29, post per-tenant-CRM review rounds).** Fixed on
+> `develop` (`mix precommit` green); some deployed.
+> - **[FIXED]** Per-tenant CRM creds are encrypted at rest (`Florina.Encrypted.Binary`); the global Pipedrive env fallback was removed (a blank tenant imports nothing).
+> - **[FIXED]** OIDC id_tokens now validate audience/issuer/expiry (`Provider.verify_id_token/2`); Microsoft `email_verified` honors `xms_edov` instead of always-true. Signature is intentionally not re-verified — the code flow receives the token over TLS directly from the token endpoint (OIDC §3.1.3.7).
+> - **[FIXED]** `NO_ANSWER` now counts toward the per-phase dial cap (only transient `FAILED` is excluded), so unanswered calls can't re-dial past the cap.
+> - **[FIXED]** Scheduling settings have server-side numeric bounds (`validate_scheduling/1`), shared by the tenant + central changesets.
+> - **[FIXED]** Admin-login rate limit is per-email and atomic (`Florina.Auth.LoginRateLimiter`); OAuth login-CSRF nonce keeps a small recent set per browser.
+> - **[FIXED]** Remaining `String.to_integer` LiveView events (`calendar_live`, `agent_today_live`) guard against tampered params.
+> - **Note:** CI still does not run `mix test` — intentional; the suite is git-ignored and not committed (see `.gitignore` + `ci.yml`). Not a regression.
 
 **Auth / access control**
 - `GET /t/:slug/whoami` runs `[:browser, :resolve_tenant]` with **no auth** and returns tenant marker labels — confirm it's harmless/diagnostic and consider removing in prod.

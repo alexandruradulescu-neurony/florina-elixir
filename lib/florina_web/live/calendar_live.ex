@@ -834,6 +834,12 @@ defmodule FlorinaWeb.CalendarLive do
   defp client_label(%{name: n}) when is_binary(n), do: n
   defp client_label(_), do: "—"
 
-  defp parse_id(""), do: nil
-  defp parse_id(id), do: String.to_integer(id)
+  defp parse_id(id) when is_binary(id) do
+    case Integer.parse(id) do
+      {int, ""} -> int
+      _ -> nil
+    end
+  end
+
+  defp parse_id(_), do: nil
 end

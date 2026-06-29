@@ -20,17 +20,17 @@ defmodule FlorinaWeb.AgentTodayLive do
 
   @impl true
   def handle_event("call_me", %{"visit_id" => id}, socket) do
-    id = String.to_integer(id)
-
-    # Security: only allow a debrief for a meeting in the agent's own loaded list.
-    if Enum.any?(socket.assigns.meetings, &(&1.id == id)) do
-      %{"visit_id" => id, "phase" => "POST", "tenant_slug" => socket.assigns.tenant.slug}
+    # `id` is a client-sent param; a non-integer is ignored rather than crashing.
+    with {visit_id, ""} <- Integer.parse(to_string(id)),
+         # Security: only allow a debrief for a meeting in the agent's own list.
+         true <- Enum.any?(socket.assigns.meetings, &(&1.id == visit_id)) do
+      %{"visit_id" => visit_id, "phase" => "POST", "tenant_slug" => socket.assigns.tenant.slug}
       |> DialCall.new()
       |> Oban.insert()
 
       {:noreply, put_flash(socket, :info, "Florina will call you shortly for the debrief.")}
     else
-      {:noreply, put_flash(socket, :error, "That meeting isn't one of yours.")}
+      _ -> {:noreply, put_flash(socket, :error, "That meeting isn't one of yours.")}
     end
   end
 

@@ -64,9 +64,7 @@ config :florina,
   google_client_id: nil,
   google_client_secret: nil,
   microsoft_client_id: nil,
-  microsoft_client_secret: nil,
-  pipedrive_api_token: nil,
-  pipedrive_domain: nil
+  microsoft_client_secret: nil
 
 config :florina, :tenant_base_host, "localhost"
 

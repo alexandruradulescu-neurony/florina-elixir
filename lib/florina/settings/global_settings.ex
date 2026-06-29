@@ -23,10 +23,12 @@ defmodule Florina.Settings.GlobalSettings do
     # tenant-private and never published from the central config.
     # `crm_provider` selects which CRM is active: "pipedrive" | "hubspot".
     # Both providers' credentials are kept so switching doesn't lose them.
+    # API tokens are encrypted at rest (Cloak) like OAuth credentials; the
+    # domain is not a secret and stays plaintext.
     field :crm_provider, :string, default: "pipedrive"
-    field :pipedrive_api_token, :string
+    field :pipedrive_api_token, Florina.Encrypted.Binary
     field :pipedrive_domain, :string
-    field :hubspot_api_token, :string
+    field :hubspot_api_token, Florina.Encrypted.Binary
 
     field :is_overridden, :boolean, default: false
 
@@ -79,5 +81,35 @@ defmodule Florina.Settings.GlobalSettings do
     settings
     |> cast(attrs, @cast_fields)
     |> validate_inclusion(:crm_provider, @crm_providers)
+    |> Florina.Settings.GlobalSettings.validate_scheduling()
+  end
+
+  @doc """
+  Server-side bounds for the scheduling fields, shared with the central config
+  schema. Offsets may be negative (before the meeting); intervals/caps/thresholds
+  must be positive and within sane ceilings so a tampered or fat-fingered form
+  can't submit zero/negative/huge values.
+  """
+  def validate_scheduling(changeset) do
+    import Ecto.Changeset
+
+    changeset
+    |> validate_number(:retry_interval_minutes, greater_than: 0, less_than_or_equal_to: 1440)
+    |> validate_number(:max_call_attempts_per_phase,
+      greater_than_or_equal_to: 1,
+      less_than_or_equal_to: 10
+    )
+    |> validate_number(:max_context_tokens_warn,
+      greater_than: 0,
+      less_than_or_equal_to: 1_000_000
+    )
+    |> validate_number(:pre_call_offset_minutes,
+      greater_than_or_equal_to: -1440,
+      less_than_or_equal_to: 1440
+    )
+    |> validate_number(:post_call_offset_minutes,
+      greater_than_or_equal_to: -1440,
+      less_than_or_equal_to: 1440
+    )
   end
 end

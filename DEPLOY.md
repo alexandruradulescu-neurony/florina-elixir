@@ -25,8 +25,8 @@ runtime.
    | `PHX_HOST` | your public domain, e.g. `florina-production.up.railway.app` |
    | `PHX_SERVER` | `true` |
    | `ELEVENLABS_WEBHOOK_SECRET` | the `wsec_…` value (from the team `.env`) |
-   | `DASHBOARD_PASS` | password for the `/calls` live dashboard — **required**: the app refuses to boot in prod without it |
-   | `DASHBOARD_USER` | username for the `/calls` dashboard (optional; defaults to `admin`) |
+   | `FIELD_ENCRYPTION_KEY` | base64 32-byte key for at-rest encryption (OAuth + CRM tokens) — **required**: the app refuses to boot in prod without it |
+   | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | seeds the first operator-admin at boot if none exists (optional) |
    | `ANTHROPIC_API_KEY` | for the live agent chat (`/chat`); without it the app still boots but `/chat` shows an error |
 
    `PORT` is injected by Railway automatically — do not set it.

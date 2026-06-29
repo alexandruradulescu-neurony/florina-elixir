@@ -199,16 +199,18 @@ defmodule Florina.Workers.ScanTenantCalls do
   end
 
   @doc """
-  Total dials for a (visit_id, phase) pair.
-  Each CallAttempt row counts as 1 (this matches Django's approach after
-  dropping `retry_count` — Elixir always creates a new row per attempt).
+  Total dials for a (visit_id, phase) pair that count toward the per-phase cap.
+  Each CallAttempt row counts as 1. A `NO_ANSWER` is a real placed dial to the
+  person, so it consumes an attempt (otherwise unanswered calls would re-dial
+  past the cap). `FAILED` is excluded — it's a transient provider error that
+  never reached anyone, so it shouldn't burn an attempt.
   """
   def phase_dial_count(visit_id, phase) do
     TenantRepo.aggregate(
       from(ca in CallAttempt,
         where:
           ca.visit_id == ^visit_id and ca.phase == ^phase and
-            ca.status not in ["FAILED", "NO_ANSWER"]
+            ca.status not in ["FAILED"]
       ),
       :count
     ) || 0

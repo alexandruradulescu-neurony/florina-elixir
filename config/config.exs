@@ -150,11 +150,6 @@ config :florina,
   microsoft_client_secret: nil,
   microsoft_tenant: "organizations"
 
-# Pipedrive — global keys (set in runtime.exs for prod from env)
-config :florina,
-  pipedrive_api_token: nil,
-  pipedrive_domain: nil
-
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "#{config_env()}.exs"

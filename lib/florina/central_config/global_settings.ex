@@ -37,5 +37,7 @@ defmodule Florina.CentralConfig.GlobalSettings do
   def changeset(settings, attrs) do
     settings
     |> cast(attrs, @cast_fields)
+    # Same scheduling bounds as the per-tenant settings (shared validator).
+    |> Florina.Settings.GlobalSettings.validate_scheduling()
   end
 end

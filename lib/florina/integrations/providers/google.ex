@@ -65,7 +65,8 @@ defmodule Florina.Integrations.Providers.Google do
 
   @impl Florina.Integrations.OAuthProvider
   def fetch_identity(tokens) do
-    with {:ok, claims} <- Provider.decode_claims(tokens[:id_token] || tokens["id_token"]) do
+    with {:ok, claims} <-
+           Provider.verify_id_token(:google, tokens[:id_token] || tokens["id_token"]) do
       {:ok,
        %{
          email: claims["email"],

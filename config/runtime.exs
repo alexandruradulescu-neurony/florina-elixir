@@ -71,11 +71,6 @@ if config_env() == :prod do
     config :florina, :oauth_redirect_base, base
   end
 
-  # Pipedrive CRM
-  config :florina,
-    pipedrive_api_token: System.get_env("PIPEDRIVE_API_TOKEN"),
-    pipedrive_domain: System.get_env("PIPEDRIVE_DOMAIN")
-
   database_url =
     System.get_env("DATABASE_URL") ||
       raise """

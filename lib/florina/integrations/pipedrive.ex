@@ -19,8 +19,9 @@ defmodule Florina.Integrations.Pipedrive do
 
   Tests swap in `Florina.Integrations.Pipedrive.Stub`.
 
-  Auth: global API token from `config :florina, :pipedrive_api_token`.
-  Base URL: `https://{PIPEDRIVE_DOMAIN}.pipedrive.com/api/v1`.
+  Auth: per-tenant API token from the tenant's settings
+  (`Settings.pipedrive_api_token`) — no global fallback.
+  Base URL: `https://{tenant pipedrive_domain}.pipedrive.com/api/v1`.
 
   Deferred:
   - `search_deals/1` (search by term) — not used in core sync/CRM push path;
@@ -269,10 +270,11 @@ defmodule Florina.Integrations.Pipedrive do
   end
 
   # Each Pipedrive call runs in a tenant-pinned context (the sync/calendar
-  # workers pin the tenant first), so prefer that tenant's saved credentials and
-  # fall back to the global env value (kept for the original single-tenant
-  # deployment until per-tenant creds are entered). Settings come from the CRM
-  # facade's call-scoped cache so a single sync call doesn't re-query the row.
+  # workers pin the tenant first), so credentials come strictly from that
+  # tenant's own settings — there is NO global fallback, so a tenant with no
+  # creds imports nothing (rather than leaking another tenant's CRM). Settings
+  # come from the CRM facade's call-scoped cache so a single sync call doesn't
+  # re-query the row.
   defp tenant_creds do
     settings =
       try do
@@ -282,15 +284,10 @@ defmodule Florina.Integrations.Pipedrive do
       end
 
     %{
-      token:
-        Strings.blank_to_nil(settings && settings.pipedrive_api_token) ||
-          env(:pipedrive_api_token),
-      domain:
-        Strings.blank_to_nil(settings && settings.pipedrive_domain) || env(:pipedrive_domain)
+      token: settings && Strings.blank_to_nil(settings.pipedrive_api_token),
+      domain: settings && Strings.blank_to_nil(settings.pipedrive_domain)
     }
   end
-
-  defp env(key), do: Application.get_env(:florina, key, "")
 
   # Pipedrive accepts the API token via the `x-api-token` header (documented
   # alternative to the `?api_token=` query param) — keeps the secret out of URLs,
