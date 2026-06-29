@@ -20,10 +20,10 @@ defmodule Florina.OAuth.Credential do
     field :provider, Ecto.Enum, values: @providers
     field :purpose, Ecto.Enum, values: @purposes, default: :agent_calendar
     field :email, :string
-    field :access_token, Florina.Encrypted.Binary
-    field :refresh_token, Florina.Encrypted.Binary
+    field :access_token, Florina.Encrypted.Binary, redact: true
+    field :refresh_token, Florina.Encrypted.Binary, redact: true
     field :client_id, :string
-    field :client_secret, Florina.Encrypted.Binary
+    field :client_secret, Florina.Encrypted.Binary, redact: true
     field :token_uri, :string
     field :scopes, {:array, :string}, default: []
     field :expires_at, :utc_datetime

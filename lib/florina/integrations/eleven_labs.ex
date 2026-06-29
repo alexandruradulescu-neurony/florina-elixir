@@ -77,6 +77,7 @@ defmodule Florina.Integrations.ElevenLabs do
       payload = build_call_payload(agent_id, phone_number_id, to_number, prompt, first_message)
 
       case Req.post("#{@convai_url}/twilio/outbound-call",
+             redirect: false,
              headers: headers(api_key),
              json: payload,
              receive_timeout: 30_000
@@ -168,7 +169,7 @@ defmodule Florina.Integrations.ElevenLabs do
   defp try_endpoints([], _headers), do: {:error, :not_found}
 
   defp try_endpoints([url | rest], headers) do
-    case Req.get(url, headers: headers, receive_timeout: 30_000) do
+    case Req.get(url, redirect: false, headers: headers, receive_timeout: 30_000) do
       {:ok, %{status: 200, body: body}} ->
         {:ok, body}
 

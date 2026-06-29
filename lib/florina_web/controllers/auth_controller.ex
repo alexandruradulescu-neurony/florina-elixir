@@ -124,6 +124,17 @@ defmodule FlorinaWeb.AuthController do
         |> put_flash(:error, "Your account is deactivated. Contact your administrator.")
         |> redirect(to: login_path(conn))
 
+      {:error, %Ecto.Changeset{} = cs} ->
+        # NEVER inspect the whole changeset: its `changes` hold the plaintext
+        # OAuth tokens (Cloak only encrypts at the DB boundary). Log just errors.
+        Logger.warning(
+          "[AuthController] sign-in failed (credential store): #{inspect(cs.errors)}"
+        )
+
+        conn
+        |> put_flash(:error, "Sign-in failed. Please try again.")
+        |> redirect(to: login_path(conn))
+
       other ->
         Logger.warning("[AuthController] sign-in failed: #{inspect(other)}")
 

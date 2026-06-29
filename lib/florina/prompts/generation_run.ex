@@ -34,11 +34,11 @@ defmodule Florina.Prompts.GenerationRun do
 
     # Encrypted fields — no schema-level default (Cloak validates defaults at
     # compile time against a running vault; defaults are set in the changeset).
-    field :context_bundle, Florina.Encrypted.Map
-    field :claude_request, Florina.Encrypted.Binary
-    field :claude_response, Florina.Encrypted.Binary
-    field :parsed_outputs, Florina.Encrypted.Map
-    field :error, Florina.Encrypted.Binary
+    field :context_bundle, Florina.Encrypted.Map, redact: true
+    field :claude_request, Florina.Encrypted.Binary, redact: true
+    field :claude_response, Florina.Encrypted.Binary, redact: true
+    field :parsed_outputs, Florina.Encrypted.Map, redact: true
+    field :error, Florina.Encrypted.Binary, redact: true
 
     field :input_tokens, :integer, default: 0
     field :output_tokens, :integer, default: 0

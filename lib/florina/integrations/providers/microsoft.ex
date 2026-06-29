@@ -75,30 +75,36 @@ defmodule Florina.Integrations.Providers.Microsoft do
   def fetch_identity(tokens) do
     with {:ok, claims} <-
            Provider.verify_id_token(:microsoft, tokens[:id_token] || tokens["id_token"]) do
-      email = claims["email"] || claims["preferred_username"]
+      # Identity domain MUST come from the UPN (`preferred_username`), NOT `email`.
+      # Entra guarantees the UPN's domain is one the issuing directory has
+      # DNS-verified, so it can't be forged to another company's domain. `email`
+      # is a free-form, admin-settable claim — a foreign Azure tenant can set it
+      # to `someone@victim-company.com` — so trusting it would let an outsider
+      # pass the sign-in domain gate. Fall back to `email` only for display when
+      # the token carries no UPN.
+      upn = claims["preferred_username"]
+      email = upn || claims["email"]
 
       {:ok,
        %{
          email: email,
-         email_verified: email_verified?(claims, email),
+         email_verified: email_verified?(claims, upn),
          name: claims["name"],
          subject: claims["oid"] || claims["sub"]
        }}
     end
   end
 
-  # Entra ID has no standard `email_verified` claim. Honor `xms_edov` (email
-  # domain owner verified) when the token carries it — so an explicit false is
-  # respected instead of forced true. Otherwise fall back to the work/school
-  # assumption: this provider is locked to org accounts (MICROSOFT_TENANT=
-  # organizations), where the email/UPN is an org-controlled, DNS-verified
-  # address, and the sign-in domain gate rejects anything outside the tenant's
-  # allowed_email_domains.
-  defp email_verified?(claims, email) do
+  # Entra ID has no standard `email_verified` claim. The gate domain is taken
+  # from the UPN above, whose domain is DNS-verified by the issuing directory, so
+  # a present UPN is treated as verified. An explicit `xms_edov` is honored either
+  # way. A token carrying only the spoofable `email` (no UPN) is treated as
+  # UNVERIFIED — fail closed — so it can never pass the domain gate.
+  defp email_verified?(claims, upn) do
     case claims["xms_edov"] do
       v when v in [true, "true"] -> true
       v when v in [false, "false"] -> false
-      _ -> is_binary(email)
+      _ -> is_binary(upn)
     end
   end
 

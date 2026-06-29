@@ -26,9 +26,9 @@ defmodule Florina.Settings.GlobalSettings do
     # API tokens are encrypted at rest (Cloak) like OAuth credentials; the
     # domain is not a secret and stays plaintext.
     field :crm_provider, :string, default: "pipedrive"
-    field :pipedrive_api_token, Florina.Encrypted.Binary
+    field :pipedrive_api_token, Florina.Encrypted.Binary, redact: true
     field :pipedrive_domain, :string
-    field :hubspot_api_token, Florina.Encrypted.Binary
+    field :hubspot_api_token, Florina.Encrypted.Binary, redact: true
 
     field :is_overridden, :boolean, default: false
 
@@ -82,7 +82,20 @@ defmodule Florina.Settings.GlobalSettings do
     settings
     |> cast(attrs, @cast_fields)
     |> validate_inclusion(:crm_provider, @crm_providers)
+    |> validate_pipedrive_domain()
     |> Florina.Settings.GlobalSettings.validate_scheduling()
+  end
+
+  # The Pipedrive domain is interpolated into the API base URL
+  # (https://<domain>.pipedrive.com/...). Restrict it to a single DNS label so a
+  # manager-supplied value containing "/", "@", "?", "#", ":" or whitespace can't
+  # redirect outbound requests (and the tenant's API token) to an arbitrary host
+  # (SSRF). nil/blank is allowed (clears the field → env fallback).
+  @pipedrive_domain_re ~r/\A[a-z0-9][a-z0-9-]{0,62}\z/i
+  defp validate_pipedrive_domain(changeset) do
+    validate_format(changeset, :pipedrive_domain, @pipedrive_domain_re,
+      message: ~s(must be just your Pipedrive subdomain, e.g. "acme" — letters, numbers, hyphens)
+    )
   end
 
   @doc """

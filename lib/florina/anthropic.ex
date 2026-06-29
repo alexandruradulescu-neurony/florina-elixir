@@ -62,6 +62,7 @@ defmodule Florina.Anthropic do
 
       result =
         Req.post(@endpoint,
+          redirect: false,
           headers: [
             {"x-api-key", api_key},
             {"anthropic-version", @version},
@@ -120,6 +121,7 @@ defmodule Florina.Anthropic do
         |> maybe_put(:system, Keyword.get(opts, :system))
 
       case Req.post(@endpoint,
+             redirect: false,
              headers: [
                {"x-api-key", api_key},
                {"anthropic-version", @version},

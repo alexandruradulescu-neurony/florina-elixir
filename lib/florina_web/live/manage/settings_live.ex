@@ -199,6 +199,7 @@ defmodule FlorinaWeb.Manage.SettingsLive do
             />
             <.input
               field={f[:pipedrive_api_token]}
+              value=""
               type="password"
               label="Pipedrive API token"
               placeholder={token_placeholder(@settings.pipedrive_api_token)}
@@ -221,6 +222,7 @@ defmodule FlorinaWeb.Manage.SettingsLive do
             </legend>
             <.input
               field={f[:hubspot_api_token]}
+              value=""
               type="password"
               label="HubSpot private-app token"
               placeholder={token_placeholder(@settings.hubspot_api_token)}

@@ -120,6 +120,7 @@ defmodule Florina.Integrations.Pipedrive do
     with {:ok, base_url} <- base_url(),
          {:ok, token} <- api_token() do
       case Req.get("#{base_url}/organizations/search",
+             redirect: false,
              headers: auth_headers(token),
              params: [term: term, fields: "name"],
              receive_timeout: 15_000
@@ -225,6 +226,7 @@ defmodule Florina.Integrations.Pipedrive do
         end)
 
       case Req.post("#{base_url}/notes",
+             redirect: false,
              headers: auth_headers(token),
              json: body,
              receive_timeout: 15_000
@@ -249,13 +251,19 @@ defmodule Florina.Integrations.Pipedrive do
   # Private helpers
   # ---------------------------------------------------------------------------
 
+  # Strict single-label subdomain; defense-in-depth against an SSRF value slipping
+  # past the changeset validation (e.g. set out-of-band). An invalid domain fails
+  # closed as missing_config so the integration is simply disabled, never used to
+  # build a URL pointing at an arbitrary host.
+  @domain_re ~r/\A[a-z0-9][a-z0-9-]{0,62}\z/i
+
   defp base_url do
     domain = tenant_creds().domain
 
-    if domain in [nil, ""] do
-      {:error, {:missing_config, :pipedrive_domain}}
-    else
-      {:ok, "https://#{domain}.pipedrive.com/api/v1"}
+    cond do
+      domain in [nil, ""] -> {:error, {:missing_config, :pipedrive_domain}}
+      not Regex.match?(@domain_re, domain) -> {:error, {:missing_config, :pipedrive_domain}}
+      true -> {:ok, "https://#{domain}.pipedrive.com/api/v1"}
     end
   end
 
@@ -296,7 +304,7 @@ defmodule Florina.Integrations.Pipedrive do
 
   # Simple GET that auto-unwraps Pipedrive's `{success: true, data: ...}` envelope.
   defp pipedrive_get(url, token) do
-    case Req.get(url, headers: auth_headers(token), receive_timeout: 15_000) do
+    case Req.get(url, redirect: false, headers: auth_headers(token), receive_timeout: 15_000) do
       {:ok, %{status: 200, body: %{"success" => true, "data" => data}}} ->
         {:ok, data}
 
@@ -331,6 +339,7 @@ defmodule Florina.Integrations.Pipedrive do
 
   defp fetch_page(url, token, start, limit, acc, page) do
     case Req.get(url,
+           redirect: false,
            headers: auth_headers(token),
            params: [start: start, limit: limit],
            receive_timeout: 30_000
