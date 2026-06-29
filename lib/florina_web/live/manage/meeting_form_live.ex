@@ -13,7 +13,7 @@ defmodule FlorinaWeb.Manage.MeetingFormLive do
   on_mount {FlorinaWeb.AgentAuth, :ensure_authenticated}
   on_mount {FlorinaWeb.AgentAuth, :require_manager}
 
-  alias Florina.{Accounts, Clients, Methodologies, Visits}
+  alias Florina.{Accounts, Clients, Methodologies, Scenarios, Visits}
 
   @impl true
   def mount(params, _session, socket) do
@@ -22,6 +22,7 @@ defmodule FlorinaWeb.Manage.MeetingFormLive do
       |> assign(:agents, Accounts.list_agents())
       |> assign(:clients, Clients.list())
       |> assign(:methodologies, Methodologies.list_active())
+      |> assign(:scenarios, Scenarios.list_active())
 
     case socket.assigns.live_action do
       :new ->
@@ -80,6 +81,7 @@ defmodule FlorinaWeb.Manage.MeetingFormLive do
          "client_id" => p["client_id"],
          "title" => p["title"],
          "methodology_id" => blank_to_nil(p["methodology_id"]),
+         "scenario_id" => blank_to_nil(p["scenario_id"]),
          "manager_notes" => p["manager_notes"],
          "start_time" => start_dt,
          "end_time" => end_dt
@@ -95,6 +97,7 @@ defmodule FlorinaWeb.Manage.MeetingFormLive do
       "client_id" => "",
       "title" => "",
       "methodology_id" => "",
+      "scenario_id" => "",
       "manager_notes" => "",
       "date" => Date.to_iso8601(Florina.Tz.today()),
       "time" => "09:00",
@@ -115,6 +118,7 @@ defmodule FlorinaWeb.Manage.MeetingFormLive do
       "client_id" => v.client_id,
       "title" => v.title,
       "methodology_id" => v.methodology_id,
+      "scenario_id" => v.scenario_id,
       "manager_notes" => v.manager_notes || "",
       "date" => Date.to_iso8601(DateTime.to_date(local_start)),
       "time" => Calendar.strftime(local_start, "%H:%M"),
@@ -180,6 +184,13 @@ defmodule FlorinaWeb.Manage.MeetingFormLive do
           label="Methodology (optional)"
           prompt="Use agent / system default"
           options={Enum.map(@methodologies, &{&1.name, &1.id})}
+        />
+        <.input
+          field={@form[:scenario_id]}
+          type="select"
+          label="Scenario (optional)"
+          prompt="No scenario"
+          options={Enum.map(@scenarios, &{&1.name, &1.id})}
         />
         <.input
           field={@form[:manager_notes]}
