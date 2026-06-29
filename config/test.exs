@@ -43,6 +43,10 @@ config :phoenix,
 # Oban: don't run jobs automatically during tests; insert and assert/drain manually.
 config :florina, Oban, testing: :manual
 
+# No fan-out jitter in tests: enqueue per-agent calendar-sync jobs for immediate
+# run so they're deterministically assertable/drainable.
+config :florina, :calendar_sync_jitter_seconds, 0
+
 config :florina, :elevenlabs_webhook_secret, "wsec_test"
 
 config :florina, :anthropic_client, Florina.Anthropic.Stub

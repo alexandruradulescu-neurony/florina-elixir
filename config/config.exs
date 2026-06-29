@@ -42,7 +42,7 @@ config :florina, Oban,
     # ──────────── ──────────────────────────────────────────────────────────
     # Every 5 min  CallScheduler → ScanTenantCalls → DialCall
     # Every 15 min SyncPendingCallsScheduler → SyncPendingCalls
-    # Every 5 min  CalendarSyncScheduler → CalendarSync (per-user)
+    # Every 5 min  CalendarSyncScheduler → CalendarSync (per-tenant) → CalendarSyncAgent (per-agent)
     # Daily 00:05  CrmSyncScheduler → CrmSync
     #
     # Calendar sync runs every 5 min so meeting changes (new/moved/cancelled)
@@ -121,6 +121,12 @@ config :phoenix, :json_library, Jason
 # Auto-apply pending per-tenant migrations at app boot. Off by default (dev/test
 # migrate explicitly / via TenantCase); turned on in prod (runtime.exs).
 config :florina, :migrate_tenants_on_boot, false
+
+# Calendar-sync fan-out jitter: each per-agent `CalendarSyncAgent` job is
+# scheduled at a random delay in [0, N) seconds, so a tenant's agents (and, at
+# scale, every tenant's agents) don't all hit the calendar API at the same
+# instant. Overridden to 0 in test.exs for deterministic job assertions.
+config :florina, :calendar_sync_jitter_seconds, 120
 
 config :florina,
   anthropic_model: "claude-sonnet-4-6",
