@@ -83,7 +83,7 @@ defmodule Florina.OAuth do
 
       cond do
         is_nil(locked) ->
-          Florina.Repo.rollback(:not_found)
+          TenantRepo.rollback(:not_found)
 
         locked.refresh_token != expected_refresh_token ->
           :stale
@@ -91,7 +91,7 @@ defmodule Florina.OAuth do
         true ->
           case locked |> Credential.changeset(attrs) |> TenantRepo.update() do
             {:ok, cred} -> cred
-            {:error, changeset} -> Florina.Repo.rollback(changeset)
+            {:error, changeset} -> TenantRepo.rollback(changeset)
           end
       end
     end)

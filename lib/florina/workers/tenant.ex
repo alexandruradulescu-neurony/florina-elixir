@@ -25,6 +25,10 @@ defmodule Florina.Workers.Tenant do
 
       tenant ->
         Process.put(:tenant_prefix, Tenants.schema_prefix(tenant))
+        # Route this job's tenant queries through the dedicated jobs pool when one
+        # is configured (prod), so background load can't starve the web pool.
+        # Unset in dev/test → TenantRepo falls back to Florina.Repo.
+        Process.put(:tenant_repo, Application.get_env(:florina, :jobs_repo))
         Logger.metadata(tenant: tenant.slug)
         :ok
     end

@@ -123,11 +123,11 @@ defmodule Florina.Accounts do
         |> length()
 
       if count <= 1 do
-        Florina.Repo.rollback(:last_manager)
+        TenantRepo.rollback(:last_manager)
       else
         case fun.() do
           {:ok, updated} -> updated
-          {:error, changeset} -> Florina.Repo.rollback(changeset)
+          {:error, changeset} -> TenantRepo.rollback(changeset)
         end
       end
     end)

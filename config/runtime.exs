@@ -80,18 +80,28 @@ if config_env() == :prod do
 
   maybe_ipv6 = if System.get_env("ECTO_IPV6") in ~w(true 1), do: [:inet6], else: []
 
+  # Web pool. Background jobs run on a SEPARATE pool (Florina.JobsRepo, below), so
+  # this sizing only needs to cover web traffic. Raise POOL_SIZE for higher web
+  # throughput, bounded by your Postgres max_connections (web pool + jobs pool).
   config :florina, Florina.Repo,
     # ssl: true,
     url: database_url,
-    # Default 20: the web Endpoint AND Oban share this one pool. Oban queue
-    # concurrency sums to ~32 (default 10 + scheduler 5 + calls 5 + sync 10 +
-    # provisioning 2); under load, jobs that touch TenantRepo + web requests
-    # contend for connections. Raise POOL_SIZE further (and/or pool_count) for
-    # higher throughput, bounded by the Postgres max_connections of your plan.
     pool_size: String.to_integer(System.get_env("POOL_SIZE") || "20"),
     # For machines with several cores, consider starting multiple pools of `pool_size`
     # pool_count: 4,
     socket_options: maybe_ipv6
+
+  # Dedicated background-job pool: SAME database, separate connection pool, so a
+  # burst of Oban jobs can't starve the web tier's connections. Oban and worker
+  # tenant-queries (via TenantRepo, pinned in Workers.Tenant) use this pool.
+  config :florina, Florina.JobsRepo,
+    url: database_url,
+    pool_size: String.to_integer(System.get_env("JOBS_POOL_SIZE") || "10"),
+    socket_options: maybe_ipv6
+
+  config :florina, :jobs_repo, Florina.JobsRepo
+  # Point Oban at the jobs pool (merges with the queues/plugins from config.exs).
+  config :florina, Oban, repo: Florina.JobsRepo
 
   # The secret key base is used to sign/encrypt cookies and other secrets.
   # A default value is used in config/dev.exs and config/test.exs but you
