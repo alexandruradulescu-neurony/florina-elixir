@@ -97,6 +97,21 @@ defmodule Florina.Accounts do
   end
 
   @doc """
+  Update a user's editable PROFILE fields only — first name, phone, Pipedrive user
+  id. Restricted to those keys so this manager-facing edit can never change role,
+  active, email, or username (each has its own guarded path). A blank value clears
+  the field. Returns `{:ok, user}` or `{:error, changeset}`.
+  """
+  def update_profile(%User{} = user, params) when is_map(params) do
+    attrs =
+      params
+      |> Map.take(["first_name", "phone_number", "pipedrive_user_id"])
+      |> Map.new(fn {k, v} -> {k, blank_to_nil(v)} end)
+
+    update_user(user, attrs)
+  end
+
+  @doc """
   Sets a user's permission role (`:manager` or `:agent`). Demoting the last active
   manager is refused atomically. Returns `{:ok, user}` | `{:error, :last_manager}`
   | `{:error, changeset}`.
@@ -227,4 +242,15 @@ defmodule Florina.Accounts do
   defp blank?(nil), do: true
   defp blank?(value) when is_binary(value), do: String.trim(value) == ""
   defp blank?(_), do: false
+
+  # Trim a string field; a blank string becomes nil (clears the field). Non-strings
+  # pass through unchanged.
+  defp blank_to_nil(v) when is_binary(v) do
+    case String.trim(v) do
+      "" -> nil
+      trimmed -> trimmed
+    end
+  end
+
+  defp blank_to_nil(v), do: v
 end

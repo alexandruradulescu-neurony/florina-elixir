@@ -14,7 +14,11 @@ defmodule FlorinaWeb.Manage.AgentsLive do
 
   @impl true
   def mount(_params, _session, socket) do
-    {:ok, socket |> load_users() |> assign_invite_form()}
+    {:ok,
+     socket
+     |> load_users()
+     |> assign(editing_id: nil, edit_form: nil)
+     |> assign_invite_form()}
   end
 
   @impl true
@@ -88,6 +92,51 @@ defmodule FlorinaWeb.Manage.AgentsLive do
     end
   end
 
+  def handle_event("edit", %{"id" => id}, socket) do
+    case Accounts.get_user(id) do
+      nil ->
+        {:noreply, put_flash(socket, :error, "User not found.")}
+
+      user ->
+        form =
+          to_form(
+            %{
+              "first_name" => user.first_name || "",
+              "phone_number" => user.phone_number || "",
+              "pipedrive_user_id" =>
+                (user.pipedrive_user_id && to_string(user.pipedrive_user_id)) || ""
+            },
+            as: :user
+          )
+
+        {:noreply, assign(socket, editing_id: user.id, edit_form: form)}
+    end
+  end
+
+  def handle_event("cancel_edit", _params, socket) do
+    {:noreply, assign(socket, editing_id: nil, edit_form: nil)}
+  end
+
+  def handle_event("save_profile", %{"user_id" => id, "user" => params}, socket) do
+    case Accounts.get_user(id) do
+      nil ->
+        {:noreply, put_flash(socket, :error, "User not found.")}
+
+      user ->
+        case Accounts.update_profile(user, params) do
+          {:ok, _user} ->
+            {:noreply,
+             socket
+             |> put_flash(:info, "Saved.")
+             |> assign(editing_id: nil, edit_form: nil)
+             |> load_users()}
+
+          {:error, %Ecto.Changeset{}} ->
+            {:noreply, put_flash(socket, :error, "Couldn't save — please check the details.")}
+        end
+    end
+  end
+
   defp assign_invite_form(socket), do: assign(socket, :invite_form, to_form(%{}, as: :invite))
 
   # If the invited email's domain isn't allowed for this tenant, they can't sign
@@ -131,43 +180,84 @@ defmodule FlorinaWeb.Manage.AgentsLive do
             <tr>
               <th class="px-4 py-3 font-semibold">User</th>
               <th class="px-4 py-3 font-semibold">Email</th>
+              <th class="px-4 py-3 font-semibold">Phone</th>
               <th class="px-4 py-3 font-semibold">Role</th>
               <th class="px-4 py-3 font-semibold">Active</th>
+              <th class="px-4 py-3"><span class="sr-only">Actions</span></th>
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-200 dark:divide-white/10">
-            <tr :for={u <- @users} class="hover:bg-gray-50 dark:hover:bg-white/5">
-              <td class="px-4 py-3 font-medium text-gray-900 dark:text-white">{u.username}</td>
-              <td class="px-4 py-3 text-gray-700 dark:text-gray-300">{u.email}</td>
-              <td class="px-4 py-3">
-                <form id={"role-form-#{u.id}"} phx-change="set_role">
-                  <input type="hidden" name="user_id" value={u.id} />
-                  <select
-                    name="role"
-                    class="rounded px-2 py-1 text-xs bg-white text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 dark:bg-white/5 dark:text-white dark:outline-white/10"
+            <%= for u <- @users do %>
+              <tr class="hover:bg-gray-50 dark:hover:bg-white/5">
+                <td class="px-4 py-3 font-medium text-gray-900 dark:text-white">{u.username}</td>
+                <td class="px-4 py-3 text-gray-700 dark:text-gray-300">{u.email}</td>
+                <td class="px-4 py-3 text-gray-700 dark:text-gray-300">{u.phone_number || "—"}</td>
+                <td class="px-4 py-3">
+                  <form id={"role-form-#{u.id}"} phx-change="set_role">
+                    <input type="hidden" name="user_id" value={u.id} />
+                    <select
+                      name="role"
+                      class="rounded px-2 py-1 text-xs bg-white text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 dark:bg-white/5 dark:text-white dark:outline-white/10"
+                    >
+                      <option value="agent" selected={u.role == :agent}>agent</option>
+                      <option value="manager" selected={u.role == :manager}>manager</option>
+                    </select>
+                  </form>
+                </td>
+                <td class="px-4 py-3">
+                  <button
+                    phx-click="toggle_active"
+                    phx-value-id={u.id}
+                    class={[
+                      "text-xs font-medium hover:underline",
+                      (u.active && "text-red-600 dark:text-red-400") ||
+                        "text-indigo-600 dark:text-indigo-400"
+                    ]}
                   >
-                    <option value="agent" selected={u.role == :agent}>agent</option>
-                    <option value="manager" selected={u.role == :manager}>manager</option>
-                  </select>
-                </form>
-              </td>
-              <td class="px-4 py-3">
-                <button
-                  phx-click="toggle_active"
-                  phx-value-id={u.id}
-                  class={[
-                    "text-xs font-medium hover:underline",
-                    (u.active && "text-red-600 dark:text-red-400") ||
-                      "text-indigo-600 dark:text-indigo-400"
-                  ]}
-                >
-                  {if u.active, do: "Deactivate", else: "Activate"}
-                </button>
-                <span :if={!u.active} class="ml-2 text-xs text-gray-400">(inactive)</span>
-              </td>
-            </tr>
+                    {if u.active, do: "Deactivate", else: "Activate"}
+                  </button>
+                  <span :if={!u.active} class="ml-2 text-xs text-gray-400">(inactive)</span>
+                </td>
+                <td class="px-4 py-3 text-right">
+                  <button
+                    phx-click="edit"
+                    phx-value-id={u.id}
+                    class="text-xs font-medium text-indigo-600 hover:underline dark:text-indigo-400"
+                  >
+                    Edit
+                  </button>
+                </td>
+              </tr>
+              <tr :if={@editing_id == u.id} class="bg-gray-50 dark:bg-white/5">
+                <td colspan="6" class="px-4 py-4">
+                  <.form
+                    for={@edit_form}
+                    id={"edit-form-#{u.id}"}
+                    phx-submit="save_profile"
+                    class="flex flex-wrap items-end gap-3"
+                  >
+                    <input type="hidden" name="user_id" value={u.id} />
+                    <.input field={@edit_form[:first_name]} type="text" label="First name" />
+                    <.input field={@edit_form[:phone_number]} type="tel" label="Phone" />
+                    <.input
+                      field={@edit_form[:pipedrive_user_id]}
+                      type="number"
+                      label="Pipedrive user ID"
+                    />
+                    <.button type="submit" variant="primary">Save</.button>
+                    <button
+                      type="button"
+                      phx-click="cancel_edit"
+                      class="text-sm text-gray-500 hover:underline dark:text-gray-400"
+                    >
+                      Cancel
+                    </button>
+                  </.form>
+                </td>
+              </tr>
+            <% end %>
             <tr :if={@users == []}>
-              <td colspan="4" class="px-4 py-6 text-center text-gray-400 text-sm">
+              <td colspan="6" class="px-4 py-6 text-center text-gray-400 text-sm">
                 No people yet.
               </td>
             </tr>
