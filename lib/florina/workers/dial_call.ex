@@ -228,24 +228,39 @@ defmodule Florina.Workers.DialCall do
   defp dial_eligible(visit, phase, phone) do
     {prompt, first_message} = resolve_prompt(visit, phase)
 
-    if is_nil(prompt) or String.trim(prompt) == "" do
-      Logger.error("[DialCall] visit=#{visit.id} phase=#{phase} no prompt — marking FAILED")
-      create_failed_attempt(visit.id, phase)
-      :ok
-    else
-      case create_scheduled_attempt_capped(visit.id, phase) do
-        {:ok, attempt} ->
-          fire_call(attempt, phone, prompt, first_message, visit)
+    cond do
+      # Manager deliberately LOCKED this phase's prompt empty — that's an
+      # intentional "don't generate / don't call," not a failure. Skip quietly
+      # rather than recording a spurious FAILED attempt + error log every tick.
+      blank_prompt?(prompt) and prompt_locked?(visit, phase) ->
+        Logger.info("[DialCall] visit=#{visit.id} phase=#{phase} prompt locked empty — skipping")
+        :ok
 
-        :cap_reached ->
-          Logger.info(
-            "[DialCall] visit=#{visit.id} phase=#{phase} cap reached at insert — aborting dial"
-          )
+      blank_prompt?(prompt) ->
+        Logger.error("[DialCall] visit=#{visit.id} phase=#{phase} no prompt — marking FAILED")
+        create_failed_attempt(visit.id, phase)
+        :ok
 
-          :ok
-      end
+      true ->
+        case create_scheduled_attempt_capped(visit.id, phase) do
+          {:ok, attempt} ->
+            fire_call(attempt, phone, prompt, first_message, visit)
+
+          :cap_reached ->
+            Logger.info(
+              "[DialCall] visit=#{visit.id} phase=#{phase} cap reached at insert — aborting dial"
+            )
+
+            :ok
+        end
     end
   end
+
+  defp blank_prompt?(prompt), do: is_nil(prompt) or String.trim(to_string(prompt)) == ""
+
+  defp prompt_locked?(visit, "PRE"), do: visit.pre_call_prompt_locked == true
+  defp prompt_locked?(visit, "POST"), do: visit.post_call_prompt_locked == true
+  defp prompt_locked?(_visit, _phase), do: false
 
   # ---------------------------------------------------------------------------
   # Prompt resolution

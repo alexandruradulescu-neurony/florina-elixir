@@ -108,7 +108,13 @@ defmodule Florina.Settings.GlobalSettings do
     import Ecto.Changeset
 
     changeset
-    |> validate_number(:retry_interval_minutes, greater_than: 0, less_than_or_equal_to: 1440)
+    # Floor at the call-scan cadence (every 5 min): a retry interval finer than the
+    # scan can't be honored (the scheduler only re-evaluates every 5 minutes), and
+    # values below it would make two attempt windows overlap. Default is 5.
+    |> validate_number(:retry_interval_minutes,
+      greater_than_or_equal_to: 5,
+      less_than_or_equal_to: 1440
+    )
     |> validate_number(:max_call_attempts_per_phase,
       greater_than_or_equal_to: 1,
       less_than_or_equal_to: 10

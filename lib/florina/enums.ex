@@ -28,6 +28,10 @@ defmodule Florina.Enums do
     do: [
       PLANNED: "PLANNED",
       PRE_CALL_DONE: "PRE_CALL_DONE",
+      # RESERVED: defined + has a UI label, but the current call flow never
+      # transitions a visit INTO :IN_PROGRESS (flow is PLANNED → PRE_CALL_DONE →
+      # POST_CALL_DONE → COMPLETE). Some queries include it as a harmless superset.
+      # If a future live-call state starts setting it, re-audit mark_missed.
       IN_PROGRESS: "IN_PROGRESS",
       POST_CALL_DONE: "POST_CALL_DONE",
       COMPLETE: "COMPLETE",
