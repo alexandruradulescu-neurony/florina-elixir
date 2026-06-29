@@ -126,16 +126,9 @@ defmodule Florina.Calls do
         {:error, :not_found}
 
       %CallAttempt{} = ca ->
-        transcript = extract_transcript(data["transcript"])
-
-        summary =
-          get_in(data, ["analysis", "transcript_summary"]) ||
-            get_in(data, ["analysis", "summary"])
-
         attrs =
-          %{status: map_status(data["status"], transcript)}
-          |> maybe_put(:transcript, transcript)
-          |> maybe_put(:summary, summary)
+          data
+          |> interpret_conversation(ca.status)
           |> maybe_bind_external_id(ca, conversation_id)
 
         with {:ok, updated} <- ca |> CallAttempt.webhook_changeset(attrs) |> TenantRepo.update() do
@@ -197,39 +190,74 @@ defmodule Florina.Calls do
 
   defp maybe_bind_external_id(attrs, _ca, _conv_id), do: attrs
 
-  # ElevenLabs status -> our CallStatus. "done"/transcript present => COMPLETED.
+  @terminal_statuses ~w(COMPLETED FAILED NO_ANSWER)
+
+  @doc """
+  Interpret a raw ElevenLabs conversation payload into the `CallAttempt` fields to
+  apply — `%{status: ...}` plus `:transcript`/`:summary` when present. Shared by
+  BOTH the webhook path (`apply_elevenlabs_webhook/2`) and the polling fallback
+  (`Florina.Workers.SyncPendingCalls`) so the two interpretations can't drift.
+
+  `existing_status` freezes a call that already reached a terminal state: a late
+  or duplicate payload (often statusless and transcriptless) must NOT regress a
+  COMPLETED call to FAILED — that would corrupt stats and re-open the visit to
+  dialing past the cap. Transcript/summary may still be backfilled.
+  """
+  def interpret_conversation(data, existing_status \\ nil) when is_map(data) do
+    transcript = extract_transcript(data["transcript"] || data["conversation_transcript"])
+
+    summary =
+      get_in(data, ["analysis", "transcript_summary"]) || get_in(data, ["analysis", "summary"])
+
+    status =
+      if terminal_status?(existing_status),
+        do: existing_status,
+        else: map_status(data["status"] || data["call_status"], transcript)
+
+    %{status: status}
+    |> maybe_put(:transcript, transcript)
+    |> maybe_put(:summary, summary)
+  end
+
+  defp terminal_status?(status), do: status in @terminal_statuses
+
+  # ElevenLabs status -> our CallStatus. "DONE" or a present transcript => COMPLETED.
   defp map_status(status, transcript) do
-    case to_string(status) |> String.upcase() do
-      "IN_PROGRESS" ->
-        "IN_PROGRESS"
-
-      "RINGING" ->
-        "IN_PROGRESS"
-
-      "FAILED" ->
-        "FAILED"
-
-      "NO_ANSWER" ->
-        "NO_ANSWER"
-
-      _ ->
-        if transcript not in [nil, ""] or String.downcase(to_string(status)) == "done",
-          do: "COMPLETED",
-          else: "FAILED"
+    case status |> to_string() |> String.upcase() do
+      "IN_PROGRESS" -> "IN_PROGRESS"
+      "RINGING" -> "IN_PROGRESS"
+      "FAILED" -> "FAILED"
+      "NO_ANSWER" -> "NO_ANSWER"
+      "DONE" -> "COMPLETED"
+      _ -> if transcript not in [nil, ""], do: "COMPLETED", else: "FAILED"
     end
   end
 
+  # Normalize a transcript payload (a list of turns, or a raw string) to text with
+  # "Role: message" lines, or nil when empty.
   defp extract_transcript(list) when is_list(list) do
-    list
-    |> Enum.map(fn turn -> turn["message"] || turn["text"] || "" end)
-    |> Enum.reject(&(&1 == ""))
-    |> Enum.join("\n")
-    |> nil_if_blank()
+    case Enum.flat_map(list, &transcript_line/1) do
+      [] -> nil
+      lines -> Enum.join(lines, "\n\n")
+    end
   end
 
-  defp extract_transcript(text) when is_binary(text), do: nil_if_blank(text)
   defp extract_transcript(%{"text" => text}) when is_binary(text), do: nil_if_blank(text)
+  defp extract_transcript(text) when is_binary(text), do: nil_if_blank(text)
   defp extract_transcript(_), do: nil
+
+  defp transcript_line(turn) when is_map(turn) do
+    case turn["message"] || turn["content"] || turn["text"] do
+      msg when is_binary(msg) and msg != "" ->
+        role = (turn["role"] || "unknown") |> to_string() |> String.capitalize()
+        ["#{role}: #{msg}"]
+
+      _ ->
+        []
+    end
+  end
+
+  defp transcript_line(_), do: []
 
   defp nil_if_blank(""), do: nil
   defp nil_if_blank(s), do: s

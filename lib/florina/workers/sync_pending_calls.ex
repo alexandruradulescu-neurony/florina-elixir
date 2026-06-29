@@ -76,20 +76,11 @@ defmodule Florina.Workers.SyncPendingCalls do
     end
   end
 
+  # Interpret the polled conversation through the SAME shared interpreter the
+  # webhook path uses (`Florina.Calls.interpret_conversation/2`), passing the
+  # current status so a terminal call can't be regressed by a late poll.
   defp apply_conversation_update(%CallAttempt{} = ca, data, slug) when is_map(data) do
-    el_status = data["status"] || data["call_status"]
-    transcript_raw = data["transcript"] || data["conversation_transcript"]
-    transcript = format_transcript(transcript_raw)
-
-    summary =
-      get_in(data, ["analysis", "transcript_summary"]) || get_in(data, ["analysis", "summary"])
-
-    new_status = map_el_status(el_status, transcript)
-
-    attrs =
-      %{status: new_status}
-      |> maybe_put(:transcript, transcript)
-      |> maybe_put(:summary, summary)
+    attrs = Florina.Calls.interpret_conversation(data, ca.status)
 
     with {:ok, updated} <- ca |> CallAttempt.webhook_changeset(attrs) |> TenantRepo.update() do
       Florina.Calls.maybe_enqueue_post_completion(updated, slug)
@@ -98,48 +89,4 @@ defmodule Florina.Workers.SyncPendingCalls do
   end
 
   defp apply_conversation_update(ca, _data, _slug), do: {:ok, ca}
-
-  # Map ElevenLabs status strings to our CallStatus values
-  defp map_el_status(status, transcript) do
-    case to_string(status) |> String.upcase() do
-      "IN_PROGRESS" ->
-        "IN_PROGRESS"
-
-      "RINGING" ->
-        "IN_PROGRESS"
-
-      "FAILED" ->
-        "FAILED"
-
-      "NO_ANSWER" ->
-        "NO_ANSWER"
-
-      "DONE" ->
-        "COMPLETED"
-
-      _ ->
-        if transcript not in [nil, ""], do: "COMPLETED", else: "FAILED"
-    end
-  end
-
-  defp format_transcript(list) when is_list(list) do
-    lines =
-      Enum.flat_map(list, fn turn ->
-        if is_map(turn) do
-          role = turn["role"] || "unknown"
-          msg = turn["message"] || turn["content"] || turn["text"]
-          if msg, do: ["#{String.capitalize(to_string(role))}: #{msg}"], else: []
-        else
-          []
-        end
-      end)
-
-    if lines == [], do: nil, else: Enum.join(lines, "\n\n")
-  end
-
-  defp format_transcript(t) when is_binary(t) and t != "", do: t
-  defp format_transcript(_), do: nil
-
-  defp maybe_put(map, _k, nil), do: map
-  defp maybe_put(map, k, v), do: Map.put(map, k, v)
 end
