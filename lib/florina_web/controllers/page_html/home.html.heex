@@ -10,6 +10,14 @@
       Florina briefs your team before each meeting, places the pre- and post-call calls,
       captures the debrief, and keeps your CRM in sync — so nothing slips between the cracks.
     </p>
+    <div class="mt-10 flex items-center justify-center">
+      <.link
+        navigate={~p"/login"}
+        class="inline-flex items-center justify-center rounded-md bg-primary px-6 py-2.5 text-sm font-semibold text-primary-content shadow-sm hover:bg-primary/90"
+      >
+        Log in
+      </.link>
+    </div>
   </div>
 
   <div class="mx-auto max-w-5xl pb-16">
@@ -46,7 +54,9 @@
     </div>
 
     <p class="mt-12 text-center text-sm text-base-content/50">
-      Already set up? Sign in at your company's workspace link.
+      Already set up?
+      <.link navigate={~p"/login"} class="font-medium text-primary hover:underline">Log in</.link>
+      with your company Google or Microsoft account.
     </p>
   </div>
 </Layouts.app>

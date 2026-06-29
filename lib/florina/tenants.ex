@@ -55,6 +55,30 @@ defmodule Florina.Tenants do
   def get_by_slug(_), do: nil
 
   @doc """
+  Find the active tenant that owns an email domain (its `allowed_email_domains`
+  contains `domain`, case-insensitively). Used to auto-detect a signer-in's
+  workspace from their verified email — the same domain→tenant match the sign-in
+  gate applies. Returns the `%Tenant{}` or `nil` (none, or domain not configured).
+
+  Matching is done in Elixir over the (small) active-tenant set so it stays
+  consistent with the gate's case handling; a domain is assumed to belong to one
+  workspace — if two claimed it, the first by slug wins.
+  """
+  def get_by_email_domain(domain) when is_binary(domain) do
+    d = domain |> String.trim() |> String.downcase()
+
+    if d == "" do
+      nil
+    else
+      Enum.find(list_active(), fn t ->
+        d in Enum.map(t.allowed_email_domains || [], &String.downcase/1)
+      end)
+    end
+  end
+
+  def get_by_email_domain(_), do: nil
+
+  @doc """
   True only if the tenant exists, is enabled (`active: true`) AND fully
   provisioned (`status: "active"`). This is the gate for serving any request or
   running any operational background job for a tenant — a `provisioning`/`failed`

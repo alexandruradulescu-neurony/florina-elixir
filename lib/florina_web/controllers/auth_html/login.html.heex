@@ -1,7 +1,9 @@
 <div class="flex min-h-screen flex-col justify-center bg-base-200 px-4 py-12 sm:px-6 lg:px-8">
   <div class="sm:mx-auto sm:w-full sm:max-w-md">
     <h1 class="text-center text-2xl font-bold tracking-tight text-base-content">Florina</h1>
-    <h2 class="mt-2 text-center text-sm text-base-content/60">Sign in to {@tenant.name}</h2>
+    <h2 class="mt-2 text-center text-sm text-base-content/60">
+      {if @tenant, do: "Sign in to #{@tenant.name}", else: "Sign in to your workspace"}
+    </h2>
   </div>
 
   <div class="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
@@ -11,7 +13,11 @@
       </div>
 
       <a
-        href={~p"/t/#{@tenant.slug}/auth/google/start"}
+        href={
+          if @tenant,
+            do: ~p"/t/#{@tenant.slug}/auth/google/start",
+            else: ~p"/auth/google/start"
+        }
         class="flex w-full items-center justify-center gap-3 rounded-md border border-base-300 bg-base-100 px-4 py-2.5 text-sm font-semibold text-base-content hover:bg-base-200"
       >
         <svg viewBox="0 0 24 24" aria-hidden="true" class="h-5 w-5">
@@ -36,7 +42,11 @@
       </a>
 
       <a
-        href={~p"/t/#{@tenant.slug}/auth/microsoft/start"}
+        href={
+          if @tenant,
+            do: ~p"/t/#{@tenant.slug}/auth/microsoft/start",
+            else: ~p"/auth/microsoft/start"
+        }
         class="mt-3 flex w-full items-center justify-center gap-3 rounded-md border border-base-300 bg-base-100 px-4 py-2.5 text-sm font-semibold text-base-content hover:bg-base-200"
       >
         <svg viewBox="0 0 21 21" aria-hidden="true" class="h-5 w-5">

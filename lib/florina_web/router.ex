@@ -60,9 +60,16 @@ defmodule FlorinaWeb.Router do
 
     get "/", PageController, :home
 
+    # Workspace-agnostic sign-in: a neutral login page + OAuth start with NO tenant
+    # in the URL. The signed `state` carries a nil tenant_slug; the callback resolves
+    # the workspace from the verified email's domain (auto-detection).
+    get "/login", AuthController, :login_global
+    get "/auth/:provider/start", AuthController, :start_global
+
     # OAuth callback — fixed path (no tenant slug, so ONE redirect URI per provider
     # is registered with Google/Microsoft). The tenant is recovered from the signed
-    # `state`; AuthController.callback resolves + pins it.
+    # `state` (per-workspace links) or from the verified email (workspace-agnostic
+    # start); AuthController.callback resolves + pins it.
     get "/auth/:provider/callback", AuthController, :callback
   end
 
