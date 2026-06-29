@@ -47,8 +47,9 @@ defmodule Florina.Settings.GlobalSettings do
     :pipedrive_api_token,
     :pipedrive_domain,
     :hubspot_api_token,
-    :default_methodology_id,
-    :is_overridden
+    :default_methodology_id
+    # :is_overridden is intentionally NOT castable — it's a publish-control flag
+    # set only by app code (`Settings.update/1` via put_change), never from params.
   ]
 
   @crm_providers ~w(pipedrive hubspot)

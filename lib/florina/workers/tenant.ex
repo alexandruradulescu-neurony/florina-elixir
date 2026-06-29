@@ -25,6 +25,7 @@ defmodule Florina.Workers.Tenant do
 
       tenant ->
         Process.put(:tenant_prefix, Tenants.schema_prefix(tenant))
+        Logger.metadata(tenant: tenant.slug)
         :ok
     end
   end

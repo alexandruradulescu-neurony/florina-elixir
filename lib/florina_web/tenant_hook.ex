@@ -11,6 +11,7 @@ defmodule FlorinaWeb.TenantHook do
     with slug when is_binary(slug) <- session["tenant_slug"],
          %Tenants.Tenant{active: true, status: "active"} = tenant <- Tenants.get_by_slug(slug) do
       Process.put(:tenant_prefix, Tenants.schema_prefix(tenant))
+      Logger.metadata(tenant: tenant.slug)
       {:cont, assign(socket, :tenant, tenant)}
     else
       _ -> {:halt, Phoenix.LiveView.redirect(socket, to: "/")}

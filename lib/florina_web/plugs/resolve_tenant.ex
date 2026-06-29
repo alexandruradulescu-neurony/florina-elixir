@@ -33,6 +33,7 @@ defmodule FlorinaWeb.Plugs.ResolveTenant do
            conn.path_params["tenant_slug"] || Subdomain.extract(conn.host, base),
          %Tenants.Tenant{active: true, status: "active"} = tenant <- Tenants.get_by_slug(slug) do
       Process.put(:tenant_prefix, Tenants.schema_prefix(tenant))
+      Logger.metadata(tenant: tenant.slug)
 
       conn
       |> register_before_send(fn conn ->
