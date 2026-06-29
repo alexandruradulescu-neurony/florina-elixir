@@ -62,6 +62,7 @@ defmodule Florina.Integrations.Hubspot do
   def get_organization_deals(id), do: impl().do_get_organization_deals(id)
   def get_organization_notes(id), do: impl().do_get_organization_notes(id)
   def get_organization_activities(id), do: impl().do_get_organization_activities(id)
+  def create_note(deal_id, text, subject \\ ""), do: impl().do_create_note(deal_id, text, subject)
 
   # ---------------------------------------------------------------------------
   # Real implementation (HubSpot CRM API v3/v4)
@@ -124,6 +125,11 @@ defmodule Florina.Integrations.Hubspot do
       {:ok, activities}
     end
   end
+
+  # CRM write-back is not yet implemented for HubSpot (the integration is not
+  # live-verified). Return an explicit error so the caller logs and moves on
+  # rather than issuing an unverified write against HubSpot's API.
+  def do_create_note(_deal_id, _text, _subject), do: {:error, :not_implemented}
 
   # ---------------------------------------------------------------------------
   # HTTP + pagination

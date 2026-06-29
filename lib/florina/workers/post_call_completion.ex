@@ -12,9 +12,11 @@ defmodule Florina.Workers.PostCallCompletion do
     4. Mark `visit.status` as `:COMPLETE` (the pipeline sets `:POST_CALL_DONE`
        which represents the debrief call itself being done; COMPLETE signals
        the whole workflow is done).
+    5. Push the debrief summary back to the client's CRM deal as a note and set
+       `visit.crm_synced` (best-effort, Pipedrive only for now).
 
-  Lessons distillation and CRM push are handled inside `VisitPipeline`
-  / `Lessons.distill`. Failures in those steps are logged but do NOT
+  Lessons distillation is handled inside `VisitPipeline` / `Lessons.distill`.
+  The CRM push and lessons are best-effort: failures are logged but do NOT
   propagate — the post-call itself is the user-visible success event.
 
   Args required: `call_attempt_id`, `tenant_slug`.
@@ -30,6 +32,7 @@ defmodule Florina.Workers.PostCallCompletion do
 
   alias Florina.TenantRepo
   alias Florina.Calls.CallAttempt
+  alias Florina.Integrations.CRM
   alias Florina.Visits
   alias Florina.Services.VisitPipeline
   alias Florina.Workers.Tenant
@@ -108,6 +111,12 @@ defmodule Florina.Workers.PostCallCompletion do
               end
             end
 
+            # Best-effort: push the debrief summary to the client's CRM deal. This
+            # is independent of the prompt-generation run above — the summary (from
+            # the call itself) is the payload, so it ships even if generation
+            # failed. Re-fetch to read the freshest summary/flag.
+            maybe_sync_crm(Visits.get!(visit.id))
+
             :ok
 
           {:error, reason} ->
@@ -136,4 +145,39 @@ defmodule Florina.Workers.PostCallCompletion do
   end
 
   defp store_post_call_summary(visit, _summary), do: visit
+
+  # Push the debrief summary to the client's CRM deal as a note, then flag the
+  # visit crm_synced. Guards: only when there's a deal to attach to AND a summary
+  # to send, and never twice. Any CRM error is logged and swallowed — the CRM push
+  # is a side effect, never a gate on the post-call's success.
+  defp maybe_sync_crm(%{crm_synced: true}), do: :ok
+
+  defp maybe_sync_crm(%{crm_deal_id: deal_id, post_call_summary: summary} = visit)
+       when is_binary(deal_id) and deal_id != "" and is_binary(summary) and summary != "" do
+    subject = "Florina post-call debrief — " <> (visit.title || "meeting")
+
+    case CRM.create_note(deal_id, summary, subject) do
+      {:ok, _note} ->
+        case Visits.update(visit, %{crm_synced: true}) do
+          {:ok, _v} ->
+            Logger.info(
+              "[PostCallCompletion] visit=#{visit.id} debrief pushed to CRM deal=#{deal_id}"
+            )
+
+          {:error, cs} ->
+            Logger.warning(
+              "[PostCallCompletion] CRM note sent but crm_synced not set for visit=#{visit.id}: #{inspect(cs.errors)}"
+            )
+        end
+
+      {:error, reason} ->
+        Logger.warning(
+          "[PostCallCompletion] CRM push failed for visit=#{visit.id} deal=#{deal_id}: #{inspect(reason)}"
+        )
+    end
+
+    :ok
+  end
+
+  defp maybe_sync_crm(_visit), do: :ok
 end

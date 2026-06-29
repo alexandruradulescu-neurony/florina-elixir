@@ -37,6 +37,14 @@ defmodule Florina.Integrations.CRM do
   def get_organization_notes(id), do: dispatch(:get_organization_notes, [id])
   def get_organization_activities(id), do: dispatch(:get_organization_activities, [id])
 
+  @doc """
+  Write a note back to the CRM, pinned to a deal (`subject` optional). Routes to
+  the tenant's active provider. HubSpot write-back is not yet implemented and
+  returns `{:error, :not_implemented}` (the caller treats that as a soft failure).
+  """
+  def create_note(deal_id, text, subject \\ ""),
+    do: dispatch(:create_note, [deal_id, text, subject])
+
   # Resolve settings once, cache them for the provider's credential lookup, pick
   # the provider module, and delegate. Always restores the previous cache value
   # so nested/sequential calls don't leak a stale tenant's settings.
