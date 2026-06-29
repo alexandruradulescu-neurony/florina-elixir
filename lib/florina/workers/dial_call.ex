@@ -50,7 +50,14 @@ defmodule Florina.Workers.DialCall do
   @blocking_statuses ["SCHEDULED", "INITIATED", "IN_PROGRESS", "COMPLETED"]
 
   @impl Oban.Worker
-  def perform(%Oban.Job{args: %{"visit_id" => visit_id, "phase" => phase, "tenant_slug" => slug}}) do
+  def perform(%Oban.Job{
+        args: %{"visit_id" => visit_id, "phase" => phase, "tenant_slug" => slug} = args
+      }) do
+    # A manual trigger (agent "have Florina call me" / manager "run call") sets
+    # "manual" => true and bypasses the scheduled-window freshness gate below — the
+    # human is asking for the call now, on purpose, regardless of meeting timing.
+    manual = Map.get(args, "manual", false) == true
+
     with :ok <- Tenant.pin_active(slug) do
       case TenantRepo.get(Visit, visit_id) do
         nil ->
@@ -59,7 +66,7 @@ defmodule Florina.Workers.DialCall do
 
         visit ->
           visit = TenantRepo.preload(visit, [:agent, :client])
-          do_dial(visit, phase, slug)
+          do_dial(visit, phase, slug, manual)
       end
     else
       :skip ->
@@ -68,14 +75,23 @@ defmodule Florina.Workers.DialCall do
     end
   end
 
-  defp do_dial(%Visit{status: status} = visit, phase, _tenant_slug)
-       when status in [:CANCELLED, :MISSED, :COMPLETE] do
+  # COMPLETED or CANCELLED visits are terminal — never dial, even on a manual trigger.
+  defp do_dial(%Visit{status: status} = visit, phase, _tenant_slug, _manual)
+       when status in [:CANCELLED, :COMPLETE] do
     Logger.info("[DialCall] visit=#{visit.id} phase=#{phase} status=#{status} terminal — skip")
     :ok
   end
 
-  defp do_dial(visit, phase, _tenant_slug) do
-    case check_calendar_freshness(visit, phase) do
+  # A MISSED visit is retired as far as the AUTOMATIC scheduler is concerned, but a
+  # manual trigger ("call me" / "run call") is an explicit recovery request — so a
+  # manual dial is allowed through (it falls to the general clause below).
+  defp do_dial(%Visit{status: :MISSED} = visit, phase, _tenant_slug, false) do
+    Logger.info("[DialCall] visit=#{visit.id} phase=#{phase} status=MISSED terminal — skip")
+    :ok
+  end
+
+  defp do_dial(visit, phase, _tenant_slug, manual) do
+    case check_calendar_freshness(visit, phase, manual) do
       :cancelled ->
         Logger.info(
           "[DialCall] visit=#{visit.id} #{phase} aborted — meeting cancelled/removed on calendar"
@@ -120,11 +136,11 @@ defmodule Florina.Workers.DialCall do
   # poll would miss. Manual visits (no event id) and unverifiable cases proceed.
   # ---------------------------------------------------------------------------
 
-  defp check_calendar_freshness(%Visit{calendar_event_id: id} = visit, _phase)
+  defp check_calendar_freshness(%Visit{calendar_event_id: id} = visit, _phase, _manual)
        when id in [nil, ""],
        do: {:ok, visit}
 
-  defp check_calendar_freshness(%Visit{} = visit, phase) do
+  defp check_calendar_freshness(%Visit{} = visit, phase, manual) do
     case credential_for(visit) do
       nil ->
         {:ok, visit}
@@ -140,8 +156,16 @@ defmodule Florina.Workers.DialCall do
             :cancelled
 
           {:ok, event} ->
-            visit = apply_event_changes(visit, event)
-            if timely?(visit, phase), do: {:ok, visit}, else: :mistimed
+            case apply_event_changes(visit, event) do
+              {:ok, visit} ->
+                # A manual dial skips the timely window; a scheduled dial honors it.
+                if manual or timely?(visit, phase), do: {:ok, visit}, else: :mistimed
+
+              :invalid ->
+                # The calendar moved the meeting to a time we couldn't apply (e.g.
+                # end at/before start). Don't dial against the stale pre-move time.
+                :mistimed
+            end
 
           {:error, _reason} ->
             # Can't verify (transient/auth) — proceed; the sync reconciliation
@@ -167,6 +191,10 @@ defmodule Florina.Workers.DialCall do
     end
   end
 
+  # Apply any start/end/title change the calendar made. Returns {:ok, visit} with
+  # the (possibly updated) visit, or :invalid when the new calendar times fail
+  # validation (e.g. end at/before start) — the caller must then NOT dial, rather
+  # than silently fall back to the stale pre-move time.
   defp apply_event_changes(visit, event) do
     changes =
       %{}
@@ -176,11 +204,18 @@ defmodule Florina.Workers.DialCall do
 
     if map_size(changes) > 0 do
       case Visits.update(visit, changes) do
-        {:ok, v} -> v
-        {:error, _cs} -> visit
+        {:ok, v} ->
+          {:ok, v}
+
+        {:error, cs} ->
+          Logger.warning(
+            "[DialCall] visit=#{visit.id} calendar change rejected, not dialing: #{inspect(cs.errors)}"
+          )
+
+          :invalid
       end
     else
-      visit
+      {:ok, visit}
     end
   end
 

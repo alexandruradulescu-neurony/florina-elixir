@@ -28,7 +28,13 @@ defmodule FlorinaWeb.AgentTodayLive do
 
     with {visit_id, ""} <- Integer.parse(to_string(id)),
          %Visits.Visit{agent_id: ^agent_id} <- Visits.get(visit_id) do
-      %{"visit_id" => visit_id, "phase" => "POST", "tenant_slug" => socket.assigns.tenant.slug}
+      %{
+        "visit_id" => visit_id,
+        "phase" => "POST",
+        "tenant_slug" => socket.assigns.tenant.slug,
+        # Explicit human request — dial even outside the scheduled call window.
+        "manual" => true
+      }
       |> DialCall.new()
       |> Oban.insert()
 

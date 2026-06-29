@@ -69,10 +69,14 @@ defmodule Florina.Workers.ScanTenantCalls do
   # ---------------------------------------------------------------------------
 
   defp scan_pre_calls(now, half_window, tenant_slug, settings) do
-    # Visits that could still have a pre-call: status PLANNED or PRE_CALL_DONE
+    # Visits that could still have a pre-call: PLANNED, or PRE_CALL_DONE when an
+    # earlier pre-call already fired but attempts remain (the per-phase cap is
+    # enforced in enqueue_pre_if_due). The first successful pre-call advances
+    # PLANNED -> PRE_CALL_DONE, so scanning only PLANNED would silently drop every
+    # configured pre-call RETRY.
     visits =
       from(v in Visit,
-        where: v.status in ^[:PLANNED] and v.calls_enabled == true,
+        where: v.status in ^[:PLANNED, :PRE_CALL_DONE] and v.calls_enabled == true,
         preload: [:agent]
       )
       |> TenantRepo.all()
@@ -154,6 +158,10 @@ defmodule Florina.Workers.ScanTenantCalls do
   # Mark meetings whose end time is well past and that were never handled
   # (still PLANNED/PRE_CALL_DONE/IN_PROGRESS) as :MISSED, so they drop out of
   # scheduling and the calendar instead of lingering as "Planned" forever.
+  #
+  # Only call-ENABLED visits are retired: a meeting a manager deliberately turned
+  # calls off for was never going to be dialed, so labeling it "Missed" would be
+  # wrong — it is left untouched in its current status.
   defp mark_missed(now) do
     cutoff = DateTime.add(now, -@missed_grace_minutes * 60, :second)
     stamp = DateTime.truncate(now, :second)
@@ -164,7 +172,9 @@ defmodule Florina.Workers.ScanTenantCalls do
     {count, _} =
       from(v in Visit,
         as: :visit,
-        where: v.status in ^[:PLANNED, :PRE_CALL_DONE, :IN_PROGRESS] and v.end_time < ^cutoff,
+        where:
+          v.status in ^[:PLANNED, :PRE_CALL_DONE, :IN_PROGRESS] and v.end_time < ^cutoff and
+            v.calls_enabled == true,
         where:
           not exists(
             from(ca in CallAttempt,

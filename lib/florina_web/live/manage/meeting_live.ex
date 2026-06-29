@@ -89,7 +89,13 @@ defmodule FlorinaWeb.Manage.MeetingLive do
   def handle_event("run_call", %{"phase" => phase}, socket) when phase in ["PRE", "POST"] do
     visit = socket.assigns.visit
 
-    %{"visit_id" => visit.id, "phase" => phase, "tenant_slug" => socket.assigns.tenant.slug}
+    %{
+      "visit_id" => visit.id,
+      "phase" => phase,
+      "tenant_slug" => socket.assigns.tenant.slug,
+      # Explicit human request — dial even outside the scheduled call window.
+      "manual" => true
+    }
     |> DialCall.new()
     |> Oban.insert()
 
