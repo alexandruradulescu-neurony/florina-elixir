@@ -222,6 +222,43 @@ defmodule FlorinaWeb.Admin.ConfigLive do
     end
   end
 
+  def handle_event("new_scenario", _params, socket) do
+    form = to_form(%{"name" => "", "slug" => "", "description" => ""}, as: :scenario)
+    {:noreply, socket |> assign(:editing, :new_scenario) |> assign(:edit_form, form)}
+  end
+
+  def handle_event("save_new_scenario", %{"scenario" => params}, socket) do
+    case CentralConfig.create_scenario(ensure_slug(params)) do
+      {:ok, _s} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, "Scenario created — Publish to push it to tenants.")
+         |> assign(:editing, nil)
+         |> assign(:edit_form, nil)
+         |> load_config()}
+
+      {:error, %Ecto.Changeset{}} ->
+        {:noreply,
+         socket
+         |> assign(:edit_form, to_form(params, as: :scenario))
+         |> put_flash(
+           :error,
+           "Couldn't create that scenario — a name is required and the slug must be unique."
+         )}
+    end
+  end
+
+  def handle_event("delete_scenario", %{"id" => id}, socket) do
+    with int when not is_nil(int) <- parse_id(id),
+         s when not is_nil(s) <- CentralConfig.get_scenario(int),
+         {:ok, _} <- CentralConfig.delete_scenario(s) do
+      {:noreply, socket |> put_flash(:info, "Scenario deleted.") |> load_config()}
+    else
+      _ ->
+        {:noreply, socket |> put_flash(:error, "Couldn't delete that scenario.") |> load_config()}
+    end
+  end
+
   # ---------------------------------------------------------------------------
   # Edit global settings
   # ---------------------------------------------------------------------------
@@ -399,6 +436,26 @@ defmodule FlorinaWeb.Admin.ConfigLive do
                 />
                 <.form_buttons />
               </.form>
+            <% :new_scenario -> %>
+              <h2 class="text-base font-medium mb-4 text-gray-900 dark:text-white">
+                New scenario
+              </h2>
+              <.form for={@edit_form} phx-submit="save_new_scenario" class="space-y-3">
+                <.text_field label="Name" name="scenario[name]" form={@edit_form} field={:name} />
+                <.text_field
+                  label="Slug (optional — auto-generated from the name)"
+                  name="scenario[slug]"
+                  form={@edit_form}
+                  field={:slug}
+                />
+                <.textarea_field
+                  label="Description"
+                  name="scenario[description]"
+                  form={@edit_form}
+                  field={:description}
+                />
+                <.form_buttons />
+              </.form>
             <% {:scenario, s} -> %>
               <h2 class="text-base font-medium mb-4 text-gray-900 dark:text-white">
                 Edit scenario — {s.name}
@@ -514,8 +571,13 @@ defmodule FlorinaWeb.Admin.ConfigLive do
         </.config_table>
 
         <%!-- Scenarios --%>
-        <.section_header title={"Scenarios (#{length(@scenarios)})"} />
-        <.config_table rows={@scenarios} event="edit_scenario">
+        <.section_header title={"Scenarios (#{length(@scenarios)})"}>
+          <button
+            phx-click="new_scenario"
+            class="text-xs font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400"
+          >+ New scenario</button>
+        </.section_header>
+        <.config_table rows={@scenarios} event="edit_scenario" delete_event="delete_scenario">
           <:col label="Name"></:col>
           <:col label="Slug"></:col>
           <:col label="Active"></:col>
@@ -556,6 +618,7 @@ defmodule FlorinaWeb.Admin.ConfigLive do
 
   attr :rows, :list, required: true
   attr :event, :string, required: true
+  attr :delete_event, :string, default: nil
 
   slot :col, required: true do
     attr :label, :string, required: true
@@ -583,6 +646,15 @@ defmodule FlorinaWeb.Admin.ConfigLive do
                 class="text-xs font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400"
               >
                 Edit
+              </button>
+              <button
+                :if={@delete_event}
+                phx-click={@delete_event}
+                phx-value-id={row.id}
+                data-confirm="Delete this entry? Tenants that already have it keep their copy."
+                class="ml-3 text-xs font-medium text-red-600 hover:text-red-500 dark:text-red-400"
+              >
+                Delete
               </button>
             </td>
           </tr>
@@ -677,4 +749,21 @@ defmodule FlorinaWeb.Admin.ConfigLive do
   end
 
   defp parse_id(_), do: nil
+
+  # Slug is required + unique on a scenario. When the operator leaves it blank,
+  # derive a URL-safe slug from the name so they only have to type a name.
+  defp ensure_slug(params) do
+    case params["slug"] |> to_string() |> String.trim() do
+      "" -> Map.put(params, "slug", slugify(params["name"]))
+      _ -> params
+    end
+  end
+
+  defp slugify(name) do
+    name
+    |> to_string()
+    |> String.downcase()
+    |> String.replace(~r/[^a-z0-9]+/, "-")
+    |> String.trim("-")
+  end
 end

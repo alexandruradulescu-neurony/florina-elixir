@@ -151,6 +151,8 @@ defmodule Florina.CentralConfig do
 
   def get_scenario!(id), do: Repo.get!(Scenario, id)
 
+  def get_scenario(id), do: Repo.get(Scenario, id)
+
   def create_scenario(attrs) do
     %Scenario{}
     |> Scenario.changeset(attrs)
@@ -162,6 +164,14 @@ defmodule Florina.CentralConfig do
     |> Scenario.changeset(attrs)
     |> Repo.update()
   end
+
+  @doc """
+  Delete a canonical scenario from the control plane. Tenant copies already
+  published (upserted by id) are NOT removed — publish only ever upserts — so this
+  stops the scenario being offered/re-published centrally; existing tenant copies
+  remain until separately cleaned up.
+  """
+  def delete_scenario(%Scenario{} = s), do: Repo.delete(s)
 
   # ---------------------------------------------------------------------------
   # Canonical singleton — GlobalSettings (id=1, get-or-create)
