@@ -55,10 +55,22 @@ defmodule Florina.Accounts do
   Returns `{:ok, user}` or `{:error, changeset}`.
   """
   def create_user(attrs \\ %{}) do
+    # `role` isn't in the general cast allow-list (privilege boundary), but
+    # creation is server-side (admin invite / SSO upsert / seeding), so set it
+    # explicitly here when provided.
     %User{}
     |> User.changeset(attrs)
+    |> put_role(attrs[:role] || attrs["role"])
     |> TenantRepo.insert()
   end
+
+  defp put_role(changeset, role) when role in [:manager, :agent],
+    do: Ecto.Changeset.put_change(changeset, :role, role)
+
+  defp put_role(changeset, role) when role in ["manager", "agent"],
+    do: Ecto.Changeset.put_change(changeset, :role, String.to_existing_atom(role))
+
+  defp put_role(changeset, _), do: changeset
 
   @doc """
   Updates a user record.
@@ -71,14 +83,54 @@ defmodule Florina.Accounts do
     |> TenantRepo.update()
   end
 
-  @doc "Sets a user's permission role (`:manager` or `:agent`)."
+  @doc """
+  Sets a user's permission role (`:manager` or `:agent`). Demoting the last active
+  manager is refused atomically. Returns `{:ok, user}` | `{:error, :last_manager}`
+  | `{:error, changeset}`.
+  """
   def set_role(%User{} = user, role) when role in [:manager, :agent] do
-    update_user(user, %{role: role})
+    guard_last_manager(removes_manager?(user, role: role), fn ->
+      user |> User.role_changeset(role) |> TenantRepo.update()
+    end)
   end
 
-  @doc "Activates or deactivates a user (deactivated users can't sign in)."
+  @doc """
+  Activates or deactivates a user (deactivated users can't sign in). Deactivating
+  the last active manager is refused atomically.
+  """
   def set_active(%User{} = user, active) when is_boolean(active) do
-    update_user(user, %{active: active})
+    guard_last_manager(removes_manager?(user, active: active), fn ->
+      user |> User.active_changeset(active) |> TenantRepo.update()
+    end)
+  end
+
+  defp removes_manager?(%User{role: :manager, active: true}, role: :agent), do: true
+  defp removes_manager?(%User{role: :manager, active: true}, active: false), do: true
+  defp removes_manager?(_user, _change), do: false
+
+  # When the change would drop a manager, run it inside a transaction that locks
+  # the active-manager rows and re-counts, so two concurrent demotions/
+  # deactivations can't race past the check and leave zero active managers.
+  defp guard_last_manager(false, fun), do: fun.()
+
+  defp guard_last_manager(true, fun) do
+    TenantRepo.transaction(fn ->
+      count =
+        User
+        |> where([u], u.role == :manager and u.active == true)
+        |> lock("FOR UPDATE")
+        |> TenantRepo.all()
+        |> length()
+
+      if count <= 1 do
+        Florina.Repo.rollback(:last_manager)
+      else
+        case fun.() do
+          {:ok, updated} -> updated
+          {:error, changeset} -> Florina.Repo.rollback(changeset)
+        end
+      end
+    end)
   end
 
   @doc "Number of active managers in the current tenant (guards last-manager removal)."

@@ -21,9 +21,13 @@ defmodule FlorinaWeb.AgentTodayLive do
   @impl true
   def handle_event("call_me", %{"visit_id" => id}, socket) do
     # `id` is a client-sent param; a non-integer is ignored rather than crashing.
+    # Re-fetch the visit and check ownership AT EVENT TIME (not the list captured
+    # at mount) — a meeting reassigned to another agent after mount must not be
+    # actionable by the original agent.
+    agent_id = socket.assigns.current_agent.id
+
     with {visit_id, ""} <- Integer.parse(to_string(id)),
-         # Security: only allow a debrief for a meeting in the agent's own list.
-         true <- Enum.any?(socket.assigns.meetings, &(&1.id == visit_id)) do
+         %Visits.Visit{agent_id: ^agent_id} <- Visits.get(visit_id) do
       %{"visit_id" => visit_id, "phase" => "POST", "tenant_slug" => socket.assigns.tenant.slug}
       |> DialCall.new()
       |> Oban.insert()

@@ -34,6 +34,9 @@ defmodule Florina.Visits do
     TenantRepo.get!(Visit, id)
   end
 
+  @doc "Gets a visit by ID (no preloads). Returns `nil` if not found."
+  def get(id), do: TenantRepo.get(Visit, id)
+
   @doc """
   Gets a visit by ID with agent, client, methodology, scenario, and
   call_attempts preloaded.

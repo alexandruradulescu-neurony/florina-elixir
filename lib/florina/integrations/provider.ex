@@ -171,20 +171,29 @@ defmodule Florina.Integrations.Provider do
   end
 
   defp persist_refreshed_token(%Credential{} = cred, refreshed) do
+    require Logger
+
     attrs =
       %{access_token: refreshed.access_token, expires_at: Map.get(refreshed, :expires_at)}
       |> maybe_put_refresh_token(Map.get(refreshed, :refresh_token))
 
-    case Florina.OAuth.update_credential(cred, attrs) do
+    # Conditional on the stored refresh token still being the one we refreshed
+    # from — so a concurrent sync that already rotated it isn't clobbered.
+    case Florina.OAuth.persist_refreshed_token(cred, attrs, cred.refresh_token) do
+      {:ok, :stale} ->
+        Logger.info(
+          "[Provider] credential=#{cred.id} refresh token rotated concurrently; kept newer value"
+        )
+
+        :ok
+
       {:ok, _} ->
         :ok
 
-      {:error, changeset} ->
-        require Logger
-
+      {:error, reason} ->
         Logger.warning(
           "[Provider] could not persist refreshed token for credential=#{cred.id}: " <>
-            inspect(changeset.errors)
+            inspect(reason)
         )
 
         :ok

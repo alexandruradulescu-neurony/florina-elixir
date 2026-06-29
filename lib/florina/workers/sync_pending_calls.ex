@@ -10,7 +10,8 @@ defmodule Florina.Workers.SyncPendingCalls do
 
   Args required: `tenant_slug`.
   """
-  use Oban.Worker, queue: :sync, max_attempts: 3
+  # Unique per tenant within a window shorter than the 15-min cron cadence.
+  use Oban.Worker, queue: :sync, max_attempts: 3, unique: [period: 300, keys: [:tenant_slug]]
 
   require Logger
 

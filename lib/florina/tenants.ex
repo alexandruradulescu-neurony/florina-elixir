@@ -97,6 +97,31 @@ defmodule Florina.Tenants do
     end
   end
 
+  @doc """
+  Activate a tenant, first ensuring its schema exists and any pending per-tenant
+  migrations are applied — BEFORE it can serve traffic. Boot migrations skip
+  inactive tenants, so a tenant that was deactivated across a deploy (which added
+  migrations) would otherwise be reactivated onto a stale schema. Fail-loud: if
+  migration raises, the tenant is left inactive. Migration runs only when
+  `:migrate_tenants_on_boot` is set (prod); dev/test just flip the flag, matching
+  `BootMigrator`.
+  """
+  def activate(slug) when is_binary(slug) do
+    case get_by_slug(slug) do
+      nil ->
+        {:error, :not_found}
+
+      tenant ->
+        if Application.get_env(:florina, :migrate_tenants_on_boot, false) do
+          prefix = schema_prefix(tenant)
+          Repo.query!(~s(CREATE SCHEMA IF NOT EXISTS "#{prefix}"))
+          Florina.Tenants.Migrator.migrate_one(tenant)
+        end
+
+        set_active(slug, true)
+    end
+  end
+
   @doc "Replace a tenant's allowed email-domain list."
   def set_allowed_domains(slug, domains) when is_list(domains) do
     case get_by_slug(slug) do

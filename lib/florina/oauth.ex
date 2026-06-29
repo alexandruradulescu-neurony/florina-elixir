@@ -65,5 +65,37 @@ defmodule Florina.OAuth do
   def update_credential(%Credential{} = c, attrs),
     do: c |> Credential.changeset(attrs) |> TenantRepo.update()
 
+  @doc """
+  Persist a refreshed token, but only if the credential's stored refresh token is
+  still `expected_refresh_token` (the value we refreshed from). Guards against two
+  concurrent syncs clobbering a newly-rotated refresh token (last-write-wins). A
+  brief `FOR UPDATE` row lock serializes the read-compare-write; the external HTTP
+  refresh already happened, so no network call runs inside the lock. Goes through
+  the changeset (not `update_all`) so the Cloak-encrypted fields are re-encrypted.
+
+  Returns `{:ok, %Credential{}}`, `{:ok, :stale}` (someone else rotated — skipped),
+  or `{:error, reason}`.
+  """
+  def persist_refreshed_token(%Credential{id: id}, attrs, expected_refresh_token) do
+    TenantRepo.transaction(fn ->
+      locked =
+        Credential |> where([c], c.id == ^id) |> lock("FOR UPDATE") |> TenantRepo.one()
+
+      cond do
+        is_nil(locked) ->
+          Florina.Repo.rollback(:not_found)
+
+        locked.refresh_token != expected_refresh_token ->
+          :stale
+
+        true ->
+          case locked |> Credential.changeset(attrs) |> TenantRepo.update() do
+            {:ok, cred} -> cred
+            {:error, changeset} -> Florina.Repo.rollback(changeset)
+          end
+      end
+    end)
+  end
+
   def delete_credential(%Credential{} = c), do: TenantRepo.delete(c)
 end

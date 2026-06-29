@@ -17,7 +17,8 @@ defmodule Florina.Workers.ScanTenantCalls do
   of the target time (start_time + offset or end_time + offset).
   A phase is skipped once `total_dials >= MAX_CALL_ATTEMPTS_PER_PHASE`.
   """
-  use Oban.Worker, queue: :scheduler, max_attempts: 3
+  # Unique per tenant within a window shorter than the 5-min cron cadence.
+  use Oban.Worker, queue: :scheduler, max_attempts: 3, unique: [period: 120, keys: [:tenant_slug]]
 
   require Logger
 

@@ -9,7 +9,8 @@ defmodule Florina.Workers.CrmSync do
 
   Args required: `tenant_slug`.
   """
-  use Oban.Worker, queue: :sync, max_attempts: 3
+  # Unique per tenant (daily job — generous window dedups an accidental re-enqueue).
+  use Oban.Worker, queue: :sync, max_attempts: 3, unique: [period: 3600, keys: [:tenant_slug]]
 
   require Logger
 

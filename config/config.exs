@@ -16,6 +16,10 @@ config :elixir, :time_zone_database, Tz.TimeZoneDatabase
 
 config :florina, Oban,
   repo: Florina.Repo,
+  # Give in-flight jobs time to finish on deploy/shutdown — PostCallCompletion runs
+  # an LLM call (lessons distill) that can take 30-40s; the 15s default could cut it
+  # short and force a token-wasting retry.
+  shutdown_grace_period: 60_000,
   queues: [
     default: 10,
     # Fan-out cron schedulers (lightweight, high-priority)

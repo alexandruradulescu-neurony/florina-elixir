@@ -83,7 +83,12 @@ if config_env() == :prod do
   config :florina, Florina.Repo,
     # ssl: true,
     url: database_url,
-    pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10"),
+    # Default 20: the web Endpoint AND Oban share this one pool. Oban queue
+    # concurrency sums to ~32 (default 10 + scheduler 5 + calls 5 + sync 10 +
+    # provisioning 2); under load, jobs that touch TenantRepo + web requests
+    # contend for connections. Raise POOL_SIZE further (and/or pool_count) for
+    # higher throughput, bounded by the Postgres max_connections of your plan.
+    pool_size: String.to_integer(System.get_env("POOL_SIZE") || "20"),
     # For machines with several cores, consider starting multiple pools of `pool_size`
     # pool_count: 4,
     socket_options: maybe_ipv6

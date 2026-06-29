@@ -28,7 +28,9 @@ defmodule Florina.Workers.CalendarSync do
 
   Args required: `tenant_slug`.
   """
-  use Oban.Worker, queue: :sync, max_attempts: 3
+  # Unique per tenant within a window shorter than the 5-min cron cadence: dedups
+  # a double-enqueue (e.g. a scheduler retry) without swallowing the next cycle.
+  use Oban.Worker, queue: :sync, max_attempts: 3, unique: [period: 120, keys: [:tenant_slug]]
 
   require Logger
 

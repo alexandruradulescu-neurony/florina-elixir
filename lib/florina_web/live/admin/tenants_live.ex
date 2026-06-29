@@ -81,12 +81,26 @@ defmodule FlorinaWeb.Admin.TenantsLive do
   end
 
   def handle_event("activate", %{"slug" => slug}, socket) do
-    Tenants.set_active(slug, true)
+    # Tenants.activate/1 ensures the schema is migrated before traffic; it can
+    # raise if migration fails, in which case the tenant stays inactive.
+    case Tenants.activate(slug) do
+      {:ok, _} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, "Tenant #{slug} activated.")
+         |> assign(:tenants, Tenants.list())}
 
-    {:noreply,
-     socket
-     |> put_flash(:info, "Tenant #{slug} activated.")
-     |> assign(:tenants, Tenants.list())}
+      {:error, reason} ->
+        {:noreply, put_flash(socket, :error, "Could not activate #{slug}: #{inspect(reason)}")}
+    end
+  rescue
+    e ->
+      {:noreply,
+       put_flash(
+         socket,
+         :error,
+         "Activation failed for #{slug} (migration error): #{Exception.message(e)}"
+       )}
   end
 
   def handle_event("save_domains", %{"slug" => slug, "domains" => raw}, socket) do

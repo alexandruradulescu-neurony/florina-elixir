@@ -44,11 +44,16 @@ defmodule Florina.Accounts.User do
     :phone_number,
     :is_sales_agent,
     :active,
-    :role,
     :default_methodology_id
   ]
 
-  @doc "Changeset for creating/updating a user agent record."
+  @doc """
+  Changeset for creating/updating a user agent record.
+
+  `:role` is deliberately NOT in the cast allow-list — the permission role is a
+  privilege boundary and must only be set via `role_changeset/2` from authorized
+  server code (`Accounts.set_role/2`), never mass-assigned from form params.
+  """
   def changeset(user, attrs) do
     user
     |> cast(attrs, @required_fields ++ @optional_fields)
@@ -58,4 +63,10 @@ defmodule Florina.Accounts.User do
     |> unique_constraint(:username)
     |> unique_constraint(:email, name: :voice_user_email_lower_index)
   end
+
+  @doc "Privilege-role change — server-only, not from user params."
+  def role_changeset(user, role) when role in [:manager, :agent], do: change(user, role: role)
+
+  @doc "Active-flag change — server-only."
+  def active_changeset(user, active) when is_boolean(active), do: change(user, active: active)
 end

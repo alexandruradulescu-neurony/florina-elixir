@@ -30,8 +30,16 @@ defmodule FlorinaWeb.Manage.AgentsLive do
         {:noreply, put_flash(socket, :error, "Can't demote the last active manager.")}
 
       true ->
-        {:ok, _} = Accounts.set_role(user, String.to_existing_atom(role))
-        {:noreply, socket |> put_flash(:info, "Role updated.") |> load_users()}
+        case Accounts.set_role(user, String.to_existing_atom(role)) do
+          {:ok, _} ->
+            {:noreply, socket |> put_flash(:info, "Role updated.") |> load_users()}
+
+          {:error, :last_manager} ->
+            {:noreply, put_flash(socket, :error, "Can't demote the last active manager.")}
+
+          {:error, _} ->
+            {:noreply, put_flash(socket, :error, "Could not update role.")}
+        end
     end
   end
 
@@ -46,8 +54,16 @@ defmodule FlorinaWeb.Manage.AgentsLive do
         {:noreply, put_flash(socket, :error, "Can't deactivate the last active manager.")}
 
       true ->
-        {:ok, _} = Accounts.set_active(user, !user.active)
-        {:noreply, socket |> put_flash(:info, "Updated.") |> load_users()}
+        case Accounts.set_active(user, !user.active) do
+          {:ok, _} ->
+            {:noreply, socket |> put_flash(:info, "Updated.") |> load_users()}
+
+          {:error, :last_manager} ->
+            {:noreply, put_flash(socket, :error, "Can't deactivate the last active manager.")}
+
+          {:error, _} ->
+            {:noreply, put_flash(socket, :error, "Could not update user.")}
+        end
     end
   end
 
