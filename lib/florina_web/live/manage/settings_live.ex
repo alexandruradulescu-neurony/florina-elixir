@@ -203,6 +203,13 @@ defmodule FlorinaWeb.Manage.SettingsLive do
               label="Pipedrive API token"
               placeholder={token_placeholder(@settings.pipedrive_api_token)}
             />
+            <label
+              :if={@settings.pipedrive_api_token}
+              class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400"
+            >
+              <input type="checkbox" name="crm[clear_pipedrive_token]" value="true" class="rounded" />
+              Remove the saved Pipedrive token
+            </label>
           </fieldset>
 
           <fieldset
@@ -218,6 +225,13 @@ defmodule FlorinaWeb.Manage.SettingsLive do
               label="HubSpot private-app token"
               placeholder={token_placeholder(@settings.hubspot_api_token)}
             />
+            <label
+              :if={@settings.hubspot_api_token}
+              class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400"
+            >
+              <input type="checkbox" name="crm[clear_hubspot_token]" value="true" class="rounded" />
+              Remove the saved HubSpot token
+            </label>
             <p class="text-xs text-gray-400">
               Create a Private App in HubSpot (Settings → Integrations → Private Apps) with
               CRM read scopes, then paste its access token here.

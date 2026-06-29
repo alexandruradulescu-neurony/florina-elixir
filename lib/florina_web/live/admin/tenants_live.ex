@@ -279,6 +279,15 @@ defmodule FlorinaWeb.Admin.TenantsLive do
                       placeholder={token_ph(@crm, tenant.slug, :pd)}
                       class="rounded px-2 py-1 text-xs font-mono w-40 bg-white text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 dark:bg-white/5 dark:text-white dark:outline-white/10"
                     />
+                    <label
+                      :if={
+                        crm_selected(@crm_sel, @crm, tenant.slug) == "pipedrive" and
+                          get_in(@crm, [tenant.slug, :has_pd_token])
+                      }
+                      class="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400"
+                    >
+                      <input type="checkbox" name="clear_pipedrive_token" value="true" /> clear token
+                    </label>
                     <input
                       :if={crm_selected(@crm_sel, @crm, tenant.slug) == "hubspot"}
                       type="password"
@@ -286,6 +295,15 @@ defmodule FlorinaWeb.Admin.TenantsLive do
                       placeholder={token_ph(@crm, tenant.slug, :hs)}
                       class="rounded px-2 py-1 text-xs font-mono w-40 bg-white text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 dark:bg-white/5 dark:text-white dark:outline-white/10"
                     />
+                    <label
+                      :if={
+                        crm_selected(@crm_sel, @crm, tenant.slug) == "hubspot" and
+                          get_in(@crm, [tenant.slug, :has_hs_token])
+                      }
+                      class="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400"
+                    >
+                      <input type="checkbox" name="clear_hubspot_token" value="true" /> clear token
+                    </label>
                     <button class="text-xs font-medium text-indigo-600 hover:text-indigo-500 self-start dark:text-indigo-400">
                       Save
                     </button>

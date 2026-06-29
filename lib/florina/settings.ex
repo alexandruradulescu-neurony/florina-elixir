@@ -4,6 +4,7 @@ defmodule Florina.Settings do
   """
   alias Florina.TenantRepo
   alias Florina.Settings.GlobalSettings
+  alias Florina.Strings
 
   @doc "Get-or-create the singleton settings row for the current tenant."
   def get, do: GlobalSettings.load()
@@ -40,6 +41,8 @@ defmodule Florina.Settings do
       |> put_present(attrs, :pipedrive_domain, :allow_blank)
       |> put_present(attrs, :pipedrive_api_token, :nonblank)
       |> put_present(attrs, :hubspot_api_token, :nonblank)
+      |> maybe_clear(attrs, "clear_pipedrive_token", :pipedrive_api_token)
+      |> maybe_clear(attrs, "clear_hubspot_token", :hubspot_api_token)
 
     GlobalSettings.load()
     |> GlobalSettings.changeset(changes)
@@ -48,7 +51,7 @@ defmodule Florina.Settings do
 
   defp put_present(map, attrs, key, mode) do
     if has_key?(attrs, key) do
-      case {mode, blank_to_nil(fetch(attrs, key))} do
+      case {mode, Strings.blank_to_nil(fetch(attrs, key))} do
         # blank token / provider → keep the existing value
         {:nonblank, nil} -> map
         # allow_blank → set it (nil clears the field)
@@ -59,15 +62,14 @@ defmodule Florina.Settings do
     end
   end
 
-  defp has_key?(attrs, key), do: Map.has_key?(attrs, key) or Map.has_key?(attrs, to_string(key))
-  defp fetch(attrs, key), do: attrs[key] || attrs[to_string(key)]
-
-  defp blank_to_nil(v) when is_binary(v) do
-    case String.trim(v) do
-      "" -> nil
-      trimmed -> trimmed
-    end
+  # An explicit "clear" checkbox overrides keep-on-blank, so a stored token can
+  # actually be removed (e.g. to revoke a rotated/compromised credential).
+  defp maybe_clear(changes, attrs, flag_key, field) do
+    if truthy(fetch(attrs, flag_key)), do: Map.put(changes, field, nil), else: changes
   end
 
-  defp blank_to_nil(_), do: nil
+  defp truthy(v), do: v in [true, "true", "on"]
+
+  defp has_key?(attrs, key), do: Map.has_key?(attrs, key) or Map.has_key?(attrs, to_string(key))
+  defp fetch(attrs, key), do: attrs[key] || attrs[to_string(key)]
 end

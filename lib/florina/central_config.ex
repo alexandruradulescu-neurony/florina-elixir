@@ -270,13 +270,33 @@ defmodule Florina.CentralConfig do
         updated_at: now
       }
 
+      # On re-provision the row already exists. Replace ONLY the central-owned
+      # columns — never the tenant-private CRM credentials (crm_provider, tokens,
+      # domain) or the is_overridden flag — so re-provisioning can't wipe creds.
+      # (On first provision there's no conflict, so the CRM columns take their
+      # schema defaults.)
       TenantRepo.insert_all(TenantGlobalSettings, [settings_row],
-        on_conflict: :replace_all,
+        on_conflict: {:replace, central_owned_settings_columns()},
         conflict_target: :id
       )
     end
 
     :ok
+  end
+
+  # The GlobalSettings columns the control-plane owns and may overwrite on
+  # publish/seed. Deliberately excludes the per-tenant CRM credential columns and
+  # is_overridden so tenant-private data is never reset.
+  defp central_owned_settings_columns do
+    [
+      :pre_call_offset_minutes,
+      :post_call_offset_minutes,
+      :retry_interval_minutes,
+      :max_call_attempts_per_phase,
+      :max_context_tokens_warn,
+      :default_methodology_id,
+      :updated_at
+    ]
   end
 
   # ---------------------------------------------------------------------------
@@ -378,17 +398,7 @@ defmodule Florina.CentralConfig do
       }
 
       TenantRepo.insert_all(TenantGlobalSettings, [row],
-        on_conflict:
-          {:replace,
-           [
-             :pre_call_offset_minutes,
-             :post_call_offset_minutes,
-             :retry_interval_minutes,
-             :max_call_attempts_per_phase,
-             :max_context_tokens_warn,
-             :default_methodology_id,
-             :updated_at
-           ]},
+        on_conflict: {:replace, central_owned_settings_columns()},
         conflict_target: :id
       )
     end

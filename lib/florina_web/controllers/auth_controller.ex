@@ -8,6 +8,9 @@ defmodule FlorinaWeb.AuthController do
   import FlorinaWeb.AgentAuth, only: [log_in_agent: 2, log_out_agent: 1]
 
   @providers ~w(google microsoft)
+  # How many in-flight sign-in nonces to remember per browser (covers
+  # double-clicks / multiple tabs without unbounded session growth).
+  @max_nonces 5
 
   def login(conn, _params) do
     conn
@@ -24,9 +27,14 @@ defmodule FlorinaWeb.AuthController do
 
     # Bind this sign-in to the browser: stash a one-time random nonce in the
     # session and embed it in the signed state. The callback only proceeds if the
-    # state's nonce matches the session's — so a state minted in someone else's
-    # browser (login CSRF) can't be replayed into this one.
+    # state's nonce is one this browser issued — so a state minted in someone
+    # else's browser (login CSRF) can't be replayed into this one.
+    #
+    # Keep a small set of recent nonces (not a single slot) so a double-click or
+    # a second tab — each minting its own nonce — doesn't invalidate the first
+    # attempt's callback.
     nonce = :crypto.strong_rand_bytes(16) |> Base.url_encode64()
+    nonces = [nonce | get_session(conn, :oauth_nonces) || []] |> Enum.take(@max_nonces)
 
     url =
       Provider.impl(p).authorize_url(
@@ -35,7 +43,7 @@ defmodule FlorinaWeb.AuthController do
       )
 
     conn
-    |> put_session(:oauth_nonce, nonce)
+    |> put_session(:oauth_nonces, nonces)
     |> redirect(external: url)
   end
 
@@ -47,20 +55,21 @@ defmodule FlorinaWeb.AuthController do
     p = String.to_existing_atom(provider)
 
     # Fixed callback path — the tenant is NOT in the URL. Recover it from the
-    # signed state (which proves we issued it at `start`), confirm the nonce
-    # matches this browser's session (login-CSRF guard), then pin that tenant's
-    # schema prefix and assign it so the rest of the flow works as before.
-    session_nonce = get_session(conn, :oauth_nonce)
+    # signed state (which proves we issued it at `start`), confirm the nonce is
+    # one this browser issued (login-CSRF guard), then pin that tenant's schema
+    # prefix and assign it so the rest of the flow works as before.
+    session_nonces = get_session(conn, :oauth_nonces) || []
 
-    with {:ok, %{tenant_slug: slug, provider: ^provider, nonce: ^session_nonce}}
-         when is_binary(session_nonce) <- Provider.verify_state(conn, state),
+    with {:ok, %{tenant_slug: slug, provider: ^provider, nonce: nonce}}
+         when is_binary(nonce) <- Provider.verify_state(conn, state),
+         true <- nonce in session_nonces,
          %Tenants.Tenant{active: true, status: "active"} = tenant <- Tenants.get_by_slug(slug) do
       # Pin the tenant schema for this request, and guarantee it's cleared once the
       # response is sent so a pooled connection process can't carry it into a later,
       # unrelated request (mirrors FlorinaWeb.Plugs.ResolveTenant).
       conn =
         conn
-        |> delete_session(:oauth_nonce)
+        |> put_session(:oauth_nonces, List.delete(session_nonces, nonce))
         |> assign(:tenant, tenant)
         |> register_before_send(fn c ->
           Process.delete(:tenant_prefix)

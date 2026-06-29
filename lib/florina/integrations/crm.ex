@@ -6,34 +6,48 @@ defmodule Florina.Integrations.CRM do
   return the same normalized (Pipedrive-shaped) maps, so callers like
   `Florina.Integrations.ClientSync` don't care which CRM is behind it.
 
-  Each provider module keeps its own test-stub indirection (`impl/0`), so this
-  facade only selects the provider family, not the stub.
+  Each facade call loads the tenant settings once and caches them for the
+  duration of that call (process-scoped) so provider-side credential lookups
+  reuse them instead of re-querying the singleton row 2-3× per call.
   """
 
   alias Florina.Integrations.{Hubspot, Pipedrive}
 
+  @cache_key :__crm_settings_cache
+
   @doc "The provider module for the current tenant (defaults to Pipedrive)."
-  def provider_module do
-    case current_provider() do
+  def provider_module(settings) do
+    case settings.crm_provider do
       "hubspot" -> Hubspot
       _ -> Pipedrive
     end
   end
 
-  @doc "The active CRM provider for the current tenant (\"pipedrive\" | \"hubspot\")."
-  def current_provider do
-    Florina.Settings.get().crm_provider || "pipedrive"
-  rescue
-    # No tenant pinned / settings unavailable — fall back to the default so a
-    # missing context never crashes a caller; the underlying query will still
-    # fail-closed if a CRM call is actually attempted without a tenant.
-    _ -> "pipedrive"
-  end
+  @doc """
+  The tenant settings to use for the in-flight CRM call. Returns the call-scoped
+  cache set by the facade if present, otherwise loads them. Providers call this
+  for credentials so a single facade call hits the settings row only once.
+  """
+  def tenant_settings, do: Process.get(@cache_key) || Florina.Settings.get()
 
-  def list_organizations, do: provider_module().list_organizations()
-  def get_organization(id), do: provider_module().get_organization(id)
-  def get_organization_persons(id), do: provider_module().get_organization_persons(id)
-  def get_organization_deals(id), do: provider_module().get_organization_deals(id)
-  def get_organization_notes(id), do: provider_module().get_organization_notes(id)
-  def get_organization_activities(id), do: provider_module().get_organization_activities(id)
+  def list_organizations, do: dispatch(:list_organizations, [])
+  def get_organization(id), do: dispatch(:get_organization, [id])
+  def get_organization_persons(id), do: dispatch(:get_organization_persons, [id])
+  def get_organization_deals(id), do: dispatch(:get_organization_deals, [id])
+  def get_organization_notes(id), do: dispatch(:get_organization_notes, [id])
+  def get_organization_activities(id), do: dispatch(:get_organization_activities, [id])
+
+  # Resolve settings once, cache them for the provider's credential lookup, pick
+  # the provider module, and delegate. Always restores the previous cache value
+  # so nested/sequential calls don't leak a stale tenant's settings.
+  defp dispatch(fun, args) do
+    settings = Florina.Settings.get()
+    previous = Process.put(@cache_key, settings)
+
+    try do
+      apply(provider_module(settings), fun, args)
+    after
+      if previous, do: Process.put(@cache_key, previous), else: Process.delete(@cache_key)
+    end
+  end
 end

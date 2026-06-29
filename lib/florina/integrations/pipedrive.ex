@@ -30,6 +30,8 @@ defmodule Florina.Integrations.Pipedrive do
 
   require Logger
 
+  alias Florina.Strings
+
   # Runaway guard for organization pagination (50 * 100 = 5000 orgs/run).
   @max_pages 50
 
@@ -269,25 +271,26 @@ defmodule Florina.Integrations.Pipedrive do
   # Each Pipedrive call runs in a tenant-pinned context (the sync/calendar
   # workers pin the tenant first), so prefer that tenant's saved credentials and
   # fall back to the global env value (kept for the original single-tenant
-  # deployment until per-tenant creds are entered).
+  # deployment until per-tenant creds are entered). Settings come from the CRM
+  # facade's call-scoped cache so a single sync call doesn't re-query the row.
   defp tenant_creds do
     settings =
       try do
-        Florina.Settings.get()
+        Florina.Integrations.CRM.tenant_settings()
       rescue
         _ -> nil
       end
 
     %{
-      token: present(settings && settings.pipedrive_api_token) || env(:pipedrive_api_token),
-      domain: present(settings && settings.pipedrive_domain) || env(:pipedrive_domain)
+      token:
+        Strings.blank_to_nil(settings && settings.pipedrive_api_token) ||
+          env(:pipedrive_api_token),
+      domain:
+        Strings.blank_to_nil(settings && settings.pipedrive_domain) || env(:pipedrive_domain)
     }
   end
 
   defp env(key), do: Application.get_env(:florina, key, "")
-
-  defp present(v) when v in [nil, ""], do: nil
-  defp present(v), do: v
 
   # Pipedrive accepts the API token via the `x-api-token` header (documented
   # alternative to the `?api_token=` query param) — keeps the secret out of URLs,

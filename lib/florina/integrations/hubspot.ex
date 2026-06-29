@@ -4,10 +4,13 @@ defmodule Florina.Integrations.Hubspot do
   so the two are interchangeable behind `Florina.Integrations.CRM`.
 
   HubSpot's "company" maps to a Pipedrive "organization"; contacts map to persons,
-  deals to deals, notes to interaction history. Every `do_*` function translates
-  HubSpot's `{id, properties}` shape into the **Pipedrive-shaped** maps that
-  `Florina.Integrations.ClientSync` already consumes (string keys; email/phone as
-  `[%{"value" => ..., "primary" => true}]`), so the sync orchestration is unchanged.
+  deals to deals, notes + engagements (calls/emails/meetings) to interaction
+  history. Every `do_*` function translates HubSpot's `{id, properties}` shape into
+  the **Pipedrive-shaped** maps that `Florina.Integrations.ClientSync` already
+  consumes — string keys; email/phone as `[%{"value" => ..., "primary" => true}]`;
+  deal `status` in the Pipedrive vocabulary ("open"/"won"/"lost") — so the sync
+  orchestration is unchanged. Mappers tolerate records missing `properties`/`id`
+  (archived or permission-limited objects) by skipping them rather than crashing.
 
   Auth: per-tenant **Private App access token** from the tenant settings
   (`Settings.hubspot_api_token`), sent as `Authorization: Bearer <token>`.
@@ -22,6 +25,9 @@ defmodule Florina.Integrations.Hubspot do
 
   require Logger
 
+  alias Florina.Integrations.CRM
+  alias Florina.Strings
+
   @base_url "https://api.hubapi.com"
   # Runaway guard for company pagination (50 * 100 = 5000 companies/run).
   @max_pages 50
@@ -31,8 +37,17 @@ defmodule Florina.Integrations.Hubspot do
 
   @company_props ~w(name domain industry)
   @contact_props ~w(firstname lastname email phone)
-  @deal_props ~w(dealname amount dealstage deal_currency_code)
+  @deal_props ~w(dealname amount dealstage deal_currency_code hs_is_closed hs_is_closed_won)
   @note_props ~w(hs_note_body hs_timestamp hs_createdate)
+
+  # HubSpot engagement object types pulled into interaction history, with the
+  # Pipedrive-style activity label and the properties to request for each.
+  @engagement_types [
+    {"calls", "call", ~w(hs_call_title hs_call_body hs_timestamp)},
+    {"emails", "email", ~w(hs_email_subject hs_email_text hs_timestamp)},
+    {"meetings", "meeting",
+     ~w(hs_meeting_title hs_meeting_body hs_meeting_start_time hs_timestamp)}
+  ]
 
   # ---------------------------------------------------------------------------
   # Public facade — delegates to the configured implementation (stub in tests)
@@ -63,8 +78,7 @@ defmodule Florina.Integrations.Hubspot do
       case get(token, "/crm/v3/objects/companies/#{id}",
              properties: Enum.join(@company_props, ",")
            ) do
-        {:ok, %{"id" => _} = obj} -> {:ok, company_to_org(obj)}
-        {:ok, _} -> {:ok, nil}
+        {:ok, %{} = obj} -> {:ok, company_to_org(obj)}
         {:error, {:http, 404, _}} -> {:ok, nil}
         {:error, reason} -> {:error, reason}
       end
@@ -75,7 +89,7 @@ defmodule Florina.Integrations.Hubspot do
     with {:ok, token} <- token(),
          {:ok, ids} <- associated_ids(token, "companies", id, "contacts"),
          {:ok, contacts} <- batch_read(token, "contacts", ids, @contact_props) do
-      {:ok, Enum.map(contacts, &contact_to_person/1)}
+      {:ok, map_skip(contacts, &contact_to_person/1)}
     end
   end
 
@@ -83,7 +97,7 @@ defmodule Florina.Integrations.Hubspot do
     with {:ok, token} <- token(),
          {:ok, ids} <- associated_ids(token, "companies", id, "deals"),
          {:ok, deals} <- batch_read(token, "deals", ids, @deal_props) do
-      {:ok, Enum.map(deals, &deal_to_deal/1)}
+      {:ok, deals |> map_skip(&deal_to_deal/1) |> sort_deals()}
     end
   end
 
@@ -91,14 +105,24 @@ defmodule Florina.Integrations.Hubspot do
     with {:ok, token} <- token(),
          {:ok, ids} <- associated_ids(token, "companies", id, "notes"),
          {:ok, notes} <- batch_read(token, "notes", ids, @note_props) do
-      {:ok, Enum.map(notes, &note_to_note/1)}
+      {:ok, map_skip(notes, &note_to_note/1)}
     end
   end
 
-  def do_get_organization_activities(_id) do
-    # HubSpot engagements (calls/emails/meetings) aren't pulled in v1 — interaction
-    # history comes from notes. Return empty so the merge in ClientSync is a no-op.
-    {:ok, []}
+  def do_get_organization_activities(id) do
+    with {:ok, token} <- token() do
+      activities =
+        Enum.flat_map(@engagement_types, fn {assoc, label, props} ->
+          with {:ok, ids} <- associated_ids(token, "companies", id, assoc),
+               {:ok, objs} <- batch_read(token, assoc, ids, props) do
+            map_skip(objs, &engagement_to_activity(&1, label))
+          else
+            _ -> []
+          end
+        end)
+
+      {:ok, activities}
+    end
   end
 
   # ---------------------------------------------------------------------------
@@ -114,7 +138,7 @@ defmodule Florina.Integrations.Hubspot do
 
     case get(token, "/crm/v3/objects/companies", params) do
       {:ok, %{"results" => results} = body} ->
-        acc = acc ++ Enum.map(results, &company_to_org/1)
+        acc = acc ++ map_skip(results, &company_to_org/1)
 
         case get_in(body, ["paging", "next", "after"]) do
           nil -> {:ok, acc}
@@ -201,39 +225,45 @@ defmodule Florina.Integrations.Hubspot do
   # ---------------------------------------------------------------------------
 
   defp token do
-    value =
-      try do
-        Florina.Settings.get().hubspot_api_token
-      rescue
-        _ -> nil
-      end
-
-    case value do
-      v when v in [nil, ""] -> {:error, {:missing_config, :hubspot_api_token}}
+    case Strings.blank_to_nil(CRM.tenant_settings().hubspot_api_token) do
+      nil -> {:error, {:missing_config, :hubspot_api_token}}
       v -> {:ok, v}
     end
+  rescue
+    # No tenant pinned / settings unavailable.
+    _ -> {:error, {:missing_config, :hubspot_api_token}}
   end
 
   # ---------------------------------------------------------------------------
-  # HubSpot -> Pipedrive-shaped mapping
+  # HubSpot -> Pipedrive-shaped mapping. Each mapper returns nil for a record it
+  # can't map (missing id / not a map); `map_skip/2` drops those so one odd
+  # record never crashes the whole sync.
   # ---------------------------------------------------------------------------
 
-  defp company_to_org(%{"id" => id} = obj) do
-    props = obj["properties"] || %{}
-    domain = blank_to_nil(props["domain"])
+  defp map_skip(list, fun) when is_list(list), do: list |> Enum.map(fun) |> Enum.reject(&is_nil/1)
+  defp map_skip(_, _), do: []
+
+  defp company_to_org(%{"id" => id} = obj) when not is_nil(id) do
+    props = props_of(obj)
+    domain = Strings.blank_to_nil(props["domain"])
 
     %{
       "id" => to_string(id),
       "name" => props["name"] || "",
-      "industry" => blank_to_nil(props["industry"]),
+      "industry" => Strings.blank_to_nil(props["industry"]),
       # ClientSync infers the real domain from contacts; expose the company's own
       # domain via cc_email as the no-contacts fallback (extract_domain reads it).
       "cc_email" => domain && "noreply@#{domain}"
     }
   end
 
-  defp contact_to_person(%{"properties" => props}) do
-    name = [props["firstname"], props["lastname"]] |> Enum.reject(&blank?/1) |> Enum.join(" ")
+  defp company_to_org(_), do: nil
+
+  defp contact_to_person(obj) when is_map(obj) do
+    props = props_of(obj)
+
+    name =
+      [props["firstname"], props["lastname"]] |> Enum.reject(&Strings.blank?/1) |> Enum.join(" ")
 
     %{
       "name" => name,
@@ -242,22 +272,72 @@ defmodule Florina.Integrations.Hubspot do
     }
   end
 
-  defp deal_to_deal(%{"id" => id, "properties" => props}) do
+  defp contact_to_person(_), do: nil
+
+  defp deal_to_deal(%{"id" => id} = obj) when not is_nil(id) do
+    props = props_of(obj)
+
     %{
       "id" => to_string(id),
       "title" => props["dealname"] || "",
       "value" => parse_amount(props["amount"]),
       "currency" => props["deal_currency_code"] || "",
-      "status" => props["dealstage"] || ""
+      "status" => deal_status(props)
     }
   end
 
-  defp note_to_note(%{"properties" => props}) do
+  defp deal_to_deal(_), do: nil
+
+  defp note_to_note(obj) when is_map(obj) do
+    props = props_of(obj)
+
     %{
       "content" => strip_html(props["hs_note_body"] || ""),
       "add_time" => to_date_string(props["hs_timestamp"] || props["hs_createdate"])
     }
   end
+
+  defp note_to_note(_), do: nil
+
+  defp engagement_to_activity(obj, label) when is_map(obj) do
+    props = props_of(obj)
+
+    subject =
+      ~w(hs_call_title hs_email_subject hs_meeting_title hs_call_body hs_meeting_body)
+      |> Enum.find_value(fn key -> Strings.blank_to_nil(props[key]) end)
+
+    %{
+      "type" => label,
+      "subject" => subject || "",
+      "due_date" =>
+        to_date_string(
+          props["hs_timestamp"] || props["hs_meeting_start_time"] || props["hs_createdate"]
+        )
+    }
+  end
+
+  defp engagement_to_activity(_, _), do: nil
+
+  # Translate HubSpot's closed flags into the Pipedrive deal vocabulary the rest
+  # of the app branches on ("open"/"won"/"lost"). HubSpot's raw `dealstage` is a
+  # pipeline-specific stage ID, not a status, so it can't be compared directly.
+  defp deal_status(props) do
+    cond do
+      truthy(props["hs_is_closed_won"]) -> "won"
+      truthy(props["hs_is_closed"]) -> "lost"
+      true -> "open"
+    end
+  end
+
+  defp truthy(v), do: v in [true, "true"]
+
+  # Open/won deals first (mirrors Pipedrive's ordering) so the deal-picking in
+  # calendar_sync prefers an active deal.
+  defp sort_deals(deals),
+    do: Enum.sort_by(deals, &if(&1["status"] in ["open", "won"], do: 0, else: 1))
+
+  defp props_of(obj) when is_map(obj), do: obj["properties"] || %{}
+  defp props_of(_), do: %{}
 
   # Wrap a scalar into Pipedrive's `[%{"value" => v, "primary" => true}]` shape.
   defp value_list(v) when v in [nil, ""], do: []
@@ -300,9 +380,4 @@ defmodule Florina.Integrations.Hubspot do
 
   defp maybe_put(kw, _key, nil), do: kw
   defp maybe_put(kw, key, value), do: Keyword.put(kw, key, value)
-
-  defp blank_to_nil(v) when v in [nil, ""], do: nil
-  defp blank_to_nil(v), do: v
-
-  defp blank?(v), do: v in [nil, ""]
 end
