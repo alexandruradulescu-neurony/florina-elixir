@@ -221,15 +221,18 @@ defmodule Florina.CentralConfig do
     end
 
     # --- MegaPrompts ---
-    mega_prompts = Repo.all(MegaPrompt)
-
-    overridden_mega_prompt_ids =
-      TenantRepo.all(from r in TenantMegaPrompt, where: r.is_overridden == true, select: r.id)
+    # Skip by DOMAIN, not id: a tenant override is a new-id versioned row, so an
+    # id-based skip would let the canonical active row collide with the tenant's
+    # active override on the one-active-per-domain index (see
+    # `publishable_mega_prompts/0`). Fresh tenants have no overrides, so this is
+    # a no-op at first seed; it only matters if provision is re-run later.
+    overridden_mega_prompt_domains =
+      TenantRepo.all(from r in TenantMegaPrompt, where: r.is_overridden == true, select: r.domain)
       |> MapSet.new()
 
     mega_prompt_rows =
-      mega_prompts
-      |> Enum.reject(fn mp -> MapSet.member?(overridden_mega_prompt_ids, mp.id) end)
+      Repo.all(MegaPrompt)
+      |> Enum.reject(fn mp -> MapSet.member?(overridden_mega_prompt_domains, mp.domain) end)
       |> Enum.map(fn mp ->
         %{
           id: mp.id,
@@ -363,7 +366,7 @@ defmodule Florina.CentralConfig do
     )
 
     publish_table(
-      Repo.all(MegaPrompt),
+      publishable_mega_prompts(),
       TenantMegaPrompt,
       fn mp ->
         %{
@@ -404,6 +407,23 @@ defmodule Florina.CentralConfig do
     end
 
     :ok
+  end
+
+  # Canonical mega-prompts to publish, EXCLUDING any whose domain the tenant has
+  # locally overridden. MegaPrompts are versioned: a tenant edit is a NEW row
+  # (new id) flagged is_overridden, while the canonical row keeps its own id. So
+  # the id-based skip in `publish_table` can't protect them — re-publishing the
+  # canonical row as active would collide with the tenant's active override on
+  # the "one active version per domain" partial unique index and abort the whole
+  # publish. Skipping by DOMAIN leaves a customized domain entirely tenant-owned.
+  # (Must run with the tenant prefix pinned — it is, inside `do_publish`.)
+  defp publishable_mega_prompts do
+    overridden_domains =
+      TenantRepo.all(from r in TenantMegaPrompt, where: r.is_overridden == true, select: r.domain)
+      |> MapSet.new()
+
+    Repo.all(MegaPrompt)
+    |> Enum.reject(fn mp -> MapSet.member?(overridden_domains, mp.domain) end)
   end
 
   # Upserts canonical rows into a tenant table, skipping rows the tenant has

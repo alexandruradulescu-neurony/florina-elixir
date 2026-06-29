@@ -10,9 +10,18 @@ defmodule Florina.Tenants.Migrator do
   """
   alias Florina.Tenants
 
-  @doc "Migrate every registered tenant's schema."
+  @doc """
+  Migrate every fully-provisioned tenant's schema, matching the boot migrator's
+  semantics: only `active` tenants (a `provisioning`/`failed` tenant may have a
+  half-created or absent schema), and `CREATE SCHEMA IF NOT EXISTS` first so the
+  migration can never run against a missing schema.
+  """
   def migrate_all do
-    for tenant <- Tenants.list(), do: migrate_one(tenant)
+    for tenant <- Tenants.list_active() do
+      Florina.Repo.query!(~s(CREATE SCHEMA IF NOT EXISTS "#{Tenants.schema_prefix(tenant)}"))
+      migrate_one(tenant)
+    end
+
     :ok
   end
 

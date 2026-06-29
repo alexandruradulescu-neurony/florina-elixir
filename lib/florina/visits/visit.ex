@@ -83,6 +83,7 @@ defmodule Florina.Visits.Visit do
     |> validate_length(:title, max: 255)
     |> validate_length(:calendar_event_id, max: 255)
     |> validate_length(:crm_deal_id, max: 100)
+    |> validate_end_after_start()
     |> foreign_key_constraint(:agent_id)
     |> foreign_key_constraint(:client_id)
     |> foreign_key_constraint(:methodology_id)
@@ -90,5 +91,19 @@ defmodule Florina.Visits.Visit do
     # Backstop against concurrent calendar syncs creating the same visit twice.
     # Error attributed to :calendar_event_id so CalendarSync can detect the race.
     |> unique_constraint(:calendar_event_id, name: :voice_visit_agent_provider_event_uidx)
+  end
+
+  # A meeting must have positive duration. Guards both the manual meeting form
+  # (which trusts a submitted duration) and any malformed calendar event, so an
+  # end at/before the start can never be persisted.
+  defp validate_end_after_start(changeset) do
+    start = get_field(changeset, :start_time)
+    finish = get_field(changeset, :end_time)
+
+    if start && finish && DateTime.compare(finish, start) != :gt do
+      add_error(changeset, :end_time, "must be after the start time")
+    else
+      changeset
+    end
   end
 end

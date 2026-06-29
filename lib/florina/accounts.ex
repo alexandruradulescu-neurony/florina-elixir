@@ -28,6 +28,19 @@ defmodule Florina.Accounts do
     |> TenantRepo.all()
   end
 
+  @doc """
+  Sales agents that are still ACTIVE (`is_sales_agent: true` AND `active: true`)
+  — the operational selector for background work (calendar sync fan-out, dialing).
+  Distinct from `list_agents/0`, which returns all sales agents (incl. deactivated)
+  for management screens that must still show/filter disabled accounts.
+  """
+  def list_active_agents do
+    User
+    |> where(is_sales_agent: true, active: true)
+    |> order_by(:username)
+    |> TenantRepo.all()
+  end
+
   @doc "Returns all users (agents and non-agents), ordered by username."
   def list_users do
     User

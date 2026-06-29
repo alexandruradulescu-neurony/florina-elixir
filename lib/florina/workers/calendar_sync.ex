@@ -36,7 +36,7 @@ defmodule Florina.Workers.CalendarSync do
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"tenant_slug" => slug}}) do
     with :ok <- Tenant.pin_active(slug) do
-      agents = Accounts.list_agents()
+      agents = Accounts.list_active_agents()
       Logger.info("[CalendarSync] tenant=#{slug} fanning out to #{length(agents)} agent(s)")
       jitter = jitter_seconds()
 

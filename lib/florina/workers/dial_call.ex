@@ -211,24 +211,32 @@ defmodule Florina.Workers.DialCall do
       create_failed_attempt(visit.id, phase)
       :ok
     else
-      # Check agent has phone
-      phone = get_in(visit, [Access.key(:agent), Access.key(:phone_number)])
+      agent = get_in(visit, [Access.key(:agent)])
+      phone = get_in(agent, [Access.key(:phone_number)])
 
-      if phone in [nil, ""] do
-        Logger.warning("[DialCall] visit=#{visit.id} agent has no phone — skip")
-        :ok
-      else
-        case create_scheduled_attempt_capped(visit.id, phase) do
-          {:ok, attempt} ->
-            fire_call(attempt, phone, prompt, first_message, visit)
+      cond do
+        # A visit created while the agent was active can reach dial time after the
+        # agent has been deactivated — don't call on behalf of a disabled account.
+        is_nil(agent) or agent.active == false ->
+          Logger.warning("[DialCall] visit=#{visit.id} agent inactive/missing — skip")
+          :ok
 
-          :cap_reached ->
-            Logger.info(
-              "[DialCall] visit=#{visit.id} phase=#{phase} cap reached at insert — aborting dial"
-            )
+        phone in [nil, ""] ->
+          Logger.warning("[DialCall] visit=#{visit.id} agent has no phone — skip")
+          :ok
 
-            :ok
-        end
+        true ->
+          case create_scheduled_attempt_capped(visit.id, phase) do
+            {:ok, attempt} ->
+              fire_call(attempt, phone, prompt, first_message, visit)
+
+            :cap_reached ->
+              Logger.info(
+                "[DialCall] visit=#{visit.id} phase=#{phase} cap reached at insert — aborting dial"
+              )
+
+              :ok
+          end
       end
     end
   end
