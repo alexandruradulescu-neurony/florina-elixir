@@ -54,7 +54,7 @@ defmodule Florina.Calls do
     )
     |> filter_status(blank_to_nil(filters["status"]))
     |> filter_phase(blank_to_nil(filters["phase"]))
-    |> filter_agent(blank_to_nil(filters["agent_id"]))
+    |> filter_agent(parse_int(filters["agent_id"]))
     |> limit(^max)
     |> TenantRepo.all()
   end
@@ -72,6 +72,20 @@ defmodule Florina.Calls do
 
   defp blank_to_nil(v) when v in [nil, ""], do: nil
   defp blank_to_nil(v), do: v
+
+  # agent_id arrives as a form string and is compared against a bigint column; a
+  # non-integer would crash the LiveView with an Ecto cast error, so an
+  # unparseable (e.g. tampered) value simply drops the filter.
+  defp parse_int(v) when is_integer(v), do: v
+
+  defp parse_int(v) when is_binary(v) do
+    case Integer.parse(v) do
+      {n, ""} -> n
+      _ -> nil
+    end
+  end
+
+  defp parse_int(_), do: nil
 
   @doc """
   Counts for the Programmed Calls stats strip, across all calls (unfiltered):

@@ -32,7 +32,7 @@ defmodule Florina.Audit do
       limit: ^limit
     )
     |> filter_level(blank_to_nil(filters["level"]))
-    |> filter_user(blank_to_nil(filters["user_id"]))
+    |> filter_user(parse_int(filters["user_id"]))
     |> TenantRepo.all()
   end
 
@@ -58,6 +58,19 @@ defmodule Florina.Audit do
 
   defp blank_to_nil(v) when v in [nil, ""], do: nil
   defp blank_to_nil(v), do: v
+
+  # user_id is a form/URL string compared against a bigint column; a non-integer
+  # would crash the query, so an unparseable value drops the filter.
+  defp parse_int(v) when is_integer(v), do: v
+
+  defp parse_int(v) when is_binary(v) do
+    case Integer.parse(v) do
+      {n, ""} -> n
+      _ -> nil
+    end
+  end
+
+  defp parse_int(_), do: nil
 
   def list_for_visit(visit_id),
     do:

@@ -270,18 +270,12 @@ defmodule Florina.Services.DataContext do
     |> String.trim()
   end
 
-  # Mitigate prompt injection from DB-sourced text in the chat system prompt:
-  # flatten control chars, defang close-tag/fence-escape sequences, and cap length.
-  # Mirrors the assembler/placeholders path (see Florina.Services.Placeholders).
+  # Defang DB-sourced text before it enters the chat system prompt. Delegates to
+  # the single shared sanitizer (`Placeholders.sanitize_scalar/1`) so this chat
+  # path and the assembler path can't drift on control-char/fence handling or the
+  # length cap — a previous copy here had already diverged on both.
   defp sanitize(nil), do: ""
-
-  defp sanitize(value) do
-    value
-    |> to_string()
-    |> String.replace(~r/[\x00-\x08\x0B\x0C\x0E-\x1F]/, " ")
-    |> String.replace("</", "< /")
-    |> String.slice(0, 500)
-  end
+  defp sanitize(value), do: Placeholders.sanitize_scalar(to_string(value))
 
   defp list_clients_for_chat do
     import Ecto.Query, only: [from: 2]
