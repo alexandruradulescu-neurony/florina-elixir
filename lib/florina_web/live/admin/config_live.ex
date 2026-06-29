@@ -164,6 +164,31 @@ defmodule FlorinaWeb.Admin.ConfigLive do
     end
   end
 
+  def handle_event("new_methodology", _params, socket) do
+    form =
+      to_form(%{"name" => "", "description" => "", "source_material" => ""}, as: :methodology)
+
+    {:noreply, socket |> assign(:editing, :new_methodology) |> assign(:edit_form, form)}
+  end
+
+  def handle_event("save_new_methodology", %{"methodology" => params}, socket) do
+    case CentralConfig.create_methodology(params) do
+      {:ok, _m} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, "Methodology created — Publish to push it to tenants.")
+         |> assign(:editing, nil)
+         |> assign(:edit_form, nil)
+         |> load_config()}
+
+      {:error, %Ecto.Changeset{}} ->
+        {:noreply,
+         socket
+         |> assign(:edit_form, to_form(params, as: :methodology))
+         |> put_flash(:error, "Couldn't create that methodology — a name is required.")}
+    end
+  end
+
   # ---------------------------------------------------------------------------
   # Edit scenarios
   # ---------------------------------------------------------------------------
@@ -324,6 +349,31 @@ defmodule FlorinaWeb.Admin.ConfigLive do
                 />
                 <.form_buttons />
               </.form>
+            <% :new_methodology -> %>
+              <h2 class="text-base font-medium mb-4 text-gray-900 dark:text-white">
+                New methodology
+              </h2>
+              <.form for={@edit_form} phx-submit="save_new_methodology" class="space-y-3">
+                <.text_field
+                  label="Name"
+                  name="methodology[name]"
+                  form={@edit_form}
+                  field={:name}
+                />
+                <.textarea_field
+                  label="Description"
+                  name="methodology[description]"
+                  form={@edit_form}
+                  field={:description}
+                />
+                <.textarea_field
+                  label="Source material"
+                  name="methodology[source_material]"
+                  form={@edit_form}
+                  field={:source_material}
+                />
+                <.form_buttons />
+              </.form>
             <% {:methodology, m} -> %>
               <h2 class="text-base font-medium mb-4 text-gray-900 dark:text-white">
                 Edit methodology — {m.name}
@@ -448,7 +498,12 @@ defmodule FlorinaWeb.Admin.ConfigLive do
         </.config_table>
 
         <%!-- Methodologies --%>
-        <.section_header title={"Methodologies (#{length(@methodologies)})"} />
+        <.section_header title={"Methodologies (#{length(@methodologies)})"}>
+          <button
+            phx-click="new_methodology"
+            class="text-xs font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400"
+          >+ New methodology</button>
+        </.section_header>
         <.config_table rows={@methodologies} event="edit_methodology">
           <:col label="Name"></:col>
           <:col label="Active"></:col>
