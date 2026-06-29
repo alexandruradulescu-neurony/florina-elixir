@@ -12,11 +12,14 @@ defmodule FlorinaWeb.Admin.ConfigLive do
 
   @impl true
   def mount(_params, _session, socket) do
+    domains = Enum.map(Florina.Enums.mega_prompt_domain_values(), fn {_atom, value} -> value end)
+
     {:ok,
      socket
      |> load_config()
      |> assign(:editing, nil)
-     |> assign(:edit_form, nil)}
+     |> assign(:edit_form, nil)
+     |> assign(:mega_prompt_domains, domains)}
   end
 
   # ---------------------------------------------------------------------------
@@ -78,6 +81,43 @@ defmodule FlorinaWeb.Admin.ConfigLive do
 
       {:error, cs} ->
         {:noreply, assign(socket, :edit_form, to_form(cs, as: :mega_prompt))}
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # Create a new mega prompt
+  # ---------------------------------------------------------------------------
+
+  def handle_event("new_mega_prompt", _params, socket) do
+    default_domain = List.first(socket.assigns.mega_prompt_domains)
+
+    form =
+      to_form(%{"domain" => default_domain, "name" => "", "meta_prompt" => ""}, as: :mega_prompt)
+
+    {:noreply, socket |> assign(:editing, :new_mega_prompt) |> assign(:edit_form, form)}
+  end
+
+  def handle_event("save_new_mega_prompt", %{"mega_prompt" => params}, socket) do
+    case CentralConfig.create_and_activate_mega_prompt(params) do
+      {:ok, _mp} ->
+        {:noreply,
+         socket
+         |> put_flash(
+           :info,
+           "Mega prompt created and set active — Publish to push it to tenants."
+         )
+         |> assign(:editing, nil)
+         |> assign(:edit_form, nil)
+         |> load_config()}
+
+      {:error, :invalid_domain} ->
+        {:noreply, put_flash(socket, :error, "Pick a valid domain.")}
+
+      {:error, %Ecto.Changeset{}} ->
+        {:noreply,
+         socket
+         |> assign(:edit_form, to_form(params, as: :mega_prompt))
+         |> put_flash(:error, "Couldn't create that prompt — name and prompt text are required.")}
     end
   end
 
@@ -239,6 +279,37 @@ defmodule FlorinaWeb.Admin.ConfigLive do
           class="border border-gray-200 rounded-lg p-6 mb-8 bg-gray-50 dark:border-white/10 dark:bg-white/5"
         >
           <%= case @editing do %>
+            <% :new_mega_prompt -> %>
+              <h2 class="text-base font-medium mb-4 text-gray-900 dark:text-white">
+                New mega prompt
+              </h2>
+              <.form for={@edit_form} phx-submit="save_new_mega_prompt" class="space-y-3">
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Domain
+                  </label>
+                  <select
+                    name="mega_prompt[domain]"
+                    class="w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 dark:bg-white/5 dark:text-white dark:outline-white/10"
+                  >
+                    <option
+                      :for={d <- @mega_prompt_domains}
+                      value={d}
+                      selected={@edit_form[:domain].value == d}
+                    >
+                      {d}
+                    </option>
+                  </select>
+                </div>
+                <.text_field label="Name" name="mega_prompt[name]" form={@edit_form} field={:name} />
+                <.textarea_field
+                  label="Meta prompt"
+                  name="mega_prompt[meta_prompt]"
+                  form={@edit_form}
+                  field={:meta_prompt}
+                />
+                <.form_buttons />
+              </.form>
             <% {:mega_prompt, mp} -> %>
               <h2 class="text-base font-medium mb-4 text-gray-900 dark:text-white">
                 Edit mega prompt — {mp.domain}
@@ -359,7 +430,12 @@ defmodule FlorinaWeb.Admin.ConfigLive do
         </div>
 
         <%!-- Mega prompts --%>
-        <.section_header title={"Mega prompts (#{length(@mega_prompts)})"} />
+        <.section_header title={"Mega prompts (#{length(@mega_prompts)})"}>
+          <button
+            phx-click="new_mega_prompt"
+            class="text-xs font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400"
+          >+ New mega prompt</button>
+        </.section_header>
         <.config_table rows={@mega_prompts} event="edit_mega_prompt">
           <:col label="Domain"></:col>
           <:col label="Name"></:col>

@@ -63,6 +63,60 @@ defmodule Florina.CentralConfig do
     |> Repo.insert()
   end
 
+  @doc """
+  Create a new mega prompt for a domain and make it the ACTIVE canonical one.
+
+  The version is auto-assigned (next after the domain's current highest) and any
+  currently-active prompt for the same domain is stepped down to inactive, so the
+  one-active-per-domain rule always holds and the caller never manages versions.
+  Runs in a transaction (a failed insert rolls the deactivation back). `attrs` needs
+  `domain`, `name`, `meta_prompt`. Returns `{:ok, mega_prompt}`,
+  `{:error, :invalid_domain}`, or `{:error, changeset}`.
+  """
+  def create_and_activate_mega_prompt(attrs) when is_map(attrs) do
+    attrs = Map.new(attrs, fn {k, v} -> {to_string(k), v} end)
+
+    with {:ok, domain} <- fetch_domain(attrs["domain"]) do
+      Repo.transaction(fn ->
+        # Step the current active prompt for this domain down to inactive so the
+        # new one can be the single active version.
+        from(m in MegaPrompt, where: m.domain == ^domain and m.is_active == true)
+        |> Repo.update_all(set: [is_active: false])
+
+        next_version =
+          (Repo.aggregate(from(m in MegaPrompt, where: m.domain == ^domain), :max, :version) || 0) +
+            1
+
+        attrs = attrs |> Map.put("is_active", true) |> Map.put("version", next_version)
+
+        case %MegaPrompt{} |> MegaPrompt.changeset(attrs) |> Repo.insert() do
+          {:ok, mp} -> mp
+          {:error, cs} -> Repo.rollback(cs)
+        end
+      end)
+    end
+  end
+
+  # Resolve a domain param (string from a form, or atom) to the enum atom, or
+  # {:error, :invalid_domain} for anything not in the allowed set.
+  defp fetch_domain(raw) do
+    values = Florina.Enums.mega_prompt_domain_values()
+
+    cond do
+      is_atom(raw) and Keyword.has_key?(values, raw) ->
+        {:ok, raw}
+
+      is_binary(raw) ->
+        case Enum.find(values, fn {_atom, value} -> value == raw end) do
+          {atom, _value} -> {:ok, atom}
+          nil -> {:error, :invalid_domain}
+        end
+
+      true ->
+        {:error, :invalid_domain}
+    end
+  end
+
   def update_mega_prompt(%MegaPrompt{} = mp, attrs) do
     mp
     |> MegaPrompt.changeset(attrs)
