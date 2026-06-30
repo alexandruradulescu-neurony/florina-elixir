@@ -1,19 +1,19 @@
 <Layouts.app flash={@flash}>
   <div class="mx-auto max-w-2xl py-16 text-center sm:py-24">
-    <span class="inline-flex items-center rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+    <span class="inline-flex items-center rounded-full bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-400">
       AI sales assistant
     </span>
-    <h1 class="mt-6 text-4xl font-bold tracking-tight text-balance text-base-content sm:text-5xl">
+    <h1 class="mt-6 text-4xl font-bold tracking-tight text-balance text-gray-900 sm:text-5xl dark:text-white">
       Your reps, prepared for every call.
     </h1>
-    <p class="mt-6 text-lg leading-8 text-base-content/70">
+    <p class="mt-6 text-lg leading-8 text-gray-600 dark:text-gray-300">
       Florina briefs your team before each meeting, places the pre- and post-call calls,
       captures the debrief, and keeps your CRM in sync — so nothing slips between the cracks.
     </p>
     <div class="mt-10 flex items-center justify-center">
       <.link
         navigate={~p"/login"}
-        class="inline-flex items-center justify-center rounded-md bg-primary px-6 py-2.5 text-sm font-semibold text-primary-content shadow-sm hover:bg-primary/90"
+        class="inline-flex items-center justify-center rounded-md bg-indigo-600 px-6 py-2.5 text-sm font-semibold text-white shadow-xs hover:bg-indigo-500 dark:bg-indigo-500 dark:hover:bg-indigo-400"
       >
         Log in
       </.link>
@@ -22,40 +22,54 @@
 
   <div class="mx-auto max-w-5xl pb-16">
     <div class="grid grid-cols-1 gap-6 sm:grid-cols-3">
-      <div class="rounded-lg border border-base-300 bg-base-100 p-6">
-        <div class="flex size-10 items-center justify-center rounded-lg bg-primary/10">
-          <.icon name="hero-phone" class="size-5 text-primary" />
+      <div class="rounded-lg border border-gray-200 bg-white p-6 dark:border-white/10 dark:bg-white/5">
+        <div class="flex size-10 items-center justify-center rounded-lg bg-indigo-50 dark:bg-indigo-500/10">
+          <.icon name="hero-phone" class="size-5 text-indigo-600 dark:text-indigo-400" />
         </div>
-        <h3 class="mt-4 text-base font-semibold text-base-content">Automated calls</h3>
-        <p class="mt-2 text-sm leading-6 text-base-content/70">
+        <h3 class="mt-4 text-base font-semibold text-gray-900 dark:text-white">
+          Automated calls
+        </h3>
+        <p class="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300">
           Pre- and post-meeting calls placed automatically, each with a tailored brief for the rep.
         </p>
       </div>
 
-      <div class="rounded-lg border border-base-300 bg-base-100 p-6">
-        <div class="flex size-10 items-center justify-center rounded-lg bg-primary/10">
-          <.icon name="hero-calendar" class="size-5 text-primary" />
+      <div class="rounded-lg border border-gray-200 bg-white p-6 dark:border-white/10 dark:bg-white/5">
+        <div class="flex size-10 items-center justify-center rounded-lg bg-indigo-50 dark:bg-indigo-500/10">
+          <.icon name="hero-calendar" class="size-5 text-indigo-600 dark:text-indigo-400" />
         </div>
-        <h3 class="mt-4 text-base font-semibold text-base-content">Merged calendar</h3>
-        <p class="mt-2 text-sm leading-6 text-base-content/70">
+        <h3 class="mt-4 text-base font-semibold text-gray-900 dark:text-white">
+          Merged calendar
+        </h3>
+        <p class="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300">
           Every rep's meetings in one view, synced from both Google Workspace and Microsoft 365.
         </p>
       </div>
 
-      <div class="rounded-lg border border-base-300 bg-base-100 p-6">
-        <div class="flex size-10 items-center justify-center rounded-lg bg-primary/10">
-          <.icon name="hero-chat-bubble-left-right" class="size-5 text-primary" />
+      <div class="rounded-lg border border-gray-200 bg-white p-6 dark:border-white/10 dark:bg-white/5">
+        <div class="flex size-10 items-center justify-center rounded-lg bg-indigo-50 dark:bg-indigo-500/10">
+          <.icon
+            name="hero-chat-bubble-left-right"
+            class="size-5 text-indigo-600 dark:text-indigo-400"
+          />
         </div>
-        <h3 class="mt-4 text-base font-semibold text-base-content">Grounded assistant</h3>
-        <p class="mt-2 text-sm leading-6 text-base-content/70">
+        <h3 class="mt-4 text-base font-semibold text-gray-900 dark:text-white">
+          Grounded assistant
+        </h3>
+        <p class="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300">
           Ask anything about your clients, visits and calls — answered from your own data.
         </p>
       </div>
     </div>
 
-    <p class="mt-12 text-center text-sm text-base-content/50">
+    <p class="mt-12 text-center text-sm text-gray-500 dark:text-gray-400">
       Already set up?
-      <.link navigate={~p"/login"} class="font-medium text-primary hover:underline">Log in</.link>
+      <.link
+        navigate={~p"/login"}
+        class="font-medium text-indigo-600 hover:underline dark:text-indigo-400"
+      >
+        Log in
+      </.link>
       with your company Google or Microsoft account.
     </p>
   </div>

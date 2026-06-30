@@ -1,12 +1,12 @@
 <Layouts.app flash={@flash}>
   <div class="flex items-center justify-center">
     <div class="w-full max-w-sm">
-      <div class="bg-white border rounded-lg px-8 py-10 shadow-sm">
-        <h1 class="text-xl font-semibold text-gray-900 mb-2">Operator Login</h1>
-        <p class="text-sm text-gray-500 mb-6">Florina admin area</p>
+      <div class="rounded-lg border border-gray-200 bg-white px-8 py-10 shadow-sm dark:border-white/10 dark:bg-white/5">
+        <h1 class="mb-2 text-xl font-semibold text-gray-900 dark:text-white">Operator Login</h1>
+        <p class="mb-6 text-sm text-gray-500 dark:text-gray-400">Florina admin area</p>
 
         <%= if @error do %>
-          <div class="mb-4 px-3 py-2 rounded bg-red-50 border border-red-200 text-sm text-red-700">
+          <div class="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-400">
             {@error}
           </div>
         <% end %>
@@ -15,7 +15,10 @@
           <input type="hidden" name="_csrf_token" value={Phoenix.Controller.get_csrf_token()} />
 
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1" for="admin_email">
+            <label
+              class="mb-1 block text-sm/6 font-medium text-gray-900 dark:text-white"
+              for="admin_email"
+            >
               Email
             </label>
             <input
@@ -24,12 +27,15 @@
               name="admin[email]"
               autocomplete="email"
               required
-              class="w-full border rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+              class="w-full rounded-md bg-white px-3 py-1.5 text-sm text-gray-900 outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:focus:outline-indigo-500"
             />
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1" for="admin_password">
+            <label
+              class="mb-1 block text-sm/6 font-medium text-gray-900 dark:text-white"
+              for="admin_password"
+            >
               Password
             </label>
             <input
@@ -38,13 +44,13 @@
               name="admin[password]"
               autocomplete="current-password"
               required
-              class="w-full border rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+              class="w-full rounded-md bg-white px-3 py-1.5 text-sm text-gray-900 outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:focus:outline-indigo-500"
             />
           </div>
 
           <button
             type="submit"
-            class="w-full px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            class="inline-flex w-full items-center justify-center gap-2 rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-xs hover:bg-indigo-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 dark:bg-indigo-500 dark:hover:bg-indigo-400 dark:focus-visible:outline-indigo-500"
           >
             Sign in
           </button>
