@@ -1,13 +1,59 @@
 # Slice — Multi-Tenant Database Foundation (Elixir/Phoenix)
 
 **Date:** 2026-06-24
-**Status:** Draft for review
+**Status:** ⚠️ SUPERSEDED — the foundation shipped with a **different architecture** than this draft proposed (schema-per-tenant, **not** database-per-tenant). This document is kept as the historical record of the original plan; the **"Implementation update"** section immediately below describes what was actually built, and why we hand-rolled it instead of using the Triplex library.
 **Repo:** `florina-elixir` (the Elixir port)
 **Relationship:** Implements, in Phoenix/Ecto, the tenant-isolation contract defined for the
 Django app in [2026-06-24-multitenancy-database-per-tenant-design.md](2026-06-24-multitenancy-database-per-tenant-design.md)
 (Track 1). It is the foundation the realtime slices
 ([voice edge](2026-06-24-voice-call-realtime-edge-slice-design.md),
 [live agent chat](2026-06-24-live-agent-chat-slice-design.md)) will later sit on.
+
+---
+
+## Implementation update (2026-06-30)
+
+This slice was specced as **database-per-tenant via Ecto dynamic repositories** (a separate
+physical database per customer, with a connection manager pinning a per-tenant pool). What
+was **built and deployed to production** is **schema-per-tenant** instead. The rest of this
+document (Approach, Architecture, Data flow, Components, gotchas) describes the *original*
+plan and is retained for history; the current system works as follows:
+
+- **One database, one web connection pool** (`Florina.Repo`) — plus a second pool for Oban
+  background jobs so job load can't starve web requests. Each tenant's data lives in its own
+  Postgres **schema** named `tenant_<id>`, keyed by the tenant's **immutable id** (so a slug
+  rename never moves data). There are no per-tenant databases and no connection manager.
+- **`Florina.TenantRepo` is not a dynamic repo** — it is a thin **fail-closed proxy**. It
+  reads the current schema from `Process.get(:tenant_prefix)`, **raises if none is set**
+  (never silently falling back to the control-plane/`public` schema), and forwards every
+  call to `Florina.Repo` with `prefix:` injected.
+- **Resolution is path-based** (`/t/:slug/...`, subdomain as fallback). `ResolveTenant` pins
+  the prefix and **clears it in a `before_send`** — this resolves the "pin not reset across
+  reused processes" gotcha flagged at the bottom of this draft. LiveView (`TenantHook`) and
+  Oban (`Workers.Tenant`) pin within their own per-process contexts.
+- Tenant schemas are created + migrated explicitly (`Florina.Tenants.Migrator` and
+  `BootMigrator` on deploy) via `Ecto.Migrator.run(..., prefix: "tenant_<id>")`, each schema
+  tracking its own `schema_migrations`.
+
+**Why it changed from this draft:** the original "physically separate database per tenant"
+requirement was relaxed. Pre-launch, with no production tenant data, the operational cost of
+many databases (pools, credentials, backups, migrations × N) outweighed its benefit over
+schema isolation, which gives strong separation inside one database at far lower cost.
+
+**Why we hand-rolled it instead of the Triplex library** (the standard Elixir
+schema-multitenancy package, which implements this exact model):
+
+- Triplex applies the tenant **per query** — you must pass `prefix: Triplex.to_prefix(t)` on
+  every call — and has **no global enforcement**, so a *forgotten* prefix silently reads the
+  default/`public` schema (**fail-open**). `TenantRepo` instead **fails closed** (raises) and
+  **auto-injects** the prefix from the pinned process value at audited chokepoints, so
+  ordinary app code (`TenantRepo.all(query)`) can't accidentally cross tenants.
+- Triplex is **dormant** — last release v1.3.0, May 2019 — with no stated support for the
+  Ecto 3.13 line this app runs on. A ~100-line proxy we fully control gave a *stronger*
+  isolation guarantee than adopting an unmaintained dependency.
+
+Living reference: `Florina.TenantRepo`, `Florina.Tenants` (`with_prefix/2`,
+`schema_prefix/1`), `Florina.Tenants.Migrator`, `FlorinaWeb.Plugs.ResolveTenant`.
 
 ---
 
