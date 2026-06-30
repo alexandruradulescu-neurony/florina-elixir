@@ -201,6 +201,71 @@ defmodule Florina.Visits do
     |> TenantRepo.all()
   end
 
+  @doc """
+  Visits for the manager meetings board, soonest-first, with agent, client,
+  methodology and call_attempts preloaded (the board derives per-meeting pre/post
+  call status from the attempts).
+
+  `filters` is a string-keyed map from the board's filter form:
+
+    * `"range"`  — `"today"`, `"week"` (default), or `"all"`
+    * `"agent_id"` — restrict to one agent (blank = all)
+    * `"status"` — a visit-status value string (blank = all)
+    * `"florina"` — `"on"` / `"off"` for `calls_enabled` (blank = all)
+
+  Capped at 300 rows so an unbounded `"all"` can't fetch the whole table.
+  """
+  def list_for_manager_board(filters) when is_map(filters) do
+    from(v in Visit,
+      preload: [:agent, :client, :methodology, :call_attempts],
+      order_by: [asc: :start_time],
+      limit: 300
+    )
+    |> board_range(filters["range"])
+    |> board_agent(filters["agent_id"])
+    |> board_status(filters["status"])
+    |> board_florina(filters["florina"])
+    |> TenantRepo.all()
+  end
+
+  defp board_range(q, "all"), do: q
+
+  defp board_range(q, "today") do
+    {s, e} = Florina.Tz.day_bounds(Florina.Tz.today())
+    from(v in q, where: v.start_time >= ^s and v.start_time <= ^e)
+  end
+
+  # Default range: the current Mon–Sun week.
+  defp board_range(q, _week) do
+    today = Florina.Tz.today()
+    {s, _} = Florina.Tz.day_bounds(Date.beginning_of_week(today))
+    {_, e} = Florina.Tz.day_bounds(Date.end_of_week(today))
+    from(v in q, where: v.start_time >= ^s and v.start_time <= ^e)
+  end
+
+  defp board_agent(q, id) when is_binary(id) and id != "" do
+    case Integer.parse(id) do
+      {agent_id, ""} -> from(v in q, where: v.agent_id == ^agent_id)
+      _ -> q
+    end
+  end
+
+  defp board_agent(q, _), do: q
+
+  # A tampered/unknown status value drops the filter rather than crashing.
+  defp board_status(q, status) when is_binary(status) and status != "" do
+    atom = String.to_existing_atom(status)
+    from(v in q, where: v.status == ^atom)
+  rescue
+    ArgumentError -> q
+  end
+
+  defp board_status(q, _), do: q
+
+  defp board_florina(q, "on"), do: from(v in q, where: v.calls_enabled == true)
+  defp board_florina(q, "off"), do: from(v in q, where: v.calls_enabled == false)
+  defp board_florina(q, _), do: q
+
   # ---------------------------------------------------------------------------
   # Effective-methodology lookup
   # ---------------------------------------------------------------------------
