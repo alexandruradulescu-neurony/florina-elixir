@@ -204,7 +204,12 @@ defmodule Florina.Calls do
 
   defp maybe_bind_external_id(attrs, _ca, _conv_id), do: attrs
 
-  @terminal_statuses ~w(COMPLETED FAILED NO_ANSWER)
+  # Only a COMPLETED call is FROZEN: a late or duplicate payload (often statusless
+  # and transcriptless) must never regress a success to FAILED — that would corrupt
+  # stats and re-open the visit to dialing past the cap. A call that first looked
+  # FAILED/NO_ANSWER is NOT frozen, so a later transcript/DONE webhook can still
+  # upgrade it to COMPLETED (and trigger the post-call pipeline).
+  @frozen_statuses ~w(COMPLETED)
 
   @doc """
   Interpret a raw ElevenLabs conversation payload into the `CallAttempt` fields to
@@ -212,10 +217,8 @@ defmodule Florina.Calls do
   BOTH the webhook path (`apply_elevenlabs_webhook/2`) and the polling fallback
   (`Florina.Workers.SyncPendingCalls`) so the two interpretations can't drift.
 
-  `existing_status` freezes a call that already reached a terminal state: a late
-  or duplicate payload (often statusless and transcriptless) must NOT regress a
-  COMPLETED call to FAILED — that would corrupt stats and re-open the visit to
-  dialing past the cap. Transcript/summary may still be backfilled.
+  `existing_status` freezes a COMPLETED call so a late/duplicate payload can't
+  un-complete it; transcript/summary may still be backfilled.
   """
   def interpret_conversation(data, existing_status \\ nil) when is_map(data) do
     transcript = extract_transcript(data["transcript"] || data["conversation_transcript"])
@@ -224,7 +227,7 @@ defmodule Florina.Calls do
       get_in(data, ["analysis", "transcript_summary"]) || get_in(data, ["analysis", "summary"])
 
     status =
-      if terminal_status?(existing_status),
+      if frozen_status?(existing_status),
         do: existing_status,
         else: map_status(data["status"] || data["call_status"], transcript)
 
@@ -233,7 +236,7 @@ defmodule Florina.Calls do
     |> maybe_put(:summary, summary)
   end
 
-  defp terminal_status?(status), do: status in @terminal_statuses
+  defp frozen_status?(status), do: status in @frozen_statuses
 
   # ElevenLabs status -> our CallStatus. "DONE" or a present transcript => COMPLETED.
   defp map_status(status, transcript) do

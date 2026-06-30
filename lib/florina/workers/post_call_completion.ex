@@ -73,10 +73,11 @@ defmodule Florina.Workers.PostCallCompletion do
         :ok
 
       %{status: :COMPLETE} = visit ->
-        Logger.info(
-          "[PostCallCompletion] visit=#{visit.id} already COMPLETE — skipping reprocess"
-        )
-
+        # Already fully processed — don't re-run the pipeline. But a CRM push that
+        # failed on a prior run leaves crm_synced false, so give it one more
+        # best-effort try (maybe_sync_crm is a no-op once crm_synced is true).
+        Logger.info("[PostCallCompletion] visit=#{visit.id} already COMPLETE — retrying CRM only")
+        maybe_sync_crm(visit)
         :ok
 
       visit ->
@@ -93,7 +94,13 @@ defmodule Florina.Workers.PostCallCompletion do
             # visit in its prior status so it can be retried/inspected, not be
             # silently stamped done.
             if run.success and
-                 updated_visit.status in [:POST_CALL_DONE, :PRE_CALL_DONE, :IN_PROGRESS, :PLANNED] do
+                 updated_visit.status in [
+                   :POST_CALL_DONE,
+                   :PRE_CALL_DONE,
+                   :IN_PROGRESS,
+                   :PLANNED,
+                   :MISSED
+                 ] do
               case Visits.update(updated_visit, %{status: :COMPLETE}) do
                 {:ok, _v} ->
                   Logger.info("[PostCallCompletion] visit=#{visit.id} marked COMPLETE")
@@ -113,9 +120,9 @@ defmodule Florina.Workers.PostCallCompletion do
 
             # Best-effort: push the debrief summary to the client's CRM deal. This
             # is independent of the prompt-generation run above — the summary (from
-            # the call itself) is the payload, so it ships even if generation
-            # failed. Re-fetch to read the freshest summary/flag.
-            maybe_sync_crm(Visits.get!(visit.id))
+            # the call itself) is the payload, so it ships even if generation failed.
+            # updated_visit already carries the stored summary + crm_deal_id.
+            maybe_sync_crm(updated_visit)
 
             :ok
 

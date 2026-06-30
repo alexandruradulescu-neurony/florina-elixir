@@ -163,8 +163,10 @@ defmodule Florina.Workers.DialCall do
 
               :invalid ->
                 # The calendar moved the meeting to a time we couldn't apply (e.g.
-                # end at/before start). Don't dial against the stale pre-move time.
-                :mistimed
+                # end at/before start). A scheduled dial skips (don't dial a stale
+                # time); a MANUAL dial is an explicit human request, so it proceeds
+                # against the existing visit time rather than being silently dropped.
+                if manual, do: {:ok, visit}, else: :mistimed
             end
 
           {:error, _reason} ->

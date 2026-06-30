@@ -54,9 +54,19 @@ defmodule Florina.Accounts do
   end
 
   @doc "Gets a user by ID. Returns `nil` if not found."
-  def get_user(id) do
-    TenantRepo.get(User, id)
+  def get_user(id) when is_integer(id), do: TenantRepo.get(User, id)
+
+  # `id` often arrives as a string straight from a LiveView event/URL param. Parse
+  # it instead of handing a non-integer to the bigint PK lookup (which would raise
+  # an Ecto cast error and crash the caller); a non-numeric id is simply "no user".
+  def get_user(id) when is_binary(id) do
+    case Integer.parse(id) do
+      {n, ""} -> TenantRepo.get(User, n)
+      _ -> nil
+    end
   end
+
+  def get_user(_), do: nil
 
   # ---------------------------------------------------------------------------
   # Mutations
