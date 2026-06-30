@@ -60,6 +60,9 @@
   --font-sans: "Nunito", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-tile: "Nunito Sans", "Nunito", system-ui, sans-serif;
 
+  /* Cards use a generous 16px corner (editorial). rounded-lg → 16px. */
+  --radius-lg: 1rem;
+
   /* Neutral scale remapped to Zinc — the editorial canvas/surface palette.
      Existing gray-* utilities render as zinc. */
   --color-gray-50: rgb(250 250 250);

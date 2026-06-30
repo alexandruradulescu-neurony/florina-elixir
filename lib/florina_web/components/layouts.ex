@@ -117,7 +117,7 @@ defmodule FlorinaWeb.Layouts do
               class="flex items-center gap-x-2"
             >
               <span class="sr-only">Open user menu</span>
-              <span class="flex size-8 items-center justify-center rounded-full bg-gray-100 text-sm font-medium text-gray-700 dark:bg-white/10 dark:text-white">
+              <span class="flex size-8 items-center justify-center rounded-full bg-indigo-500 text-sm font-bold text-white">
                 {agent_initial(@current_agent)}
               </span>
               <span class="hidden lg:flex lg:items-center">
@@ -300,7 +300,7 @@ defmodule FlorinaWeb.Layouts do
         navigate={@href}
         class={[
           "group flex gap-x-3 rounded-full p-2 text-sm/6 font-bold",
-          (@active && "bg-zinc-950 text-white dark:bg-white dark:text-zinc-950") ||
+          (@active && "bg-zinc-950 text-white dark:bg-indigo-600") ||
             "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/5"
         ]}
       >
@@ -308,7 +308,7 @@ defmodule FlorinaWeb.Layouts do
           name={@icon}
           class={[
             "size-6 shrink-0",
-            (@active && "text-white dark:text-zinc-950") ||
+            (@active && "text-white") ||
               "text-gray-400 dark:text-gray-500"
           ]}
         />
