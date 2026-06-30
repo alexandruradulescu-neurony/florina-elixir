@@ -10,11 +10,7 @@ isolated codebase from the live Django app (`neurony/florina`). It grows via a
 **strangler-fig** strategy: move the product across one slice at a time, never a big-bang
 rewrite. The first real slice will be the **realtime features** (voice calls + live agent chat).
 
-Design specs and prep notes live in `docs/superpowers/` — read them before substantial work:
-
-- `specs/2026-06-24-elixir-phoenix-port-design.md` — this port (Track 2)
-- `specs/2026-06-24-multitenancy-database-per-tenant-design.md` — the tenant-isolation contract to honour (Track 1)
-- `notes/2026-06-24-voice-slice-and-multitenancy-prep.md` — options for the next phase
+The current architecture reference is `docs/APPLICATION-SPEC.md` — read it before substantial work.
 
 ## Safety
 
