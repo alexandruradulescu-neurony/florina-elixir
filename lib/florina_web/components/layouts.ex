@@ -299,7 +299,7 @@ defmodule FlorinaWeb.Layouts do
       <.link
         navigate={@href}
         class={[
-          "group flex gap-x-3 rounded-full p-2 text-sm/6 font-bold",
+          "group flex gap-x-3 rounded-md p-2 text-sm/6 font-bold",
           (@active && "bg-zinc-950 text-white dark:bg-indigo-600") ||
             "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/5"
         ]}
