@@ -1,8 +1,8 @@
 defmodule Florina.Tenants.Marker do
   @moduledoc """
-  Throwaway proof-of-isolation table; one of these lives in EACH tenant
-  database. Used by the leakage test and the /whoami diagnostic page.
-  Remove once real per-tenant consumers are wired.
+  Proof-of-isolation table; one of these lives in each tenant schema. Used by
+  the leakage test to confirm a query pinned to one tenant cannot read another
+  tenant's row.
   """
   use Ecto.Schema
 
