@@ -103,6 +103,7 @@ defmodule FlorinaWeb.AgentTodayLive do
   defp status_label(:COMPLETE), do: "Complete"
   defp status_label(:CANCELLED), do: "Cancelled"
   defp status_label(:MISSED), do: "Missed"
+  defp status_label(:ARCHIVED), do: "Archived"
   defp status_label(other), do: to_string(other)
 
   defp status_tone(:COMPLETE),
@@ -111,7 +112,7 @@ defmodule FlorinaWeb.AgentTodayLive do
   defp status_tone(:IN_PROGRESS),
     do: "bg-blue-100 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400"
 
-  defp status_tone(s) when s in [:CANCELLED, :MISSED],
+  defp status_tone(s) when s in [:CANCELLED, :MISSED, :ARCHIVED],
     do: "bg-gray-100 text-gray-400 line-through dark:bg-white/5 dark:text-gray-500"
 
   defp status_tone(_), do: "bg-gray-100 text-gray-600 dark:bg-white/10 dark:text-gray-300"

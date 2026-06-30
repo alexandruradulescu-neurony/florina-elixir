@@ -38,7 +38,11 @@ defmodule Florina.Enums do
       # Meeting removed/cancelled on the calendar — excluded from call scheduling.
       CANCELLED: "CANCELLED",
       # Meeting time passed without ever being handled (no calls ran) — auto-set.
-      MISSED: "MISSED"
+      MISSED: "MISSED",
+      # Calls-disabled meeting whose time has passed — quietly retired so it drops
+      # off the active calendar WITHOUT the (wrong) "Missed" label. Auto-set by the
+      # scan worker; the mirror of :MISSED for the calls_enabled == false case.
+      ARCHIVED: "ARCHIVED"
     ]
 
   @doc "Client relationship status — stored in Romanian (\"nou\"/\"existent\")."

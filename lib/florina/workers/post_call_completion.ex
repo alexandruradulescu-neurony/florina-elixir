@@ -99,7 +99,8 @@ defmodule Florina.Workers.PostCallCompletion do
                    :PRE_CALL_DONE,
                    :IN_PROGRESS,
                    :PLANNED,
-                   :MISSED
+                   :MISSED,
+                   :ARCHIVED
                  ] do
               case Visits.update(updated_visit, %{status: :COMPLETE}) do
                 {:ok, _v} ->

@@ -171,14 +171,15 @@ defmodule Florina.Visits do
 
   @doc """
   Active visits whose `start_time` falls within `[from_dt, to_dt]`, every agent,
-  ascending, with agent + client preloaded. Cancelled visits are excluded.
-  Powers the manager calendar (client meetings only, not raw calendar events).
+  ascending, with agent + client preloaded. Retired visits (cancelled, missed, or
+  archived) are excluded. Powers the manager calendar (client meetings only, not
+  raw calendar events).
   """
   def list_in_range(%DateTime{} = from_dt, %DateTime{} = to_dt) do
     from(v in Visit,
       where:
         v.start_time >= ^from_dt and v.start_time <= ^to_dt and
-          v.status not in [:CANCELLED, :MISSED],
+          v.status not in [:CANCELLED, :MISSED, :ARCHIVED],
       preload: [:agent, :client, :call_attempts],
       order_by: [asc: :start_time]
     )

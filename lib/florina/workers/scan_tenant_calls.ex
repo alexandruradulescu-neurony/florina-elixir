@@ -50,10 +50,11 @@ defmodule Florina.Workers.ScanTenantCalls do
       pre_enqueued = scan_pre_calls(now, half_window, slug, settings)
       post_enqueued = scan_post_calls(now, half_window, slug, settings)
       missed = mark_missed(now)
+      archived = mark_archived(now)
 
       Logger.info(
         "[ScanTenantCalls] tenant=#{slug} pre=#{pre_enqueued} post=#{post_enqueued} " <>
-          "missed=#{missed} enqueued"
+          "missed=#{missed} archived=#{archived} enqueued"
       )
 
       :ok
@@ -159,22 +160,30 @@ defmodule Florina.Workers.ScanTenantCalls do
   # (still PLANNED/PRE_CALL_DONE/IN_PROGRESS) as :MISSED, so they drop out of
   # scheduling and the calendar instead of lingering as "Planned" forever.
   #
-  # Only call-ENABLED visits are retired: a meeting a manager deliberately turned
-  # calls off for was never going to be dialed, so labeling it "Missed" would be
-  # wrong — it is left untouched in its current status.
-  defp mark_missed(now) do
+  # Only call-ENABLED visits become :MISSED. A meeting a manager deliberately
+  # turned calls off for was never going to be dialed, so "Missed" would be the
+  # wrong label — those are retired to :ARCHIVED instead (mark_archived/1).
+  defp mark_missed(now), do: retire_stale(now, true, :MISSED)
+
+  # The mirror of mark_missed/1 for calls-DISABLED visits: a meeting whose time
+  # has passed with calls switched off is quietly retired to :ARCHIVED, so it
+  # drops off the active calendar without the (wrong) "Missed" label.
+  defp mark_archived(now), do: retire_stale(now, false, :ARCHIVED)
+
+  # Retire stale, never-handled past visits to `target_status`, selected by
+  # whether calls were enabled. A visit that was actually called must never be
+  # retired: the correlated subquery excludes any visit with a CallAttempt that
+  # was placed/active/completed (status NOT a pure FAILED/NO_ANSWER non-call).
+  defp retire_stale(now, calls_enabled, target_status) do
     cutoff = DateTime.add(now, -@missed_grace_minutes * 60, :second)
     stamp = DateTime.truncate(now, :second)
 
-    # A visit that was actually called must never be marked MISSED. Exclude any
-    # visit that has a CallAttempt that was placed/active/completed (i.e. whose
-    # status is NOT a pure FAILED/NO_ANSWER non-call), via a correlated subquery.
     {count, _} =
       from(v in Visit,
         as: :visit,
         where:
           v.status in ^[:PLANNED, :PRE_CALL_DONE, :IN_PROGRESS] and v.end_time < ^cutoff and
-            v.calls_enabled == true,
+            v.calls_enabled == ^calls_enabled,
         where:
           not exists(
             from(ca in CallAttempt,
@@ -184,7 +193,7 @@ defmodule Florina.Workers.ScanTenantCalls do
             )
           )
       )
-      |> TenantRepo.update_all(set: [status: :MISSED, updated_at: stamp])
+      |> TenantRepo.update_all(set: [status: target_status, updated_at: stamp])
 
     count
   end

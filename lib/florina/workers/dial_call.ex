@@ -90,6 +90,14 @@ defmodule Florina.Workers.DialCall do
     :ok
   end
 
+  # An :ARCHIVED visit (calls were disabled, the time passed) is likewise retired
+  # for the AUTOMATIC scheduler; a manual trigger is an explicit override and
+  # falls through to the general clause below.
+  defp do_dial(%Visit{status: :ARCHIVED} = visit, phase, _tenant_slug, false) do
+    Logger.info("[DialCall] visit=#{visit.id} phase=#{phase} status=ARCHIVED retired — skip")
+    :ok
+  end
+
   defp do_dial(visit, phase, _tenant_slug, manual) do
     case check_calendar_freshness(visit, phase, manual) do
       :cancelled ->

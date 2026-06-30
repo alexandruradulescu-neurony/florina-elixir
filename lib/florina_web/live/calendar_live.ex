@@ -789,7 +789,7 @@ defmodule FlorinaWeb.CalendarLive do
 
   defp ev_color(%{status: :COMPLETE}), do: ev_palette(:green)
   defp ev_color(%{status: :IN_PROGRESS}), do: ev_palette(:indigo)
-  defp ev_color(%{status: s}) when s in [:MISSED, :CANCELLED], do: ev_palette(:gray)
+  defp ev_color(%{status: s}) when s in [:MISSED, :CANCELLED, :ARCHIVED], do: ev_palette(:gray)
   defp ev_color(_), do: ev_palette(:blue)
 
   defp ev_palette(:blue),
