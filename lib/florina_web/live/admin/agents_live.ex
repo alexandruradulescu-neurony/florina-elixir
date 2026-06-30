@@ -73,24 +73,22 @@ defmodule FlorinaWeb.Admin.AgentsLive do
     ~H"""
     <Layouts.app flash={@flash}>
       <div class="max-w-4xl mx-auto">
-        <div class="flex items-center justify-between mb-6">
-          <div>
-            <h1 class="text-2xl font-semibold text-gray-900 dark:text-white">
-              Agents — {@tenant.name}
-            </h1>
-            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              <a href="/admin" class="hover:underline">Admin</a>
-              &rsaquo; <a href="/admin/tenants" class="hover:underline">Tenants</a>
-              &rsaquo; {@tenant.slug}
-            </p>
-          </div>
-          <a
-            href="/admin/tenants"
-            class="px-3 py-1.5 text-sm font-semibold rounded-md bg-white text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:bg-white/10 dark:text-white dark:ring-0 dark:hover:bg-white/20"
-          >
-            Back
-          </a>
-        </div>
+        <.header micro="Operator">
+          Agents — {@tenant.name}
+          <:subtitle>
+            <a href="/admin" class="hover:underline">Admin</a>
+            &rsaquo; <a href="/admin/tenants" class="hover:underline">Tenants</a>
+            &rsaquo; {@tenant.slug}
+          </:subtitle>
+          <:actions>
+            <a
+              href="/admin/tenants"
+              class="px-4 py-1.5 text-sm font-semibold rounded-full bg-white text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:bg-white/10 dark:text-white dark:ring-0 dark:hover:bg-white/20"
+            >
+              Back
+            </a>
+          </:actions>
+        </.header>
 
         <p
           :if={!@provisioned?}
@@ -101,24 +99,24 @@ defmodule FlorinaWeb.Admin.AgentsLive do
 
         <div
           :if={@provisioned?}
-          class="overflow-hidden border border-gray-200 rounded-lg dark:border-white/10"
+          class="overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-white/10 dark:bg-white/5"
         >
-          <table class="w-full text-sm text-left">
-            <thead class="bg-gray-50 text-xs uppercase tracking-wider text-gray-500 dark:bg-white/5 dark:text-gray-400">
+          <table class="w-full text-left">
+            <thead class="border-b border-gray-200 bg-gray-50 dark:border-white/10 dark:bg-white/5">
               <tr>
-                <th class="px-4 py-3 font-semibold">User</th>
-                <th class="px-4 py-3 font-semibold">Email</th>
-                <th class="px-4 py-3 font-semibold">Role</th>
-                <th class="px-4 py-3 font-semibold">Active</th>
+                <th class={th_class()}>User</th>
+                <th class={th_class()}>Email</th>
+                <th class={th_class()}>Role</th>
+                <th class={th_class()}>Active</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-200 dark:divide-white/10">
               <tr :for={u <- @users} class="hover:bg-gray-50 dark:hover:bg-white/5">
-                <td class="px-4 py-3 font-medium text-gray-900 dark:text-white">{u.username}</td>
-                <td class="px-4 py-3 font-mono text-xs text-gray-700 dark:text-gray-300">
+                <td class={[td_class(), "font-bold text-gray-900 dark:text-white"]}>{u.username}</td>
+                <td class={[td_class(), "font-mono text-xs text-gray-700 dark:text-gray-300"]}>
                   {u.email}
                 </td>
-                <td class="px-4 py-3">
+                <td class={td_class()}>
                   <form phx-change="set_role">
                     <input type="hidden" name="user_id" value={u.id} />
                     <select
@@ -130,7 +128,7 @@ defmodule FlorinaWeb.Admin.AgentsLive do
                     </select>
                   </form>
                 </td>
-                <td class="px-4 py-3">
+                <td class={td_class()}>
                   <button
                     phx-click="toggle_active"
                     phx-value-id={u.id}
@@ -146,7 +144,7 @@ defmodule FlorinaWeb.Admin.AgentsLive do
                 </td>
               </tr>
               <tr :if={@users == []}>
-                <td colspan="4" class="px-4 py-6 text-center text-gray-400 text-sm">
+                <td colspan="4" class="px-4 py-10 text-center text-sm text-gray-400">
                   No users yet — they appear here after their first sign-in.
                 </td>
               </tr>

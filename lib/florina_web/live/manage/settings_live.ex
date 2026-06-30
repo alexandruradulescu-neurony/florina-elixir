@@ -81,10 +81,10 @@ defmodule FlorinaWeb.Manage.SettingsLive do
       current_agent={@current_agent}
       active={:settings}
     >
-      <h1 class="text-2xl font-semibold mb-1 text-gray-900 dark:text-white">Settings</h1>
-      <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">
-        System-wide call timing and defaults for this workspace.
-      </p>
+      <.header micro="Manage">
+        Settings
+        <:subtitle>System-wide call timing and defaults for this workspace.</:subtitle>
+      </.header>
 
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <.form
@@ -156,7 +156,9 @@ defmodule FlorinaWeb.Manage.SettingsLive do
       </div>
 
       <div class="mt-12 border-t border-gray-200 dark:border-white/10 pt-8 max-w-xl">
-        <h2 class="text-lg font-semibold text-gray-900 dark:text-white">CRM integration</h2>
+        <h2 class="text-xl font-extrabold tracking-[-0.01em] text-gray-900 dark:text-white">
+          CRM integration
+        </h2>
         <p class="text-sm text-gray-500 dark:text-gray-400 mb-5">
           Choose your CRM, then enter that CRM's credentials below. Florina syncs clients
           from the CRM you select here. A blank token keeps the one already saved.

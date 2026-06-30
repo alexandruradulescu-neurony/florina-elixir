@@ -120,17 +120,22 @@ defmodule FlorinaWeb.Manage.MegaPromptsLive do
       current_agent={@current_agent}
       active={:mega_prompts}
     >
-      <h1 class="text-2xl font-semibold mb-1 text-gray-900 dark:text-white">Mega Prompts</h1>
-      <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">
-        The instructions that tell Claude how to write each call's script. Editing
-        always creates a new version; activating one makes it live for its domain.
-      </p>
+      <.header micro="Manage">
+        Mega Prompts
+        <:subtitle>
+          The instructions that tell Claude how to write each call's script. Editing
+          always creates a new version; activating one makes it live for its domain.
+        </:subtitle>
+      </.header>
 
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div class="space-y-6">
-          <div :for={g <- @groups} class="rounded-lg border border-gray-200 p-4 dark:border-white/10">
+          <div
+            :for={g <- @groups}
+            class="rounded-lg border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-white/5"
+          >
             <div class="flex items-center justify-between mb-2">
-              <h2 class="text-sm font-semibold text-gray-900 dark:text-white">{g.label}</h2>
+              <h2 class="text-sm font-extrabold text-gray-900 dark:text-white">{g.label}</h2>
               <button
                 phx-click="new"
                 phx-value-domain={g.value}
@@ -140,13 +145,13 @@ defmodule FlorinaWeb.Manage.MegaPromptsLive do
               </button>
             </div>
             <table :if={g.versions != []} class="w-full text-left text-xs">
-              <thead class="text-gray-500 dark:text-gray-400">
+              <thead class="text-[10px] font-extrabold uppercase tracking-[0.08em] text-gray-400 dark:text-gray-500">
                 <tr>
-                  <th class="py-1 pr-2 font-medium">Ver</th>
-                  <th class="py-1 pr-2 font-medium">Name</th>
-                  <th class="py-1 pr-2 font-medium">Status</th>
-                  <th class="py-1 pr-2 font-medium">Updated</th>
-                  <th class="py-1 font-medium text-right">Actions</th>
+                  <th class="py-1.5 pr-2">Ver</th>
+                  <th class="py-1.5 pr-2">Name</th>
+                  <th class="py-1.5 pr-2">Status</th>
+                  <th class="py-1.5 pr-2">Updated</th>
+                  <th class="py-1.5 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -189,12 +194,12 @@ defmodule FlorinaWeb.Manage.MegaPromptsLive do
           </div>
         </div>
 
-        <div class="rounded-lg border border-gray-200 p-4 h-fit dark:border-white/10">
+        <div class="h-fit rounded-lg border border-gray-200 bg-white p-6 dark:border-white/10 dark:bg-white/5">
           <div class="flex items-center justify-between mb-1">
-            <h2 class="text-lg font-medium text-gray-900 dark:text-white">
+            <h2 class="text-xl font-extrabold tracking-[-0.01em] text-gray-900 dark:text-white">
               {(@editing && "New version (from v#{@editing.version})") || "New version"}
             </h2>
-            <span class="rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700 dark:bg-white/10 dark:text-gray-200">
+            <span class="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-semibold text-gray-600 dark:bg-white/10 dark:text-gray-300">
               {domain_label(@form_domain)}
             </span>
           </div>

@@ -34,10 +34,10 @@ defmodule FlorinaWeb.Manage.LogsLive do
   def render(assigns) do
     ~H"""
     <Layouts.agent_app flash={@flash} tenant={@tenant} current_agent={@current_agent} active={:logs}>
-      <h1 class="text-2xl font-semibold mb-1 text-gray-900 dark:text-white">Logs</h1>
-      <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">
-        Immutable record of system and user actions.
-      </p>
+      <.header micro="Manage">
+        Logs
+        <:subtitle>Immutable record of system and user actions.</:subtitle>
+      </.header>
 
       <.form for={%{}} as={:filters} phx-change="filter" class="flex flex-wrap items-end gap-3 mb-4">
         <label class="text-sm">
@@ -71,37 +71,39 @@ defmodule FlorinaWeb.Manage.LogsLive do
         </button>
       </.form>
 
-      <div class="overflow-x-auto rounded-lg border border-gray-200 dark:border-white/10">
-        <table class="w-full text-left text-sm">
-          <thead class="bg-gray-50 dark:bg-white/5">
+      <div class="overflow-x-auto rounded-lg border border-gray-200 bg-white dark:border-white/10 dark:bg-white/5">
+        <table class="w-full text-left">
+          <thead class="border-b border-gray-200 bg-gray-50 dark:border-white/10 dark:bg-white/5">
             <tr>
-              <th class="px-3 py-2 font-semibold text-gray-900 dark:text-white">Time</th>
-              <th class="px-3 py-2 font-semibold text-gray-900 dark:text-white">Level</th>
-              <th class="px-3 py-2 font-semibold text-gray-900 dark:text-white">Action</th>
-              <th class="px-3 py-2 font-semibold text-gray-900 dark:text-white">User</th>
-              <th class="px-3 py-2 font-semibold text-gray-900 dark:text-white">Details</th>
+              <th class={th_class()}>Time</th>
+              <th class={th_class()}>Level</th>
+              <th class={th_class()}>Action</th>
+              <th class={th_class()}>User</th>
+              <th class={th_class()}>Details</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody class="divide-y divide-gray-200 dark:divide-white/10">
             <tr :if={@logs == []}>
-              <td colspan="5" class="px-3 py-8 text-center text-gray-400">
+              <td colspan="5" class="px-4 py-10 text-center text-sm text-gray-400">
                 No log entries match these filters.
               </td>
             </tr>
-            <tr :for={log <- @logs} class="border-t border-gray-200 align-top dark:border-white/10">
-              <td class="px-3 py-2 whitespace-nowrap text-gray-600 dark:text-gray-300">
+            <tr :for={log <- @logs} class="hover:bg-gray-50 dark:hover:bg-white/5">
+              <td class={[td_top_class(), "whitespace-nowrap text-gray-600 dark:text-gray-400"]}>
                 {time_label(log.timestamp)}
               </td>
-              <td class="px-3 py-2">
-                <span class={["rounded-full px-2 py-0.5 text-xs font-medium", level_tone(log.level)]}>
+              <td class={td_top_class()}>
+                <span class={["rounded-full px-2 py-0.5 text-xs font-semibold", level_tone(log.level)]}>
                   {log.level}
                 </span>
               </td>
-              <td class="px-3 py-2 font-medium text-gray-900 dark:text-white">{log.action}</td>
-              <td class="px-3 py-2 whitespace-nowrap text-gray-700 dark:text-gray-300">
+              <td class={[td_top_class(), "font-bold text-gray-900 dark:text-white"]}>
+                {log.action}
+              </td>
+              <td class={[td_top_class(), "whitespace-nowrap"]}>
                 {user_label(log.user)}
               </td>
-              <td class="px-3 py-2 max-w-md">
+              <td class={[td_top_class(), "max-w-md"]}>
                 <details :if={is_map(log.details) and map_size(log.details) > 0}>
                   <summary class="cursor-pointer text-gray-500 dark:text-gray-400 text-xs">
                     details

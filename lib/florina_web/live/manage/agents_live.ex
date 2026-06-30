@@ -171,29 +171,31 @@ defmodule FlorinaWeb.Manage.AgentsLive do
       current_agent={@current_agent}
       active={:agents}
     >
-      <h1 class="text-2xl font-semibold mb-1 text-gray-900 dark:text-white">People</h1>
-      <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
-        People appear here after their first sign-in. Managers see everything; agents see only their own.
-      </p>
-      <div class="overflow-hidden border border-gray-200 rounded-lg dark:border-white/10">
-        <table class="w-full text-sm text-left">
-          <thead class="bg-gray-50 text-xs uppercase tracking-wider text-gray-500 dark:bg-white/5 dark:text-gray-400">
+      <.header micro="Manage">
+        People
+        <:subtitle>
+          People appear here after their first sign-in. Managers see everything; agents see only their own.
+        </:subtitle>
+      </.header>
+      <div class="overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-white/10 dark:bg-white/5">
+        <table class="w-full text-left">
+          <thead class="border-b border-gray-200 bg-gray-50 dark:border-white/10 dark:bg-white/5">
             <tr>
-              <th class="px-4 py-3 font-semibold">User</th>
-              <th class="px-4 py-3 font-semibold">Email</th>
-              <th class="px-4 py-3 font-semibold">Phone</th>
-              <th class="px-4 py-3 font-semibold">Role</th>
-              <th class="px-4 py-3 font-semibold">Active</th>
-              <th class="px-4 py-3"><span class="sr-only">Actions</span></th>
+              <th class={th_class()}>User</th>
+              <th class={th_class()}>Email</th>
+              <th class={th_class()}>Phone</th>
+              <th class={th_class()}>Role</th>
+              <th class={th_class()}>Active</th>
+              <th class={th_class()}><span class="sr-only">Actions</span></th>
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-200 dark:divide-white/10">
             <%= for u <- @users do %>
               <tr class="hover:bg-gray-50 dark:hover:bg-white/5">
-                <td class="px-4 py-3 font-medium text-gray-900 dark:text-white">{u.username}</td>
-                <td class="px-4 py-3 text-gray-700 dark:text-gray-300">{u.email}</td>
-                <td class="px-4 py-3 text-gray-700 dark:text-gray-300">{u.phone_number || "—"}</td>
-                <td class="px-4 py-3">
+                <td class={[td_class(), "font-bold text-gray-900 dark:text-white"]}>{u.username}</td>
+                <td class={td_class()}>{u.email}</td>
+                <td class={td_class()}>{u.phone_number || "—"}</td>
+                <td class={td_class()}>
                   <form id={"role-form-#{u.id}"} phx-change="set_role">
                     <input type="hidden" name="user_id" value={u.id} />
                     <select
@@ -205,7 +207,7 @@ defmodule FlorinaWeb.Manage.AgentsLive do
                     </select>
                   </form>
                 </td>
-                <td class="px-4 py-3">
+                <td class={td_class()}>
                   <button
                     phx-click="toggle_active"
                     phx-value-id={u.id}
@@ -219,11 +221,11 @@ defmodule FlorinaWeb.Manage.AgentsLive do
                   </button>
                   <span :if={!u.active} class="ml-2 text-xs text-gray-400">(inactive)</span>
                 </td>
-                <td class="px-4 py-3 text-right">
+                <td class={[td_class(), "text-right"]}>
                   <button
                     phx-click="edit"
                     phx-value-id={u.id}
-                    class="text-xs font-medium text-indigo-600 hover:underline dark:text-indigo-400"
+                    class="text-xs font-bold text-indigo-600 hover:underline dark:text-indigo-400"
                   >
                     Edit
                   </button>
@@ -258,7 +260,7 @@ defmodule FlorinaWeb.Manage.AgentsLive do
               </tr>
             <% end %>
             <tr :if={@users == []}>
-              <td colspan="6" class="px-4 py-6 text-center text-gray-400 text-sm">
+              <td colspan="6" class="px-4 py-10 text-center text-sm text-gray-400">
                 No people yet.
               </td>
             </tr>
@@ -266,8 +268,10 @@ defmodule FlorinaWeb.Manage.AgentsLive do
         </table>
       </div>
 
-      <div class="mt-8 max-w-2xl rounded-lg border border-gray-200 p-5 dark:border-white/10">
-        <h2 class="text-lg font-medium mb-1 text-gray-900 dark:text-white">Add a person</h2>
+      <div class="mt-8 max-w-2xl rounded-lg border border-gray-200 bg-white p-6 dark:border-white/10 dark:bg-white/5">
+        <h2 class="mb-1 text-xl font-extrabold tracking-[-0.01em] text-gray-900 dark:text-white">
+          Add a person
+        </h2>
         <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
           Pre-create someone by email. They appear here right away; when they first
           sign in with Google or Microsoft their account links up automatically and

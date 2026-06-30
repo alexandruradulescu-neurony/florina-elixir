@@ -32,29 +32,37 @@ defmodule FlorinaWeb.CallsLive do
   def render(assigns) do
     ~H"""
     <Layouts.agent_app flash={@flash} tenant={@tenant} current_agent={@current_agent} active={:calls}>
-      <h1 class="text-2xl font-semibold mb-4 text-gray-900 dark:text-white">Calls</h1>
-      <div class="overflow-x-auto rounded-lg border border-gray-200 dark:border-white/10">
-        <table class="w-full text-left text-sm">
-          <thead class="bg-gray-50 dark:bg-white/5">
+      <.header micro="Calls">Calls</.header>
+      <div class="overflow-x-auto rounded-lg border border-gray-200 bg-white dark:border-white/10 dark:bg-white/5">
+        <table class="w-full text-left">
+          <thead class="border-b border-gray-200 bg-gray-50 dark:border-white/10 dark:bg-white/5">
             <tr>
-              <th class="px-3 py-2 font-semibold text-gray-900 dark:text-white">Phase</th>
-              <th class="px-3 py-2 font-semibold text-gray-900 dark:text-white">Status</th>
-              <th class="px-3 py-2 font-semibold text-gray-900 dark:text-white">Call ID</th>
-              <th class="px-3 py-2 font-semibold text-gray-900 dark:text-white">Summary</th>
-              <th class="px-3 py-2 font-semibold text-gray-900 dark:text-white">Updated</th>
+              <th class={th_class()}>Phase</th>
+              <th class={th_class()}>Status</th>
+              <th class={th_class()}>Call ID</th>
+              <th class={th_class()}>Summary</th>
+              <th class={th_class()}>Updated</th>
             </tr>
           </thead>
           <tbody id="calls" phx-update="stream" class="divide-y divide-gray-200 dark:divide-white/10">
             <tr
               :for={{dom_id, call} <- @streams.calls}
               id={dom_id}
-              class="hover:bg-gray-50 dark:hover:bg-white/5 text-gray-700 dark:text-gray-300"
+              class="hover:bg-gray-50 dark:hover:bg-white/5"
             >
-              <td class="px-3 py-2">{call.phase}</td>
-              <td class="px-3 py-2">{call.status}</td>
-              <td class="px-3 py-2">{call.external_call_id}</td>
-              <td class="px-3 py-2">{call.summary}</td>
-              <td class="px-3 py-2">{call.updated_at}</td>
+              <td class={td_class()}>
+                <span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-600 dark:bg-white/10 dark:text-gray-300">
+                  {call.phase}
+                </span>
+              </td>
+              <td class={td_class()}>{call.status}</td>
+              <td class={[td_class(), "tabular-nums text-gray-500 dark:text-gray-400"]}>
+                {call.external_call_id}
+              </td>
+              <td class={td_class()}>{call.summary}</td>
+              <td class={[td_class(), "whitespace-nowrap text-gray-500 dark:text-gray-400"]}>
+                {call.updated_at}
+              </td>
             </tr>
           </tbody>
         </table>

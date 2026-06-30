@@ -83,20 +83,20 @@ defmodule FlorinaWeb.Manage.DashboardLive do
       current_agent={@current_agent}
       active={:dashboard}
     >
-      <div class="flex items-center justify-between mb-6">
-        <div>
-          <h1 class="text-2xl font-semibold text-gray-900 dark:text-white">Today</h1>
-          <p class="text-sm text-gray-500 dark:text-gray-400">
-            {Calendar.strftime(@today, "%A, %d %B %Y")}
-          </p>
-        </div>
-        <.button navigate={"/t/#{@tenant.slug}/manage/meetings/new"} variant="primary">
-          <.icon name="hero-plus" class="size-4" /> New meeting
-        </.button>
-      </div>
+      <.header micro="Dashboard">
+        Today
+        <:subtitle>{Calendar.strftime(@today, "%A, %d %B %Y")}</:subtitle>
+        <:actions>
+          <.button navigate={"/t/#{@tenant.slug}/manage/meetings/new"} variant="primary">
+            <.icon name="hero-plus" class="size-4" /> New meeting
+          </.button>
+        </:actions>
+      </.header>
 
       <section :if={@attention != []} class="mb-8">
-        <h2 class="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-2">Needs attention</h2>
+        <h2 class="mb-2 text-[11px] font-extrabold uppercase tracking-[0.1em] text-gray-500 dark:text-gray-400">
+          Needs attention
+        </h2>
         <ul class="space-y-2">
           <li
             :for={item <- @attention}
@@ -121,8 +121,9 @@ defmodule FlorinaWeb.Manage.DashboardLive do
 
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <section class="lg:col-span-2">
-          <h2 class="text-lg font-medium mb-3 text-gray-900 dark:text-white">
-            Today's meetings <span class="text-gray-400 text-sm">({length(@meetings)})</span>
+          <h2 class="mb-3 text-xl font-extrabold tracking-[-0.01em] text-gray-900 dark:text-white">
+            Today's meetings
+            <span class="text-base font-bold text-gray-400">({length(@meetings)})</span>
           </h2>
           <div class="space-y-2">
             <.link
@@ -152,7 +153,9 @@ defmodule FlorinaWeb.Manage.DashboardLive do
         </section>
 
         <section>
-          <h2 class="text-lg font-medium mb-3 text-gray-900 dark:text-white">Recent calls</h2>
+          <h2 class="mb-3 text-xl font-extrabold tracking-[-0.01em] text-gray-900 dark:text-white">
+            Recent calls
+          </h2>
           <div class="space-y-2">
             <div
               :for={c <- @recent_calls}

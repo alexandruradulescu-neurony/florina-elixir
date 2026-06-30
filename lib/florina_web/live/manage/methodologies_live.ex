@@ -86,15 +86,15 @@ defmodule FlorinaWeb.Manage.MethodologiesLive do
       current_agent={@current_agent}
       active={:methodologies}
     >
-      <h1 class="text-2xl font-semibold mb-4 text-gray-900 dark:text-white">Methodologies</h1>
+      <.header micro="Manage">Methodologies</.header>
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div class="space-y-2">
           <div
             :for={m <- @methodologies}
-            class="flex items-center justify-between rounded-lg border border-gray-200 px-3 py-2 dark:border-white/10"
+            class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-3 dark:border-white/10 dark:bg-white/5"
           >
             <div>
-              <div class="text-sm font-medium text-gray-900 dark:text-white">{m.name}</div>
+              <div class="text-sm font-bold text-gray-900 dark:text-white">{m.name}</div>
               <div class="text-xs text-gray-500 dark:text-gray-400">
                 {(m.is_active && "active") || "inactive"}
               </div>
@@ -122,9 +122,9 @@ defmodule FlorinaWeb.Manage.MethodologiesLive do
           </p>
         </div>
 
-        <div class="rounded-lg border border-gray-200 p-4 h-fit dark:border-white/10">
+        <div class="h-fit rounded-lg border border-gray-200 bg-white p-6 dark:border-white/10 dark:bg-white/5">
           <div class="flex items-center justify-between mb-3">
-            <h2 class="text-lg font-medium text-gray-900 dark:text-white">
+            <h2 class="text-xl font-extrabold tracking-[-0.01em] text-gray-900 dark:text-white">
               {(@editing && "Edit methodology") || "New methodology"}
             </h2>
             <button

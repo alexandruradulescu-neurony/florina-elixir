@@ -337,27 +337,92 @@ defmodule FlorinaWeb.CoreComponents do
   end
 
   @doc """
-  Renders a header with title.
+  Renders an editorial page header: an optional uppercase micro-label, a large
+  Nunito-800 title, an optional subtitle, and optional right-aligned actions.
   """
+  attr :micro, :string, default: nil, doc: "small uppercase eyebrow label above the title"
   slot :inner_block, required: true
   slot :subtitle
   slot :actions
 
   def header(assigns) do
     ~H"""
-    <header class={[@actions != [] && "flex items-center justify-between gap-6", "pb-4"]}>
+    <header class={[@actions != [] && "flex items-start justify-between gap-6", "mb-6"]}>
       <div>
-        <h1 class="text-base font-semibold text-gray-900 dark:text-white">
+        <p
+          :if={@micro}
+          class="mb-1.5 text-[10px] font-extrabold uppercase tracking-[0.14em] text-gray-500 dark:text-gray-400"
+        >
+          {@micro}
+        </p>
+        <h1 class="text-3xl font-extrabold tracking-[-0.01em] text-gray-900 dark:text-white">
           {render_slot(@inner_block)}
         </h1>
         <p :if={@subtitle != []} class="mt-1 text-sm text-gray-500 dark:text-gray-400">
           {render_slot(@subtitle)}
         </p>
       </div>
-      <div class="flex-none">{render_slot(@actions)}</div>
+      <div :if={@actions != []} class="flex-none">{render_slot(@actions)}</div>
     </header>
     """
   end
+
+  @doc """
+  Renders an editorial stat card: a white hairline card with a small uppercase
+  micro-label and a large tabular number, tinted by `tone`.
+
+  ## Examples
+
+      <.stat_card label="Completed" tone="green">42</.stat_card>
+      <.stat_card label="Failed" tone="rose"><:meta>last 24h</:meta>3</.stat_card>
+  """
+  attr :label, :string, required: true
+  attr :tone, :string, default: "neutral", values: ~w(neutral cyan green rose blue amber)
+  slot :inner_block, required: true, doc: "the stat value (typically a number)"
+  slot :meta, doc: "optional muted subtext under the number"
+
+  def stat_card(assigns) do
+    ~H"""
+    <div class="rounded-lg border border-gray-200 bg-white p-6 dark:border-white/10 dark:bg-white/5">
+      <div class="text-[10px] font-extrabold uppercase tracking-[0.1em] text-gray-500 dark:text-gray-400">
+        {@label}
+      </div>
+      <div class={["mt-2 text-3xl font-extrabold tabular-nums tracking-tight", stat_tone(@tone)]}>
+        {render_slot(@inner_block)}
+      </div>
+      <div :if={@meta != []} class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+        {render_slot(@meta)}
+      </div>
+    </div>
+    """
+  end
+
+  defp stat_tone("cyan"), do: "text-indigo-600 dark:text-indigo-400"
+  defp stat_tone("green"), do: "text-green-600 dark:text-green-400"
+  defp stat_tone("rose"), do: "text-rose-600 dark:text-rose-400"
+  defp stat_tone("blue"), do: "text-blue-600 dark:text-blue-400"
+  defp stat_tone("amber"), do: "text-amber-600 dark:text-amber-400"
+  defp stat_tone(_neutral), do: "text-gray-900 dark:text-white"
+
+  @doc """
+  Canonical cell classes for editorial data tables — a 48px uppercase tracked
+  header (`th_class/0`) and a 56px Nunito-Sans body cell (`td_class/0`). Used by
+  the hand-written tables across the app so they share one density and treatment.
+  """
+  def th_class,
+    do:
+      "h-12 px-4 text-left text-[10px] font-extrabold uppercase tracking-[0.1em] text-gray-500 dark:text-gray-400"
+
+  def td_class,
+    do: "h-14 px-4 align-middle font-tile text-sm font-semibold text-gray-700 dark:text-gray-300"
+
+  @doc """
+  Top-aligned body-cell variant of `td_class/0`, for dense tables whose rows
+  carry multi-line content (transcripts, log payloads) and shouldn't be
+  vertically centered.
+  """
+  def td_top_class,
+    do: "px-4 py-3 align-top font-tile text-sm font-semibold text-gray-700 dark:text-gray-300"
 
   @doc """
   Renders a table with generic styling.

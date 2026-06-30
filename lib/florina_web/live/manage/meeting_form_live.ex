@@ -144,7 +144,7 @@ defmodule FlorinaWeb.Manage.MeetingFormLive do
         >
           ← Meetings
         </.link>
-        <h1 class="text-2xl font-semibold mt-1 text-gray-900 dark:text-white">
+        <h1 class="mt-2 text-3xl font-extrabold tracking-[-0.01em] text-gray-900 dark:text-white">
           {if @live_action == :new, do: "New meeting", else: "Edit meeting"}
         </h1>
       </div>

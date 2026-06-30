@@ -143,7 +143,7 @@ defmodule FlorinaWeb.CalendarLive do
 
       <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
         <div>
-          <h1 class="text-2xl font-semibold text-gray-900 dark:text-white">
+          <h1 class="text-2xl font-extrabold tracking-[-0.01em] text-gray-900 sm:text-3xl dark:text-white">
             {title(@view, @cursor)}
           </h1>
           <p class="text-sm text-gray-500 dark:text-gray-400">

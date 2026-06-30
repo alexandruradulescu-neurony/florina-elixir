@@ -60,37 +60,17 @@ defmodule FlorinaWeb.Manage.CallsLive do
       current_agent={@current_agent}
       active={:programmed_calls}
     >
-      <h1 class="text-2xl font-semibold mb-1 text-gray-900 dark:text-white">Programmed Calls</h1>
-      <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">
-        Every pre- and post-call Florina has scheduled or placed.
-      </p>
+      <.header micro="Manage">
+        Programmed Calls
+        <:subtitle>Every pre- and post-call Florina has scheduled or placed.</:subtitle>
+      </.header>
 
       <div class="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
-        <.stat
-          label="Total"
-          value={@stats.total}
-          tone="bg-gray-100 text-gray-700 dark:bg-white/10 dark:text-gray-200"
-        />
-        <.stat
-          label="Scheduled"
-          value={@stats.scheduled}
-          tone="bg-gray-100 text-gray-700 dark:bg-white/10 dark:text-gray-200"
-        />
-        <.stat
-          label="Active"
-          value={@stats.active}
-          tone="bg-blue-100 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400"
-        />
-        <.stat
-          label="Completed"
-          value={@stats.completed}
-          tone="bg-green-100 text-green-700 dark:bg-green-500/10 dark:text-green-400"
-        />
-        <.stat
-          label="Failed"
-          value={@stats.failed}
-          tone="bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-400"
-        />
+        <.stat_card label="Total" tone="neutral">{@stats.total}</.stat_card>
+        <.stat_card label="Scheduled" tone="neutral">{@stats.scheduled}</.stat_card>
+        <.stat_card label="Active" tone="blue">{@stats.active}</.stat_card>
+        <.stat_card label="Completed" tone="green">{@stats.completed}</.stat_card>
+        <.stat_card label="Failed" tone="rose">{@stats.failed}</.stat_card>
       </div>
 
       <.form for={%{}} as={:filters} phx-change="filter" class="flex flex-wrap items-end gap-3 mb-4">
@@ -133,66 +113,60 @@ defmodule FlorinaWeb.Manage.CallsLive do
         </button>
       </.form>
 
-      <div class="overflow-x-auto rounded-lg border border-gray-200 dark:border-white/10">
-        <table class="w-full text-left text-sm">
-          <thead class="bg-gray-50 dark:bg-white/5">
+      <div class="overflow-x-auto rounded-lg border border-gray-200 bg-white dark:border-white/10 dark:bg-white/5">
+        <table class="w-full text-left">
+          <thead class="border-b border-gray-200 bg-gray-50 dark:border-white/10 dark:bg-white/5">
             <tr>
-              <th class="px-3 py-2 font-semibold text-gray-900 dark:text-white">Time</th>
-              <th class="px-3 py-2 font-semibold text-gray-900 dark:text-white">Agent</th>
-              <th class="px-3 py-2 font-semibold text-gray-900 dark:text-white">Context</th>
-              <th class="px-3 py-2 font-semibold text-gray-900 dark:text-white">Phase</th>
-              <th class="px-3 py-2 font-semibold text-gray-900 dark:text-white">Status</th>
-              <th class="px-3 py-2 font-semibold text-gray-900 dark:text-white">Details</th>
+              <th class={th_class()}>Time</th>
+              <th class={th_class()}>Agent</th>
+              <th class={th_class()}>Context</th>
+              <th class={th_class()}>Phase</th>
+              <th class={th_class()}>Status</th>
+              <th class={th_class()}>Details</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody class="divide-y divide-gray-200 dark:divide-white/10">
             <tr :if={@calls == []}>
-              <td colspan="6" class="px-3 py-8 text-center text-gray-400">
+              <td colspan="6" class="px-4 py-10 text-center text-sm text-gray-400">
                 No calls match these filters.
               </td>
             </tr>
-            <tr
-              :for={call <- @calls}
-              class="border-t border-gray-200 align-top dark:border-white/10"
-            >
-              <td class="px-3 py-2 whitespace-nowrap text-gray-600 dark:text-gray-300">
+            <tr :for={call <- @calls} class="hover:bg-gray-50 dark:hover:bg-white/5">
+              <td class={[td_top_class(), "whitespace-nowrap text-gray-600 dark:text-gray-400"]}>
                 {time_label(call.updated_at)}
               </td>
-              <td class="px-3 py-2 whitespace-nowrap text-gray-700 dark:text-gray-300">
+              <td class={[td_top_class(), "whitespace-nowrap"]}>
                 {agent_name(call.visit && call.visit.agent)}
               </td>
-              <td class="px-3 py-2">
+              <td class={td_top_class()}>
                 <.link
                   :if={call.visit}
                   navigate={"/t/#{@tenant.slug}/manage/meetings/#{call.visit.id}"}
-                  class="text-indigo-600 hover:text-indigo-500 dark:text-indigo-400"
+                  class="font-bold text-indigo-600 hover:text-indigo-500 dark:text-indigo-400"
                 >
                   {context_label(call.visit)}
                 </.link>
                 <span :if={is_nil(call.visit)} class="text-gray-400">—</span>
               </td>
-              <td class="px-3 py-2">
-                <span class="rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700 dark:bg-white/10 dark:text-gray-200">
+              <td class={td_top_class()}>
+                <span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-600 dark:bg-white/10 dark:text-gray-300">
                   {call.phase}
                 </span>
               </td>
-              <td class="px-3 py-2">
+              <td class={td_top_class()}>
                 <span class={[
-                  "rounded-full px-2 py-0.5 text-xs font-medium",
+                  "rounded-full px-2 py-0.5 text-xs font-semibold",
                   status_tone(call.status)
                 ]}>
                   {status_label(call.status)}
                 </span>
               </td>
-              <td class="px-3 py-2 max-w-md">
-                <div :if={call.summary_title} class="font-medium text-gray-900 dark:text-white">
+              <td class={[td_top_class(), "max-w-md"]}>
+                <div :if={call.summary_title} class="font-bold text-gray-900 dark:text-white">
                   {call.summary_title}
                 </div>
                 <div :if={call.summary} class="text-gray-600 dark:text-gray-300">{call.summary}</div>
-                <div
-                  :if={snippet(call.transcript)}
-                  class="mt-1 text-xs text-gray-400 italic"
-                >
+                <div :if={snippet(call.transcript)} class="mt-1 text-xs italic text-gray-400">
                   {snippet(call.transcript)}
                 </div>
                 <audio :if={call.recording_url} controls src={call.recording_url} class="mt-1 h-8" />
@@ -210,19 +184,6 @@ defmodule FlorinaWeb.Manage.CallsLive do
         </table>
       </div>
     </Layouts.agent_app>
-    """
-  end
-
-  attr :label, :string, required: true
-  attr :value, :integer, required: true
-  attr :tone, :string, required: true
-
-  defp stat(assigns) do
-    ~H"""
-    <div class={["rounded-lg p-3", @tone]}>
-      <div class="text-2xl font-semibold">{@value}</div>
-      <div class="text-xs opacity-70">{@label}</div>
-    </div>
     """
   end
 

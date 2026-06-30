@@ -66,7 +66,7 @@ defmodule FlorinaWeb.TenantChatLive do
     ~H"""
     <Layouts.agent_app flash={@flash} tenant={@tenant} current_agent={@current_agent} active={:chat}>
       <div class="mb-6">
-        <h1 class="text-2xl font-semibold text-gray-900 dark:text-white">
+        <h1 class="text-3xl font-extrabold tracking-[-0.01em] text-gray-900 dark:text-white">
           Assistant — {@tenant.name}
         </h1>
         <p class="text-sm text-gray-500 dark:text-gray-400">
@@ -77,13 +77,13 @@ defmodule FlorinaWeb.TenantChatLive do
         <div
           :for={m <- @messages}
           class={[
-            "p-3 rounded text-gray-700 dark:text-gray-300",
+            "rounded-lg p-3 text-gray-700 dark:text-gray-300",
             m.role == "user" && "bg-gray-100 dark:bg-white/10"
           ]}
         >
           <span class="font-medium text-gray-900 dark:text-white">{m.role}:</span> {m.content}
         </div>
-        <div :if={@streaming != nil} class="p-3 rounded text-gray-700 dark:text-gray-300">
+        <div :if={@streaming != nil} class="rounded-lg p-3 text-gray-700 dark:text-gray-300">
           <span class="font-medium text-gray-900 dark:text-white">assistant:</span> {@streaming}
         </div>
       </div>

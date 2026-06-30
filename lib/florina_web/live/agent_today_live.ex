@@ -53,15 +53,15 @@ defmodule FlorinaWeb.AgentTodayLive do
   def render(assigns) do
     ~H"""
     <Layouts.agent_app flash={@flash} tenant={@tenant} current_agent={@current_agent} active={:today}>
-      <h1 class="text-2xl font-semibold mb-1 text-gray-900 dark:text-white">My day</h1>
-      <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">
-        {Calendar.strftime(Florina.Tz.today(), "%A, %d %B %Y")}
-      </p>
+      <.header micro="Today">
+        My day
+        <:subtitle>{Calendar.strftime(Florina.Tz.today(), "%A, %d %B %Y")}</:subtitle>
+      </.header>
 
       <div class="space-y-3 max-w-2xl">
         <div
           :for={v <- @meetings}
-          class="flex items-center justify-between gap-4 rounded-lg border border-gray-200 bg-white px-4 py-3 dark:border-white/10 dark:bg-gray-900"
+          class="flex items-center justify-between gap-4 rounded-lg border border-gray-200 bg-white px-4 py-3 dark:border-white/10 dark:bg-white/5"
         >
           <div class="min-w-0">
             <div class="text-sm font-medium text-gray-900 dark:text-white">
@@ -77,7 +77,7 @@ defmodule FlorinaWeb.AgentTodayLive do
           <button
             phx-click="call_me"
             phx-value-visit_id={v.id}
-            class="inline-flex shrink-0 items-center gap-1 rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-500 cursor-pointer dark:bg-indigo-500 dark:hover:bg-indigo-400"
+            class="inline-flex shrink-0 items-center gap-1 rounded-full bg-indigo-600 px-4 py-1.5 text-xs font-bold text-white hover:bg-indigo-500 cursor-pointer dark:bg-indigo-500 dark:hover:bg-indigo-400"
           >
             <.icon name="hero-phone" class="size-4" /> Have Florina call me
           </button>

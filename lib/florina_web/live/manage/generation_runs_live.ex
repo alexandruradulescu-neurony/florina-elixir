@@ -98,10 +98,10 @@ defmodule FlorinaWeb.Manage.GenerationRunsLive do
       current_agent={@current_agent}
       active={:generation_runs}
     >
-      <h1 class="text-2xl font-semibold mb-1 text-gray-900 dark:text-white">Generation Runs</h1>
-      <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">
-        Every time Florina assembled a call script or distilled lessons.
-      </p>
+      <.header micro="Manage">
+        Generation Runs
+        <:subtitle>Every time Florina assembled a call script or distilled lessons.</:subtitle>
+      </.header>
 
       <.form for={%{}} as={:filters} phx-change="filter" class="flex flex-wrap items-end gap-3 mb-4">
         <label class="text-sm">
@@ -130,33 +130,35 @@ defmodule FlorinaWeb.Manage.GenerationRunsLive do
         </button>
       </.form>
 
-      <div class="overflow-x-auto rounded-lg border border-gray-200 dark:border-white/10">
-        <table class="w-full text-left text-sm">
-          <thead class="bg-gray-50 dark:bg-white/5">
+      <div class="overflow-x-auto rounded-lg border border-gray-200 bg-white dark:border-white/10 dark:bg-white/5">
+        <table class="w-full text-left">
+          <thead class="border-b border-gray-200 bg-gray-50 dark:border-white/10 dark:bg-white/5">
             <tr>
-              <th class="px-3 py-2 font-semibold text-gray-900 dark:text-white">When</th>
-              <th class="px-3 py-2 font-semibold text-gray-900 dark:text-white">Domain</th>
-              <th class="px-3 py-2 font-semibold text-gray-900 dark:text-white">Target</th>
-              <th class="px-3 py-2 font-semibold text-gray-900 dark:text-white">Trigger</th>
-              <th class="px-3 py-2 font-semibold text-gray-900 dark:text-white">Status</th>
-              <th class="px-3 py-2 font-semibold text-gray-900 dark:text-white">Tokens</th>
-              <th class="px-3 py-2"></th>
+              <th class={th_class()}>When</th>
+              <th class={th_class()}>Domain</th>
+              <th class={th_class()}>Target</th>
+              <th class={th_class()}>Trigger</th>
+              <th class={th_class()}>Status</th>
+              <th class={th_class()}>Tokens</th>
+              <th class={th_class()}></th>
             </tr>
           </thead>
-          <tbody>
+          <tbody class="divide-y divide-gray-200 dark:divide-white/10">
             <tr :if={@runs == []}>
-              <td colspan="7" class="px-3 py-8 text-center text-gray-400">No runs found.</td>
+              <td colspan="7" class="px-4 py-10 text-center text-sm text-gray-400">No runs found.</td>
             </tr>
-            <tr :for={run <- @runs} class="border-t border-gray-200 dark:border-white/10">
-              <td class="px-3 py-2 whitespace-nowrap text-gray-600 dark:text-gray-300">
+            <tr :for={run <- @runs} class="hover:bg-gray-50 dark:hover:bg-white/5">
+              <td class={[td_class(), "whitespace-nowrap text-gray-600 dark:text-gray-400"]}>
                 {time_label(run.created_at)}
               </td>
-              <td class="px-3 py-2 text-gray-700 dark:text-gray-300">{domain_label(run.domain)}</td>
-              <td class="px-3 py-2 text-gray-600 dark:text-gray-300">{target_label(run)}</td>
-              <td class="px-3 py-2 text-gray-500 dark:text-gray-400">{run.triggered_by}</td>
-              <td class="px-3 py-2">
+              <td class={[td_class(), "font-bold text-gray-900 dark:text-white"]}>
+                {domain_label(run.domain)}
+              </td>
+              <td class={td_class()}>{target_label(run)}</td>
+              <td class={[td_class(), "text-gray-500 dark:text-gray-400"]}>{run.triggered_by}</td>
+              <td class={td_class()}>
                 <span class={[
-                  "rounded-full px-2 py-0.5 text-xs font-medium",
+                  "rounded-full px-2 py-0.5 text-xs font-semibold",
                   (run.success &&
                      "bg-green-100 text-green-700 dark:bg-green-500/10 dark:text-green-400") ||
                     "bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-400"
@@ -164,13 +166,13 @@ defmodule FlorinaWeb.Manage.GenerationRunsLive do
                   {(run.success && "ok") || "fail"}
                 </span>
               </td>
-              <td class="px-3 py-2 text-gray-500 dark:text-gray-400">
+              <td class={[td_class(), "tabular-nums text-gray-500 dark:text-gray-400"]}>
                 {run.input_tokens}/{run.output_tokens}
               </td>
-              <td class="px-3 py-2 text-right">
+              <td class={[td_class(), "text-right"]}>
                 <.link
                   navigate={"/t/#{@tenant.slug}/manage/generation-runs/#{run.id}"}
-                  class="text-xs font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400"
+                  class="text-xs font-bold text-indigo-600 hover:text-indigo-500 dark:text-indigo-400"
                 >
                   View
                 </.link>
@@ -215,7 +217,7 @@ defmodule FlorinaWeb.Manage.GenerationRunsLive do
         >
           ← Generation Runs
         </.link>
-        <h1 class="text-2xl font-semibold mt-1 text-gray-900 dark:text-white">
+        <h1 class="mt-2 text-3xl font-extrabold tracking-[-0.01em] text-gray-900 dark:text-white">
           {domain_label(@run.domain)} · run #{@run.id}
         </h1>
         <p class="text-sm text-gray-500 dark:text-gray-400">
@@ -256,8 +258,8 @@ defmodule FlorinaWeb.Manage.GenerationRunsLive do
 
   defp section(assigns) do
     ~H"""
-    <div class="rounded-lg border border-gray-200 dark:border-white/10">
-      <div class="border-b border-gray-200 bg-gray-50 px-4 py-2 text-sm font-semibold text-gray-900 dark:border-white/10 dark:bg-white/5 dark:text-white">
+    <div class="overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-white/10 dark:bg-white/5">
+      <div class="border-b border-gray-200 bg-gray-50 px-4 py-2.5 text-[10px] font-extrabold uppercase tracking-[0.1em] text-gray-500 dark:border-white/10 dark:bg-white/5 dark:text-gray-400">
         {@title}
       </div>
       <pre class="overflow-x-auto p-4 text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{render_slot(@inner_block)}</pre>

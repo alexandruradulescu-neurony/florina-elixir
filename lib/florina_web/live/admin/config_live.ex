@@ -335,29 +335,27 @@ defmodule FlorinaWeb.Admin.ConfigLive do
     ~H"""
     <Layouts.app flash={@flash}>
       <div class="max-w-5xl mx-auto">
-        <div class="flex items-center justify-between mb-6">
-          <div>
-            <h1 class="text-2xl font-semibold text-gray-900 dark:text-white">Central Config</h1>
-            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              <a href="/admin" class="hover:underline">Admin</a> &rsaquo; Config
-            </p>
-          </div>
-          <div class="flex gap-2">
+        <.header micro="Operator">
+          Central Config
+          <:subtitle>
+            <a href="/admin" class="hover:underline">Admin</a> &rsaquo; Config
+          </:subtitle>
+          <:actions>
             <a
               href="/admin/tenants"
-              class="px-3 py-1.5 text-sm font-semibold rounded-md bg-white text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:bg-white/10 dark:text-white dark:ring-0 dark:hover:bg-white/20"
+              class="px-4 py-1.5 text-sm font-semibold rounded-full bg-white text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:bg-white/10 dark:text-white dark:ring-0 dark:hover:bg-white/20"
             >
               Tenants
             </a>
             <button
               phx-click="publish_all"
               data-confirm="Publish canonical config to ALL active tenants? Rows marked as overridden will be skipped."
-              class="px-4 py-1.5 text-sm font-semibold bg-indigo-600 text-white rounded-md shadow-xs hover:bg-indigo-500 dark:bg-indigo-500 dark:hover:bg-indigo-400"
+              class="rounded-full bg-indigo-600 px-4 py-1.5 text-sm font-semibold text-white shadow-xs hover:bg-indigo-500 dark:bg-indigo-500 dark:hover:bg-indigo-400"
             >
               Publish to all tenants
             </button>
-          </div>
-        </div>
+          </:actions>
+        </.header>
 
         <%!-- Edit panel (inline, shown when editing != nil) --%>
         <div
@@ -546,7 +544,7 @@ defmodule FlorinaWeb.Admin.ConfigLive do
             class="text-xs font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400"
           >Edit</button>
         </.section_header>
-        <div class="border border-gray-200 rounded-lg divide-y divide-gray-200 mb-8 text-sm dark:border-white/10 dark:divide-white/10">
+        <div class="rounded-lg border border-gray-200 bg-white divide-y divide-gray-200 mb-8 text-sm dark:border-white/10 dark:bg-white/5 dark:divide-white/10">
           <.kv_row label="Pre-call offset" value={"#{@settings.pre_call_offset_minutes} min"} />
           <.kv_row label="Post-call offset" value={"#{@settings.post_call_offset_minutes} min"} />
           <.kv_row label="Retry interval" value={"#{@settings.retry_interval_minutes} min"} />
@@ -572,9 +570,9 @@ defmodule FlorinaWeb.Admin.ConfigLive do
           <:col label="Name"></:col>
           <:col label="Active"></:col>
           <:row_render :let={mp}>
-            <td class="px-4 py-2 font-mono text-xs">{mp.domain}</td>
-            <td class="px-4 py-2">{mp.name}</td>
-            <td class="px-4 py-2">{if mp.is_active, do: "yes", else: "no"}</td>
+            <td class="px-4 py-3 font-mono text-xs">{mp.domain}</td>
+            <td class="px-4 py-3 font-tile">{mp.name}</td>
+            <td class="px-4 py-3 font-tile">{if mp.is_active, do: "yes", else: "no"}</td>
           </:row_render>
         </.config_table>
 
@@ -593,8 +591,8 @@ defmodule FlorinaWeb.Admin.ConfigLive do
           <:col label="Name"></:col>
           <:col label="Active"></:col>
           <:row_render :let={m}>
-            <td class="px-4 py-2">{m.name}</td>
-            <td class="px-4 py-2">{if m.is_active, do: "yes", else: "no"}</td>
+            <td class="px-4 py-3 font-tile">{m.name}</td>
+            <td class="px-4 py-3 font-tile">{if m.is_active, do: "yes", else: "no"}</td>
           </:row_render>
         </.config_table>
 
@@ -610,9 +608,9 @@ defmodule FlorinaWeb.Admin.ConfigLive do
           <:col label="Slug"></:col>
           <:col label="Active"></:col>
           <:row_render :let={s}>
-            <td class="px-4 py-2">{s.name}</td>
-            <td class="px-4 py-2 font-mono text-xs">{s.slug}</td>
-            <td class="px-4 py-2">{if s.is_active, do: "yes", else: "no"}</td>
+            <td class="px-4 py-3 font-tile">{s.name}</td>
+            <td class="px-4 py-3 font-mono text-xs">{s.slug}</td>
+            <td class="px-4 py-3 font-tile">{if s.is_active, do: "yes", else: "no"}</td>
           </:row_render>
         </.config_table>
       </div>
@@ -629,7 +627,9 @@ defmodule FlorinaWeb.Admin.ConfigLive do
 
     ~H"""
     <div class="flex items-center justify-between mb-2">
-      <h2 class="text-base font-semibold text-gray-900 dark:text-white">{@title}</h2>
+      <h2 class="text-xl font-extrabold tracking-[-0.01em] text-gray-900 dark:text-white">
+        {@title}
+      </h2>
       <div :if={@inner_block}>{render_slot(@inner_block)}</div>
     </div>
     """
@@ -656,22 +656,22 @@ defmodule FlorinaWeb.Admin.ConfigLive do
 
   defp config_table(assigns) do
     ~H"""
-    <div class="overflow-hidden border border-gray-200 rounded-lg mb-8 dark:border-white/10">
-      <table class="w-full text-sm text-left">
-        <thead class="bg-gray-50 text-xs uppercase tracking-wider text-gray-500 dark:bg-white/5 dark:text-gray-400">
+    <div class="overflow-hidden rounded-lg border border-gray-200 bg-white mb-8 dark:border-white/10 dark:bg-white/5">
+      <table class="w-full text-left">
+        <thead class="border-b border-gray-200 bg-gray-50 dark:border-white/10 dark:bg-white/5">
           <tr>
-            <th :for={col <- @col} class="px-4 py-3 font-semibold">{col.label}</th>
-            <th class="px-4 py-3 font-semibold">Actions</th>
+            <th :for={col <- @col} class={th_class()}>{col.label}</th>
+            <th class={th_class()}>Actions</th>
           </tr>
         </thead>
-        <tbody class="divide-y divide-gray-200 dark:divide-white/10 text-gray-700 dark:text-gray-300">
+        <tbody class="divide-y divide-gray-200 text-gray-700 dark:divide-white/10 dark:text-gray-300">
           <tr :for={row <- @rows} class="hover:bg-gray-50 dark:hover:bg-white/5">
             {render_slot(@row_render, row)}
-            <td class="px-4 py-2">
+            <td class="px-4 py-3">
               <button
                 phx-click={@event}
                 phx-value-id={row.id}
-                class="text-xs font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400"
+                class="text-xs font-bold text-indigo-600 hover:text-indigo-500 dark:text-indigo-400"
               >
                 Edit
               </button>
@@ -680,14 +680,14 @@ defmodule FlorinaWeb.Admin.ConfigLive do
                 phx-click={@delete_event}
                 phx-value-id={row.id}
                 data-confirm="Delete this entry? Tenants that already have it keep their copy."
-                class="ml-3 text-xs font-medium text-red-600 hover:text-red-500 dark:text-red-400"
+                class="ml-3 text-xs font-bold text-red-600 hover:text-red-500 dark:text-red-400"
               >
                 Delete
               </button>
             </td>
           </tr>
           <tr :if={@rows == []}>
-            <td colspan="10" class="px-4 py-6 text-center text-gray-400 text-sm">
+            <td colspan="10" class="px-4 py-10 text-center text-sm text-gray-400">
               No entries.
             </td>
           </tr>
@@ -740,14 +740,14 @@ defmodule FlorinaWeb.Admin.ConfigLive do
     <div class="flex gap-2 pt-1">
       <button
         type="submit"
-        class="px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-md shadow-xs hover:bg-indigo-500 dark:bg-indigo-500 dark:hover:bg-indigo-400"
+        class="rounded-full bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-xs hover:bg-indigo-500 dark:bg-indigo-500 dark:hover:bg-indigo-400"
       >
         Save
       </button>
       <button
         type="button"
         phx-click="cancel_edit"
-        class="px-4 py-2 text-sm font-semibold rounded-md bg-white text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:bg-white/10 dark:text-white dark:ring-0 dark:hover:bg-white/20"
+        class="rounded-full bg-white px-4 py-2 text-sm font-semibold text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:bg-white/10 dark:text-white dark:ring-0 dark:hover:bg-white/20"
       >
         Cancel
       </button>

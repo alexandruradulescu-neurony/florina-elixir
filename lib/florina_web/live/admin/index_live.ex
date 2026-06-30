@@ -12,29 +12,31 @@ defmodule FlorinaWeb.Admin.IndexLive do
     ~H"""
     <Layouts.app flash={@flash}>
       <div class="max-w-xl mx-auto">
-        <h1 class="text-2xl font-semibold mb-6 text-gray-900 dark:text-white">Operator Admin</h1>
+        <.header micro="Operator">Operator Admin</.header>
         <ul class="space-y-3">
           <li>
             <a
               href="/admin/tenants"
-              class="text-indigo-600 hover:text-indigo-500 text-lg font-medium dark:text-indigo-400"
+              class="block rounded-lg border border-gray-200 bg-white p-5 transition-colors hover:border-gray-300 dark:border-white/10 dark:bg-white/5 dark:hover:border-white/20"
             >
-              Tenants
+              <div class="text-lg font-extrabold text-indigo-600 dark:text-indigo-400">Tenants</div>
+              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                Register and manage tenants, monitor provisioning.
+              </p>
             </a>
-            <p class="text-sm text-gray-500 dark:text-gray-400">
-              Register and manage tenants, monitor provisioning.
-            </p>
           </li>
           <li>
             <a
               href="/admin/config"
-              class="text-indigo-600 hover:text-indigo-500 text-lg font-medium dark:text-indigo-400"
+              class="block rounded-lg border border-gray-200 bg-white p-5 transition-colors hover:border-gray-300 dark:border-white/10 dark:bg-white/5 dark:hover:border-white/20"
             >
-              Central Config
+              <div class="text-lg font-extrabold text-indigo-600 dark:text-indigo-400">
+                Central Config
+              </div>
+              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                Edit canonical prompts, methodologies, scenarios, and settings. Publish to all tenants.
+              </p>
             </a>
-            <p class="text-sm text-gray-500 dark:text-gray-400">
-              Edit canonical prompts, methodologies, scenarios, and settings. Publish to all tenants.
-            </p>
           </li>
         </ul>
       </div>

@@ -170,52 +170,52 @@ defmodule FlorinaWeb.Admin.TenantsLive do
     ~H"""
     <Layouts.app flash={@flash}>
       <div class="max-w-5xl mx-auto">
-        <div class="flex items-center justify-between mb-6">
-          <div>
-            <h1 class="text-2xl font-semibold text-gray-900 dark:text-white">Tenants</h1>
-            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              <a href="/admin" class="hover:underline">Admin</a> &rsaquo; Tenants
-            </p>
-          </div>
-          <div class="flex gap-2">
+        <.header micro="Operator">
+          Tenants
+          <:subtitle>
+            <a href="/admin" class="hover:underline">Admin</a> &rsaquo; Tenants
+          </:subtitle>
+          <:actions>
             <a
               href="/admin/config"
-              class="px-3 py-1.5 text-sm font-semibold rounded-md bg-white text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:bg-white/10 dark:text-white dark:ring-0 dark:hover:bg-white/20"
+              class="px-4 py-1.5 text-sm font-semibold rounded-full bg-white text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:bg-white/10 dark:text-white dark:ring-0 dark:hover:bg-white/20"
             >
               Config
             </a>
             <button
               phx-click="refresh"
-              class="px-3 py-1.5 text-sm font-semibold rounded-md bg-white text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:bg-white/10 dark:text-white dark:ring-0 dark:hover:bg-white/20"
+              class="px-4 py-1.5 text-sm font-semibold rounded-full bg-white text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:bg-white/10 dark:text-white dark:ring-0 dark:hover:bg-white/20"
             >
               Refresh
             </button>
-          </div>
-        </div>
+          </:actions>
+        </.header>
 
         <%!-- Tenant table --%>
-        <div class="overflow-hidden border border-gray-200 rounded-lg mb-10 dark:border-white/10">
-          <table class="w-full text-sm text-left">
-            <thead class="bg-gray-50 text-xs uppercase tracking-wider text-gray-500 dark:bg-white/5 dark:text-gray-400">
+        <div class="overflow-hidden rounded-lg border border-gray-200 bg-white mb-10 dark:border-white/10 dark:bg-white/5">
+          <table class="w-full text-left">
+            <thead class="border-b border-gray-200 bg-gray-50 dark:border-white/10 dark:bg-white/5">
               <tr>
-                <th class="px-4 py-3 font-semibold">Name</th>
-                <th class="px-4 py-3 font-semibold">Slug</th>
-                <th class="px-4 py-3 font-semibold">Status</th>
-                <th class="px-4 py-3 font-semibold">Active</th>
-                <th class="px-4 py-3 font-semibold">Domains</th>
-                <th class="px-4 py-3 font-semibold">CRM</th>
-                <th class="px-4 py-3 font-semibold">Actions</th>
+                <th class={th_class()}>Name</th>
+                <th class={th_class()}>Slug</th>
+                <th class={th_class()}>Status</th>
+                <th class={th_class()}>Active</th>
+                <th class={th_class()}>Domains</th>
+                <th class={th_class()}>CRM</th>
+                <th class={th_class()}>Actions</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-200 dark:divide-white/10">
-              <tr :for={tenant <- @tenants} class="hover:bg-gray-50 dark:hover:bg-white/5">
-                <td class="px-4 py-3 font-medium text-gray-900 dark:text-white">{tenant.name}</td>
-                <td class="px-4 py-3 font-mono text-xs text-gray-700 dark:text-gray-300">
+              <tr :for={tenant <- @tenants} class="align-top hover:bg-gray-50 dark:hover:bg-white/5">
+                <td class="px-4 py-4 font-tile text-sm font-bold text-gray-900 dark:text-white">
+                  {tenant.name}
+                </td>
+                <td class="px-4 py-4 font-mono text-xs text-gray-700 dark:text-gray-300">
                   {tenant.slug}
                 </td>
-                <td class="px-4 py-3">
+                <td class="px-4 py-4">
                   <span class={[
-                    "inline-flex items-center px-2 py-0.5 rounded text-xs font-medium",
+                    "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
                     tenant.status == "active" &&
                       "bg-green-100 text-green-800 dark:bg-green-500/10 dark:text-green-400",
                     tenant.status == "provisioning" &&
@@ -226,9 +226,9 @@ defmodule FlorinaWeb.Admin.TenantsLive do
                     {tenant.status}
                   </span>
                 </td>
-                <td class="px-4 py-3">
+                <td class="px-4 py-4">
                   <span class={[
-                    "inline-flex items-center px-2 py-0.5 rounded text-xs font-medium",
+                    "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
                     tenant.active &&
                       "bg-blue-100 text-blue-800 dark:bg-blue-500/10 dark:text-blue-400",
                     !tenant.active && "bg-gray-100 text-gray-500 dark:bg-white/10 dark:text-gray-400"
@@ -236,7 +236,7 @@ defmodule FlorinaWeb.Admin.TenantsLive do
                     {if tenant.active, do: "yes", else: "no"}
                   </span>
                 </td>
-                <td class="px-4 py-3">
+                <td class="px-4 py-4">
                   <form id={"domains-#{tenant.slug}"} phx-submit="save_domains" class="flex gap-1">
                     <input type="hidden" name="slug" value={tenant.slug} />
                     <input
@@ -251,7 +251,7 @@ defmodule FlorinaWeb.Admin.TenantsLive do
                     </button>
                   </form>
                 </td>
-                <td class="px-4 py-3">
+                <td class="px-4 py-4">
                   <form
                     :if={tenant.status == "active"}
                     id={"crm-#{tenant.slug}"}
@@ -324,7 +324,7 @@ defmodule FlorinaWeb.Admin.TenantsLive do
                   </form>
                   <span :if={tenant.status != "active"} class="text-xs text-gray-400">—</span>
                 </td>
-                <td class="px-4 py-3">
+                <td class="px-4 py-4">
                   <a
                     href={"/admin/tenants/#{tenant.slug}/agents"}
                     class="text-xs font-medium text-indigo-600 hover:text-indigo-500 mr-2 dark:text-indigo-400"
@@ -360,7 +360,7 @@ defmodule FlorinaWeb.Admin.TenantsLive do
                 </td>
               </tr>
               <tr :if={@tenants == []}>
-                <td colspan="7" class="px-4 py-6 text-center text-gray-400 text-sm">
+                <td colspan="7" class="px-4 py-10 text-center text-sm text-gray-400">
                   No tenants yet.
                 </td>
               </tr>
@@ -369,8 +369,10 @@ defmodule FlorinaWeb.Admin.TenantsLive do
         </div>
 
         <%!-- Add tenant form --%>
-        <div class="border border-gray-200 rounded-lg p-6 max-w-lg dark:border-white/10">
-          <h2 class="text-lg font-medium mb-4 text-gray-900 dark:text-white">Add tenant</h2>
+        <div class="max-w-lg rounded-lg border border-gray-200 bg-white p-6 dark:border-white/10 dark:bg-white/5">
+          <h2 class="mb-4 text-xl font-extrabold tracking-[-0.01em] text-gray-900 dark:text-white">
+            Add tenant
+          </h2>
           <.form
             for={@form}
             id="add-tenant-form"
@@ -409,7 +411,7 @@ defmodule FlorinaWeb.Admin.TenantsLive do
             </div>
             <button
               type="submit"
-              class="px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-md shadow-xs hover:bg-indigo-500 dark:bg-indigo-500 dark:hover:bg-indigo-400"
+              class="rounded-full bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-xs hover:bg-indigo-500 dark:bg-indigo-500 dark:hover:bg-indigo-400"
             >
               Register &amp; provision
             </button>

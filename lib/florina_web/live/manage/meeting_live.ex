@@ -188,11 +188,13 @@ defmodule FlorinaWeb.Manage.MeetingLive do
         >
           ← Meetings
         </.link>
-        <div class="flex items-center justify-between gap-3 mt-1">
-          <h1 class="text-2xl font-semibold text-gray-900 dark:text-white">{@visit.title}</h1>
+        <div class="flex items-center justify-between gap-3 mt-2">
+          <h1 class="text-3xl font-extrabold tracking-[-0.01em] text-gray-900 dark:text-white">
+            {@visit.title}
+          </h1>
           <.link
             navigate={"/t/#{@tenant.slug}/manage/meetings/#{@visit.id}/edit"}
-            class="text-sm font-medium text-indigo-600 hover:text-indigo-500 shrink-0 dark:text-indigo-400"
+            class="shrink-0 text-sm font-bold text-indigo-600 hover:text-indigo-500 dark:text-indigo-400"
           >
             Edit details
           </.link>
@@ -207,9 +209,9 @@ defmodule FlorinaWeb.Manage.MeetingLive do
         <div class="lg:col-span-2 space-y-6">
           <div
             :if={@visit.post_call_summary not in [nil, ""]}
-            class="rounded-lg border border-gray-200 bg-white p-4 dark:border-white/10 dark:bg-gray-900"
+            class="rounded-lg border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-white/5"
           >
-            <h2 class="text-sm font-semibold mb-1 text-gray-900 dark:text-white">
+            <h2 class="mb-2 text-[11px] font-extrabold uppercase tracking-[0.1em] text-gray-500 dark:text-gray-400">
               Post-call summary
             </h2>
             <p class="text-sm text-gray-600 dark:text-gray-300 whitespace-pre-line">
@@ -268,9 +270,9 @@ defmodule FlorinaWeb.Manage.MeetingLive do
 
           <div
             :if={@visit.call_attempts != []}
-            class="rounded-lg border border-gray-200 p-4 dark:border-white/10"
+            class="rounded-lg border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-white/5"
           >
-            <h2 class="text-sm font-semibold mb-3 text-gray-900 dark:text-white">
+            <h2 class="mb-3 text-[11px] font-extrabold uppercase tracking-[0.1em] text-gray-500 dark:text-gray-400">
               Calls & AI analysis
             </h2>
             <div class="space-y-4">
@@ -313,8 +315,10 @@ defmodule FlorinaWeb.Manage.MeetingLive do
 
         <%!-- Sidebar --%>
         <div class="space-y-6">
-          <div class="rounded-lg border border-gray-200 p-4 dark:border-white/10">
-            <h2 class="text-sm font-semibold mb-3 text-gray-900 dark:text-white">Lifecycle</h2>
+          <div class="rounded-lg border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-white/5">
+            <h2 class="mb-3 text-[11px] font-extrabold uppercase tracking-[0.1em] text-gray-500 dark:text-gray-400">
+              Lifecycle
+            </h2>
             <ol class="space-y-1">
               <li :for={{value, label} <- statuses()}>
                 <button
@@ -335,8 +339,10 @@ defmodule FlorinaWeb.Manage.MeetingLive do
             </ol>
           </div>
 
-          <div class="rounded-lg border border-gray-200 p-4 dark:border-white/10">
-            <h2 class="text-sm font-semibold mb-1 text-gray-900 dark:text-white">Run AI call</h2>
+          <div class="rounded-lg border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-white/5">
+            <h2 class="mb-1 text-[11px] font-extrabold uppercase tracking-[0.1em] text-gray-500 dark:text-gray-400">
+              Run AI call
+            </h2>
             <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
               Queues a real call to the agent's phone.
             </p>
@@ -349,7 +355,7 @@ defmodule FlorinaWeb.Manage.MeetingLive do
               </button>
             </div>
 
-            <h2 class="text-sm font-semibold mt-4 mb-1 text-gray-900 dark:text-white">
+            <h2 class="mt-4 mb-1 text-[11px] font-extrabold uppercase tracking-[0.1em] text-gray-500 dark:text-gray-400">
               Regenerate prompts
             </h2>
             <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
@@ -377,8 +383,8 @@ defmodule FlorinaWeb.Manage.MeetingLive do
             </div>
           </div>
 
-          <div class="rounded-lg border border-gray-200 p-4 dark:border-white/10">
-            <h2 class="text-sm font-semibold mb-3 text-gray-900 dark:text-white">
+          <div class="rounded-lg border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-white/5">
+            <h2 class="mb-3 text-[11px] font-extrabold uppercase tracking-[0.1em] text-gray-500 dark:text-gray-400">
               Recent generation runs
             </h2>
             <p :if={@runs == []} class="text-sm text-gray-500 dark:text-gray-400">No runs yet.</p>
