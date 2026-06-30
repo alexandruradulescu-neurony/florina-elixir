@@ -259,6 +259,30 @@ defmodule FlorinaWeb.Admin.ConfigLive do
     end
   end
 
+  def handle_event("delete_mega_prompt", %{"id" => id}, socket) do
+    with int when not is_nil(int) <- parse_id(id),
+         mp when not is_nil(mp) <- CentralConfig.get_mega_prompt(int),
+         {:ok, _} <- CentralConfig.delete_mega_prompt(mp) do
+      {:noreply, socket |> put_flash(:info, "Mega prompt deleted.") |> load_config()}
+    else
+      _ ->
+        {:noreply,
+         socket |> put_flash(:error, "Couldn't delete that mega prompt.") |> load_config()}
+    end
+  end
+
+  def handle_event("delete_methodology", %{"id" => id}, socket) do
+    with int when not is_nil(int) <- parse_id(id),
+         m when not is_nil(m) <- CentralConfig.get_methodology(int),
+         {:ok, _} <- CentralConfig.delete_methodology(m) do
+      {:noreply, socket |> put_flash(:info, "Methodology deleted.") |> load_config()}
+    else
+      _ ->
+        {:noreply,
+         socket |> put_flash(:error, "Couldn't delete that methodology.") |> load_config()}
+    end
+  end
+
   # ---------------------------------------------------------------------------
   # Edit global settings
   # ---------------------------------------------------------------------------
@@ -543,7 +567,7 @@ defmodule FlorinaWeb.Admin.ConfigLive do
             class="text-xs font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400"
           >+ New mega prompt</button>
         </.section_header>
-        <.config_table rows={@mega_prompts} event="edit_mega_prompt">
+        <.config_table rows={@mega_prompts} event="edit_mega_prompt" delete_event="delete_mega_prompt">
           <:col label="Domain"></:col>
           <:col label="Name"></:col>
           <:col label="Active"></:col>
@@ -561,7 +585,11 @@ defmodule FlorinaWeb.Admin.ConfigLive do
             class="text-xs font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400"
           >+ New methodology</button>
         </.section_header>
-        <.config_table rows={@methodologies} event="edit_methodology">
+        <.config_table
+          rows={@methodologies}
+          event="edit_methodology"
+          delete_event="delete_methodology"
+        >
           <:col label="Name"></:col>
           <:col label="Active"></:col>
           <:row_render :let={m}>

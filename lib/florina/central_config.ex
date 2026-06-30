@@ -57,6 +57,11 @@ defmodule Florina.CentralConfig do
 
   def get_mega_prompt!(id), do: Repo.get!(MegaPrompt, id)
 
+  def get_mega_prompt(id), do: Repo.get(MegaPrompt, id)
+
+  @doc "Delete a canonical mega prompt (control-plane only; tenant copies persist)."
+  def delete_mega_prompt(%MegaPrompt{} = mp), do: Repo.delete(mp)
+
   def create_mega_prompt(attrs) do
     %MegaPrompt{}
     |> MegaPrompt.changeset(attrs)
@@ -130,6 +135,11 @@ defmodule Florina.CentralConfig do
   def list_methodologies, do: Repo.all(Methodology)
 
   def get_methodology!(id), do: Repo.get!(Methodology, id)
+
+  def get_methodology(id), do: Repo.get(Methodology, id)
+
+  @doc "Delete a canonical methodology (control-plane only; tenant copies persist)."
+  def delete_methodology(%Methodology{} = m), do: Repo.delete(m)
 
   def create_methodology(attrs) do
     %Methodology{}
