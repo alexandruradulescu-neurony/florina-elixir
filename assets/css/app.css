@@ -2,6 +2,7 @@
    https://tailwindcss.com/docs/configuration */
 
 @import "tailwindcss" source(none);
+@import "./fonts.css";
 @import "phoenix-colocated/florina/colocated.css";
 @source "../css";
 @source "../js";
@@ -54,6 +55,38 @@
   --color-warning-content: var(--app-warning-content);
   --color-error: var(--app-error);
   --color-error-content: var(--app-error-content);
+
+  /* Type — Nunito (UI + headings) + Nunito Sans (tabular / secondary "tile" text). */
+  --font-sans: "Nunito", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-tile: "Nunito Sans", "Nunito", system-ui, sans-serif;
+
+  /* Neutral scale remapped to Zinc — the editorial canvas/surface palette.
+     Existing gray-* utilities render as zinc. */
+  --color-gray-50: rgb(250 250 250);
+  --color-gray-100: rgb(244 244 245);
+  --color-gray-200: rgb(228 228 231);
+  --color-gray-300: rgb(212 212 216);
+  --color-gray-400: rgb(161 161 170);
+  --color-gray-500: rgb(113 113 122);
+  --color-gray-600: rgb(82 82 91);
+  --color-gray-700: rgb(63 63 70);
+  --color-gray-800: rgb(39 39 42);
+  --color-gray-900: rgb(24 24 27);
+  --color-gray-950: rgb(9 9 11);
+
+  /* Accent remapped to Cyan — the one confident accent. Existing indigo-*
+     utilities render as cyan (CTAs, brand mark, focus rings, links). */
+  --color-indigo-50: rgb(236 254 255);
+  --color-indigo-100: rgb(207 250 254);
+  --color-indigo-200: rgb(162 244 253);
+  --color-indigo-300: rgb(103 232 249);
+  --color-indigo-400: rgb(34 211 238);
+  --color-indigo-500: rgb(0 184 219);
+  --color-indigo-600: rgb(8 145 178);
+  --color-indigo-700: rgb(14 116 144);
+  --color-indigo-800: rgb(21 94 117);
+  --color-indigo-900: rgb(22 78 99);
+  --color-indigo-950: rgb(8 51 68);
 }
 
 /* Light theme (Phoenix-inspired) — the defaults. */
@@ -62,8 +95,8 @@
   --app-base-200: oklch(96% 0.001 286.375);
   --app-base-300: oklch(92% 0.004 286.32);
   --app-base-content: oklch(21% 0.006 285.885);
-  --app-primary: oklch(70% 0.213 47.604);
-  --app-primary-content: oklch(98% 0.016 73.684);
+  --app-primary: rgb(0 184 219);
+  --app-primary-content: rgb(255 255 255);
   --app-secondary: oklch(55% 0.027 264.364);
   --app-secondary-content: oklch(98% 0.002 247.839);
   --app-accent: oklch(0% 0 0);
@@ -87,8 +120,8 @@
   --app-base-200: oklch(25.26% 0.014 253.1);
   --app-base-300: oklch(20.15% 0.012 254.09);
   --app-base-content: oklch(97.807% 0.029 256.847);
-  --app-primary: oklch(58% 0.233 277.117);
-  --app-primary-content: oklch(96% 0.018 272.314);
+  --app-primary: rgb(34 211 238);
+  --app-primary-content: rgb(8 51 68);
   --app-secondary: oklch(58% 0.233 277.117);
   --app-secondary-content: oklch(96% 0.018 272.314);
   --app-accent: oklch(60% 0.25 292.717);
@@ -117,3 +150,4 @@
 [data-phx-session], [data-phx-teleported-src] { display: contents }
 
 /* This file is for your main application CSS */
+body { font-family: var(--font-sans); }

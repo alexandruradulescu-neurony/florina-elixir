@@ -166,13 +166,18 @@ defmodule FlorinaWeb.Layouts do
   defp sidebar(assigns) do
     ~H"""
     <div class="flex grow flex-col gap-y-5 overflow-y-auto border-r border-gray-200 bg-white px-6 pb-4 dark:border-white/10 dark:bg-gray-900">
-      <div class="flex h-16 shrink-0 items-center">
-        <span class="text-lg font-semibold text-gray-900 dark:text-white">Florina</span>
+      <div class="flex h-16 shrink-0 items-center gap-x-3">
+        <span class="flex size-9 items-center justify-center rounded-[10px] bg-indigo-500 text-base font-extrabold text-white">
+          F
+        </span>
+        <span class="text-base font-extrabold tracking-tight text-gray-900 dark:text-white">Florina</span>
       </div>
       <nav class="flex flex-1 flex-col">
         <ul role="list" class="flex flex-1 flex-col gap-y-7">
           <li>
-            <div class="text-xs/6 font-semibold text-gray-400">{@tenant.name}</div>
+            <div class="mt-1 text-[10px] font-extrabold uppercase tracking-[0.1em] text-gray-500">
+              {@tenant.name}
+            </div>
             <ul role="list" class="-mx-2 mt-2 space-y-1">
               <.nav_item
                 label="Calendar"
@@ -211,7 +216,9 @@ defmodule FlorinaWeb.Layouts do
             </ul>
           </li>
           <li :if={@manager?}>
-            <div class="text-xs/6 font-semibold text-gray-400">Management</div>
+            <div class="mt-1 text-[10px] font-extrabold uppercase tracking-[0.1em] text-gray-500">
+              Management
+            </div>
             <ul role="list" class="-mx-2 mt-2 space-y-1">
               <.nav_item
                 label="Dashboard"
@@ -292,17 +299,17 @@ defmodule FlorinaWeb.Layouts do
       <.link
         navigate={@href}
         class={[
-          "group flex gap-x-3 rounded-md p-2 text-sm/6 font-semibold",
-          (@active && "bg-gray-50 text-indigo-600 dark:bg-white/5 dark:text-white") ||
-            "text-gray-700 hover:bg-gray-50 hover:text-indigo-600 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-white"
+          "group flex gap-x-3 rounded-full p-2 text-sm/6 font-bold",
+          (@active && "bg-zinc-950 text-white dark:bg-white dark:text-zinc-950") ||
+            "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/5"
         ]}
       >
         <.icon
           name={@icon}
           class={[
             "size-6 shrink-0",
-            (@active && "text-indigo-600 dark:text-white") ||
-              "text-gray-400 group-hover:text-indigo-600 dark:group-hover:text-white"
+            (@active && "text-white dark:text-zinc-950") ||
+              "text-gray-400 dark:text-gray-500"
           ]}
         />
         {@label}
