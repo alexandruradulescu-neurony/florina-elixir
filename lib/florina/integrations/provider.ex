@@ -62,7 +62,7 @@ defmodule Florina.Integrations.Provider do
   Core §3.1.3.7 the TLS server identity authenticates the issuer in place of the
   signature. We DO validate the claims TLS doesn't cover — audience (the token
   was issued for THIS app, not another client), issuer (it came from the expected
-  provider), and expiry — which the previous decode-only path skipped.
+  provider), and expiry.
   """
   def verify_id_token(provider, id_token) when is_atom(provider) and is_binary(id_token) do
     with {:ok, claims} <- decode_claims(id_token),

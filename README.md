@@ -15,11 +15,10 @@ agent chat), where Elixir's strengths matter most.
 Each customer ("tenant") is isolated using a dedicated **Postgres schema**
 (`tenant_<id>`) on a single shared database, selected per request/job via the Ecto
 query prefix. A central "control-plane" schema holds the tenant registry, operator
-admins, and the canonical configuration published down to tenants. (This supersedes the
-original *database-per-tenant* design in the Track 1 spec.) See the design specs:
+admins, and the canonical configuration published down to tenants. See the design specs:
 
 - [Elixir / Phoenix / Oban port (Track 2)](docs/superpowers/specs/2026-06-24-elixir-phoenix-port-design.md)
-- [Multitenancy — original database-per-tenant design (Track 1, superseded by schema-per-tenant)](docs/superpowers/specs/2026-06-24-multitenancy-database-per-tenant-design.md)
+- [Multitenancy — schema-per-tenant design (Track 1)](docs/superpowers/specs/2026-06-24-multitenancy-database-per-tenant-design.md)
 
 ## Current status
 

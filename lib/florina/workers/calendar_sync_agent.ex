@@ -380,8 +380,8 @@ defmodule Florina.Workers.CalendarSyncAgent do
     end
   end
 
-  # A visit we previously retired to :CANCELLED (organizer cancel, or the agent
-  # declining) that now shows up as an active, attended meeting again — the
+  # A :CANCELLED visit (organizer cancel, or the agent declining) that shows up as
+  # an active, attended meeting again — the
   # process_event cond above has already excluded cancelled/declined events — must
   # be brought back to :PLANNED. Otherwise the scheduler stays silent forever about
   # a meeting the agent is once again attending. Only :CANCELLED is reopened;

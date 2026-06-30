@@ -6,7 +6,7 @@ defmodule FlorinaWeb.RawBodyReader do
   body larger than the read chunk size and `{:ok, body, conn}` for the final
   chunk. We accumulate every chunk (prepended; the consumer reverses + joins) so
   large payloads still verify, and pass `{:error, _}` through instead of crashing
-  with a MatchError → 500 (the old code matched only `{:ok, ...}`).
+  with a MatchError → 500.
   """
   def read_body(conn, opts) do
     case Plug.Conn.read_body(conn, opts) do

@@ -1,8 +1,7 @@
 defmodule Florina.Strings do
   @moduledoc """
-  Small shared string helpers. Centralizes the "treat nil/blank as nothing"
-  logic that was previously duplicated (and had drifted on whitespace handling)
-  across the integration and settings modules.
+  Small shared string helpers for treating nil/blank as nothing,
+  used across the integration and settings modules.
   """
 
   @doc "True for nil and strings that are empty or whitespace-only."

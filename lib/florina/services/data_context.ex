@@ -160,8 +160,8 @@ defmodule Florina.Services.DataContext do
   @doc """
   Build the placeholder context map for a POST_CALL assembly.
 
-  Extends the pre-call context with `pre_call_brief` (the previously
-  generated pre-call prompt) and `visit_transcript`.
+  Extends the pre-call context with `pre_call_brief` (the visit's pre-call
+  prompt) and `visit_transcript`.
   """
   def build_post_call(%Visit{} = visit, transcript \\ "") do
     pre = build_pre_call(visit)
@@ -272,8 +272,8 @@ defmodule Florina.Services.DataContext do
 
   # Defang DB-sourced text before it enters the chat system prompt. Delegates to
   # the single shared sanitizer (`Placeholders.sanitize_scalar/1`) so this chat
-  # path and the assembler path can't drift on control-char/fence handling or the
-  # length cap — a previous copy here had already diverged on both.
+  # path and the assembler path share the same control-char/fence handling and
+  # length cap.
   defp sanitize(nil), do: ""
   defp sanitize(value), do: Placeholders.sanitize_scalar(to_string(value))
 
