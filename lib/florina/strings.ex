@@ -25,4 +25,21 @@ defmodule Florina.Strings do
   end
 
   def blank_to_nil(_), do: nil
+
+  @doc """
+  Parse a value to an integer, or `nil` when it isn't one. Integers pass through;
+  a binary must parse cleanly in full (no trailing characters); anything else is
+  `nil`. Use for form/URL params compared against integer columns, where a
+  non-integer must drop the filter rather than crash the query with a cast error.
+  """
+  def to_int(v) when is_integer(v), do: v
+
+  def to_int(v) when is_binary(v) do
+    case Integer.parse(v) do
+      {n, ""} -> n
+      _ -> nil
+    end
+  end
+
+  def to_int(_), do: nil
 end

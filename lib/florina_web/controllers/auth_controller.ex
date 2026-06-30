@@ -183,9 +183,7 @@ defmodule FlorinaWeb.AuthController do
   end
 
   defp resolve_tenant(nil, %{email: email, email_verified: true}) when is_binary(email) do
-    domain = email |> String.split("@") |> List.last() |> to_string() |> String.downcase()
-
-    case Tenants.get_by_email_domain(domain) do
+    case Tenants.get_by_email_domain(Tenants.email_domain(email)) do
       %Tenants.Tenant{} = tenant -> {:ok, tenant}
       _ -> {:error, :no_workspace}
     end
@@ -246,9 +244,9 @@ defmodule FlorinaWeb.AuthController do
   defp login_dest(_conn, _params), do: "/"
 
   defp gate(%{email: email, email_verified: true}, tenant) when is_binary(email) do
-    domain = email |> String.split("@") |> List.last() |> String.downcase()
-    allowed = Enum.map(tenant.allowed_email_domains || [], &String.downcase/1)
-    if domain in allowed, do: :ok, else: {:error, :forbidden_domain}
+    if Tenants.email_domain_allowed?(tenant, email),
+      do: :ok,
+      else: {:error, :forbidden_domain}
   end
 
   defp gate(_identity, _tenant), do: {:error, :forbidden_domain}

@@ -11,6 +11,7 @@ defmodule FlorinaWeb.Manage.AgentsLive do
   on_mount {FlorinaWeb.AgentAuth, :require_manager}
 
   alias Florina.Accounts
+  alias Florina.Tenants
 
   @impl true
   def mount(_params, _session, socket) do
@@ -142,13 +143,13 @@ defmodule FlorinaWeb.Manage.AgentsLive do
   # If the invited email's domain isn't allowed for this tenant, they can't sign
   # in yet — surface that inline so the manager isn't surprised.
   defp domain_note(socket, email) do
-    domain = email |> String.split("@") |> List.last() |> to_string() |> String.downcase()
-    allowed = Enum.map(socket.assigns.tenant.allowed_email_domains || [], &String.downcase/1)
+    if Tenants.email_domain_allowed?(socket.assigns.tenant, email) do
+      ""
+    else
+      domain = Tenants.email_domain(email) || "that domain"
 
-    if domain in allowed,
-      do: "",
-      else:
-        " Note: #{domain} isn't an allowed sign-in domain for this tenant yet — add it in /admin so they can log in."
+      " Note: #{domain} isn't an allowed sign-in domain for this tenant yet — add it in /admin so they can log in."
+    end
   end
 
   defp demoting_last_manager?(user, "agent"),

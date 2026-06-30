@@ -11,6 +11,7 @@ defmodule Florina.Accounts do
   import Ecto.Query
   alias Florina.TenantRepo
   alias Florina.Accounts.User
+  alias Florina.Strings
 
   # ---------------------------------------------------------------------------
   # Queries
@@ -116,7 +117,7 @@ defmodule Florina.Accounts do
     attrs =
       params
       |> Map.take(["first_name", "phone_number", "pipedrive_user_id"])
-      |> Map.new(fn {k, v} -> {k, blank_to_nil(v)} end)
+      |> Map.new(fn {k, v} -> {k, Strings.blank_to_nil(v)} end)
 
     update_user(user, attrs)
   end
@@ -237,7 +238,7 @@ defmodule Florina.Accounts do
       true ->
         params
         |> Map.take(["role", "first_name", "phone_number", "pipedrive_user_id"])
-        |> Enum.reject(fn {_k, v} -> blank?(v) end)
+        |> Enum.reject(fn {_k, v} -> Strings.blank?(v) end)
         |> Map.new()
         |> Map.merge(%{
           "username" => email,
@@ -248,19 +249,4 @@ defmodule Florina.Accounts do
         |> create_user()
     end
   end
-
-  defp blank?(nil), do: true
-  defp blank?(value) when is_binary(value), do: String.trim(value) == ""
-  defp blank?(_), do: false
-
-  # Trim a string field; a blank string becomes nil (clears the field). Non-strings
-  # pass through unchanged.
-  defp blank_to_nil(v) when is_binary(v) do
-    case String.trim(v) do
-      "" -> nil
-      trimmed -> trimmed
-    end
-  end
-
-  defp blank_to_nil(v), do: v
 end

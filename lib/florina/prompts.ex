@@ -9,6 +9,7 @@ defmodule Florina.Prompts do
   import Ecto.Query
   alias Florina.TenantRepo
   alias Florina.Prompts.{MegaPrompt, GenerationRun}
+  alias Florina.Strings
 
   # --- MegaPrompt ----------------------------------------------------------
 
@@ -144,8 +145,8 @@ defmodule Florina.Prompts do
 
   defp runs_query(filters) do
     GenerationRun
-    |> filter_domain(blank_to_nil(filters["domain"]))
-    |> filter_outcome(blank_to_nil(filters["outcome"]))
+    |> filter_domain(Strings.blank_to_nil(filters["domain"]))
+    |> filter_outcome(Strings.blank_to_nil(filters["outcome"]))
   end
 
   defp filter_domain(query, nil), do: query
@@ -168,9 +169,6 @@ defmodule Florina.Prompts do
   defp filter_outcome(query, "success"), do: from(r in query, where: r.success == true)
   defp filter_outcome(query, "failures"), do: from(r in query, where: r.success == false)
   defp filter_outcome(query, _), do: query
-
-  defp blank_to_nil(v) when v in [nil, ""], do: nil
-  defp blank_to_nil(v), do: v
 
   defp now, do: DateTime.utc_now() |> DateTime.truncate(:second)
 end

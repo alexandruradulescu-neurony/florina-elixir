@@ -6,6 +6,7 @@ defmodule Florina.Tenants do
   """
   import Ecto.Query, only: [from: 2]
   alias Florina.Repo
+  alias Florina.Strings
   alias Florina.Tenants.Tenant
 
   @doc """
@@ -65,18 +66,46 @@ defmodule Florina.Tenants do
   workspace — if two claimed it, the first by slug wins.
   """
   def get_by_email_domain(domain) when is_binary(domain) do
-    d = domain |> String.trim() |> String.downcase()
-
-    if d == "" do
-      nil
-    else
-      Enum.find(list_active(), fn t ->
-        d in Enum.map(t.allowed_email_domains || [], &String.downcase/1)
-      end)
+    case Strings.blank_to_nil(domain) do
+      nil -> nil
+      d -> Enum.find(list_active(), &domain_matches?(&1, String.downcase(d)))
     end
   end
 
   def get_by_email_domain(_), do: nil
+
+  @doc """
+  The lowercased domain part of an email (everything after the last `@`), or
+  `nil` if `email` isn't a binary or has no domain. The single source of truth
+  for turning a sign-in email into a workspace domain.
+  """
+  def email_domain(email) when is_binary(email) do
+    email
+    |> String.split("@")
+    |> List.last()
+    |> to_string()
+    |> String.downcase()
+    |> Strings.blank_to_nil()
+  end
+
+  def email_domain(_), do: nil
+
+  @doc """
+  True if `email`'s domain is one of `tenant`'s configured `allowed_email_domains`
+  (case-insensitive). The single source of truth for the sign-in domain gate.
+  """
+  def email_domain_allowed?(%Tenant{} = tenant, email) do
+    case email_domain(email) do
+      nil -> false
+      domain -> domain_matches?(tenant, domain)
+    end
+  end
+
+  # Membership test: is `domain` (already lowercased) one of the tenant's
+  # configured allowed_email_domains (compared case-insensitively)?
+  defp domain_matches?(%Tenant{allowed_email_domains: domains}, domain) do
+    domain in Enum.map(domains || [], &String.downcase/1)
+  end
 
   @doc """
   True only if the tenant exists, is enabled (`active: true`) AND fully

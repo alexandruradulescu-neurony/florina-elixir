@@ -13,7 +13,7 @@ defmodule FlorinaWeb.Manage.MeetingFormLive do
   on_mount {FlorinaWeb.AgentAuth, :ensure_authenticated}
   on_mount {FlorinaWeb.AgentAuth, :require_manager}
 
-  alias Florina.{Accounts, Clients, Methodologies, Scenarios, Visits}
+  alias Florina.{Accounts, Clients, Methodologies, Scenarios, Strings, Visits}
 
   @impl true
   def mount(params, _session, socket) do
@@ -80,8 +80,8 @@ defmodule FlorinaWeb.Manage.MeetingFormLive do
          "agent_id" => p["agent_id"],
          "client_id" => p["client_id"],
          "title" => p["title"],
-         "methodology_id" => blank_to_nil(p["methodology_id"]),
-         "scenario_id" => blank_to_nil(p["scenario_id"]),
+         "methodology_id" => Strings.blank_to_nil(p["methodology_id"]),
+         "scenario_id" => Strings.blank_to_nil(p["scenario_id"]),
          "manager_notes" => p["manager_notes"],
          "start_time" => start_dt,
          "end_time" => end_dt
@@ -228,9 +228,6 @@ defmodule FlorinaWeb.Manage.MeetingFormLive do
       :error -> default
     end
   end
-
-  defp blank_to_nil(v) when v in [nil, ""], do: nil
-  defp blank_to_nil(v), do: v
 
   defp errors(changeset) do
     changeset

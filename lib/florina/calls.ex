@@ -3,6 +3,7 @@ defmodule Florina.Calls do
   import Ecto.Query, only: [from: 2, order_by: 2, limit: 2]
   alias Florina.TenantRepo
   alias Florina.Calls.CallAttempt
+  alias Florina.Strings
   alias Florina.Visits.Visit
 
   @doc "PubSub topic scoped to a single tenant."
@@ -52,9 +53,9 @@ defmodule Florina.Calls do
       preload: [visit: [:agent, :client]],
       order_by: [desc: c.updated_at]
     )
-    |> filter_status(blank_to_nil(filters["status"]))
-    |> filter_phase(blank_to_nil(filters["phase"]))
-    |> filter_agent(parse_int(filters["agent_id"]))
+    |> filter_status(Strings.blank_to_nil(filters["status"]))
+    |> filter_phase(Strings.blank_to_nil(filters["phase"]))
+    |> filter_agent(Strings.to_int(filters["agent_id"]))
     |> limit(^max)
     |> TenantRepo.all()
   end
@@ -69,23 +70,6 @@ defmodule Florina.Calls do
 
   defp filter_agent(query, agent_id),
     do: from([c, v] in query, where: v.agent_id == ^agent_id)
-
-  defp blank_to_nil(v) when v in [nil, ""], do: nil
-  defp blank_to_nil(v), do: v
-
-  # agent_id arrives as a form string and is compared against a bigint column; a
-  # non-integer would crash the LiveView with an Ecto cast error, so an
-  # unparseable (e.g. tampered) value simply drops the filter.
-  defp parse_int(v) when is_integer(v), do: v
-
-  defp parse_int(v) when is_binary(v) do
-    case Integer.parse(v) do
-      {n, ""} -> n
-      _ -> nil
-    end
-  end
-
-  defp parse_int(_), do: nil
 
   @doc """
   Counts for the Programmed Calls stats strip, across all calls (unfiltered):

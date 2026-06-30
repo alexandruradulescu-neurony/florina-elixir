@@ -5,6 +5,7 @@ defmodule Florina.Audit do
   import Ecto.Query
   alias Florina.TenantRepo
   alias Florina.Audit.ActivityLog
+  alias Florina.Strings
 
   @doc """
   Record an audit entry. `attrs` needs at least `:action`; `:visit_id`, `:user_id`,
@@ -31,8 +32,8 @@ defmodule Florina.Audit do
       preload: [:user, :visit],
       limit: ^limit
     )
-    |> filter_level(blank_to_nil(filters["level"]))
-    |> filter_user(parse_int(filters["user_id"]))
+    |> filter_level(Strings.blank_to_nil(filters["level"]))
+    |> filter_user(Strings.to_int(filters["user_id"]))
     |> TenantRepo.all()
   end
 
@@ -55,22 +56,6 @@ defmodule Florina.Audit do
 
   defp filter_user(query, nil), do: query
   defp filter_user(query, user_id), do: from(l in query, where: l.user_id == ^user_id)
-
-  defp blank_to_nil(v) when v in [nil, ""], do: nil
-  defp blank_to_nil(v), do: v
-
-  # user_id is a form/URL string compared against a bigint column; a non-integer
-  # would crash the query, so an unparseable value drops the filter.
-  defp parse_int(v) when is_integer(v), do: v
-
-  defp parse_int(v) when is_binary(v) do
-    case Integer.parse(v) do
-      {n, ""} -> n
-      _ -> nil
-    end
-  end
-
-  defp parse_int(_), do: nil
 
   def list_for_visit(visit_id),
     do:
