@@ -55,11 +55,15 @@ defmodule FlorinaWeb.Router do
     post "/elevenlabs", ElevenLabsController, :create
   end
 
-  # Inbound voice concierge (ElevenLabs). Same webhook pipeline + HMAC auth as the
-  # post-call webhook; tenant resolved from the URL slug.
+  # Inbound voice concierge (ElevenLabs). Same webhook pipeline as the post-call
+  # webhook; tenant resolved from the URL slug. `/personalize` uses the HMAC
+  # signature; the mid-call `/tools/*` use a shared-secret header (server tools).
   scope "/t/:tenant_slug/voice", FlorinaWeb.Webhook do
     pipe_through [:webhook, :resolve_tenant]
     post "/personalize", VoiceController, :personalize
+    post "/tools/find_meeting", VoiceToolController, :find_meeting
+    post "/tools/get_call_script", VoiceToolController, :get_call_script
+    post "/tools/save_outcome", VoiceToolController, :save_outcome
   end
 
   scope "/", FlorinaWeb do

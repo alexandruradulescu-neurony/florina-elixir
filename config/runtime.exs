@@ -66,6 +66,9 @@ if config_env() == :prod do
     elevenlabs_agent_id: System.get_env("ELEVENLABS_AGENT_ID"),
     elevenlabs_phone_number_id: System.get_env("ELEVENLABS_PHONE_NUMBER_ID")
 
+  # Shared secret for the inbound voice concierge's mid-call server tools.
+  config :florina, :voice_tools_secret, System.get_env("VOICE_TOOLS_SECRET")
+
   # Google Calendar OAuth app credentials
   config :florina,
     google_client_id: System.get_env("GOOGLE_CLIENT_ID"),

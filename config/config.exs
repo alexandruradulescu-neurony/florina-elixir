@@ -158,6 +158,11 @@ config :florina,
   elevenlabs_agent_id: nil,
   elevenlabs_phone_number_id: nil
 
+# Shared secret for the inbound voice concierge's mid-call server tools
+# (`/t/:slug/voice/tools/*`). Configured as a static header on each ElevenLabs
+# tool. Set in runtime.exs for prod from env; a fixed value in test.exs.
+config :florina, :voice_tools_secret, nil
+
 # Google Calendar OAuth — global client credentials (set in runtime.exs for prod)
 config :florina,
   google_client_id: nil,
