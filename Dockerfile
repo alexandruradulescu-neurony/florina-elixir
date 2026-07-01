@@ -91,11 +91,12 @@ ENV MIX_ENV="prod"
 # Only copy the final release from the build stage
 COPY --from=builder --chown=nobody:root /app/_build/${MIX_ENV}/rel/florina ./
 
-USER nobody
+# Privilege-dropping entrypoint: it runs as root only long enough to chown the
+# mounted /data uploads volume to the app user, then drops to "nobody" to run
+# the server — so the app process itself stays unprivileged. Owned by root and
+# executable, since PID 1 runs it before dropping privileges.
+COPY rel/entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
 
-# If using an environment that doesn't automatically reap zombie processes, it is
-# advised to add an init process such as tini via `apt-get install`
-# above and adding an entrypoint. See https://github.com/krallin/tini for details
-# ENTRYPOINT ["/tini", "--"]
-
+ENTRYPOINT ["/app/entrypoint.sh"]
 CMD ["/app/bin/server"]
