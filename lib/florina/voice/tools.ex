@@ -259,6 +259,34 @@ defmodule Florina.Voice.Tools do
   end
 
   # ---------------------------------------------------------------------------
+  # check_client_email (read-only)
+  # ---------------------------------------------------------------------------
+
+  @doc """
+  Recent ingested emails from a client, for Florina to read out mid-call. Read-only
+  — never acts on the content. `{:ok, %{"emails" => [...]}}` or `{:error, :not_found}`.
+  """
+  def check_client_email(_agent_id, client_id) do
+    case to_int(client_id) do
+      nil ->
+        {:error, :not_found}
+
+      cid ->
+        emails = cid |> Florina.Inbox.recent_for_client() |> Enum.map(&email_map/1)
+        {:ok, %{"emails" => emails}}
+    end
+  end
+
+  defp email_map(e) do
+    %{
+      "from" => e.from_email,
+      "received_at" => e.received_at && DateTime.to_iso8601(e.received_at),
+      "summary" => e.summary || e.subject,
+      "relevant_visit_id" => e.visit_id
+    }
+  end
+
+  # ---------------------------------------------------------------------------
   # Helpers
   # ---------------------------------------------------------------------------
 

@@ -78,6 +78,17 @@ defmodule FlorinaWeb.Manage.SettingsLive do
     end
   end
 
+  def handle_event("save_imap", %{"imap" => params}, socket) do
+    case Settings.update_imap(params) do
+      {:ok, settings} ->
+        {:noreply,
+         socket |> assign(:settings, settings) |> put_flash(:info, "Email settings saved.")}
+
+      {:error, _changeset} ->
+        {:noreply, put_flash(socket, :error, "Could not save email settings.")}
+    end
+  end
+
   defp assign_form(socket, changeset), do: assign(socket, :form, to_form(changeset))
 
   defp token_placeholder(saved) when saved in [nil, ""], do: "Paste the API token"
@@ -310,6 +321,56 @@ defmodule FlorinaWeb.Manage.SettingsLive do
             class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400"
           >
             <input type="checkbox" name="smtp[clear_smtp_password]" value="true" class="rounded" />
+            Remove the saved password
+          </label>
+          <.button type="submit" variant="primary">Save email settings</.button>
+        </.form>
+      </div>
+
+      <div class="mt-12 border-t border-gray-200 dark:border-white/10 pt-8 max-w-xl">
+        <h2 class="text-xl font-extrabold tracking-[-0.01em] text-gray-900 dark:text-white">
+          Incoming email (IMAP)
+        </h2>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mb-5">
+          The same Florina mailbox, for reading client replies. A blank password keeps the
+          one already saved.
+        </p>
+        <.form
+          :let={f}
+          for={
+            to_form(
+              %{
+                "imap_host" => @settings.imap_host || "",
+                "imap_port" => @settings.imap_port || "",
+                "imap_username" => @settings.imap_username || ""
+              },
+              as: :imap
+            )
+          }
+          id="imap-form"
+          phx-submit="save_imap"
+          class="space-y-5"
+        >
+          <.input
+            field={f[:imap_host]}
+            type="text"
+            label="IMAP host"
+            placeholder="imap.yourcompany.com"
+          />
+          <.input field={f[:imap_port]} type="number" label="IMAP port" placeholder="993" />
+          <.input field={f[:imap_username]} type="text" label="IMAP username" />
+          <.input
+            field={f[:imap_password]}
+            value=""
+            type="password"
+            label="IMAP password"
+            placeholder={token_placeholder(@settings.imap_password)}
+          />
+          <label
+            :if={@settings.imap_password}
+            class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400"
+          >
+            <input type="checkbox" name="imap[clear_imap_password]" value="true" class="rounded" />
             Remove the saved password
           </label>
           <.button type="submit" variant="primary">Save email settings</.button>

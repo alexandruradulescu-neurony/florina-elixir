@@ -39,6 +39,13 @@ defmodule Florina.Settings.GlobalSettings do
     field :smtp_from, :string
     field :smtp_from_name, :string
 
+    # Per-tenant incoming email (IMAP) — the same Florina mailbox the concierge
+    # reads client replies from. Password encrypted like the SMTP one.
+    field :imap_host, :string
+    field :imap_port, :integer
+    field :imap_username, :string
+    field :imap_password, Florina.Encrypted.Binary, redact: true
+
     field :is_overridden, :boolean, default: false
 
     belongs_to :default_methodology, Florina.Methodologies.Methodology
@@ -62,6 +69,10 @@ defmodule Florina.Settings.GlobalSettings do
     :smtp_password,
     :smtp_from,
     :smtp_from_name,
+    :imap_host,
+    :imap_port,
+    :imap_username,
+    :imap_password,
     :default_methodology_id
     # :is_overridden is intentionally NOT castable — it's a publish-control flag
     # set only by app code (`Settings.update/1` via put_change), never from params.
@@ -102,15 +113,18 @@ defmodule Florina.Settings.GlobalSettings do
     |> Florina.Settings.GlobalSettings.validate_scheduling()
   end
 
-  # Light bounds for the SMTP fields — only applied to fields actually present in
-  # the changeset (nil/unchanged fields are skipped by the validators).
+  # Light bounds for the SMTP + IMAP fields — only applied to fields actually
+  # present in the changeset (nil/unchanged fields are skipped by the validators).
   defp validate_smtp(changeset) do
     changeset
     |> validate_number(:smtp_port, greater_than: 0, less_than_or_equal_to: 65_535)
+    |> validate_number(:imap_port, greater_than: 0, less_than_or_equal_to: 65_535)
     |> validate_length(:smtp_host, max: 255)
     |> validate_length(:smtp_username, max: 255)
     |> validate_length(:smtp_from, max: 255)
     |> validate_length(:smtp_from_name, max: 255)
+    |> validate_length(:imap_host, max: 255)
+    |> validate_length(:imap_username, max: 255)
   end
 
   # The Pipedrive domain is interpolated into the API base URL

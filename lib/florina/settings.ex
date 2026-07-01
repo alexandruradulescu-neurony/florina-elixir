@@ -71,6 +71,25 @@ defmodule Florina.Settings do
     |> TenantRepo.update()
   end
 
+  @doc """
+  Update only this tenant's incoming-email (IMAP) credentials — the mailbox the
+  concierge reads client replies from. Same keep-on-blank password behaviour and
+  no `is_overridden` as `update_smtp/1`.
+  """
+  def update_imap(attrs) do
+    changes =
+      %{}
+      |> put_present(attrs, :imap_host, :allow_blank)
+      |> put_present(attrs, :imap_port, :allow_blank)
+      |> put_present(attrs, :imap_username, :allow_blank)
+      |> put_present(attrs, :imap_password, :nonblank)
+      |> maybe_clear(attrs, "clear_imap_password", :imap_password)
+
+    GlobalSettings.load()
+    |> GlobalSettings.changeset(changes)
+    |> TenantRepo.update()
+  end
+
   defp put_present(map, attrs, key, mode) do
     if has_key?(attrs, key) do
       case {mode, Strings.blank_to_nil(fetch(attrs, key))} do

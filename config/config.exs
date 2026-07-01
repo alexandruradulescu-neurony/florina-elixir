@@ -60,7 +60,8 @@ config :florina, Oban,
        {"*/5 * * * *", Florina.Workers.CallScheduler},
        {"*/15 * * * *", Florina.Workers.SyncPendingCallsScheduler},
        {"*/5 * * * *", Florina.Workers.CalendarSyncScheduler},
-       {"5 0 * * *", Florina.Workers.CrmSyncScheduler}
+       {"5 0 * * *", Florina.Workers.CrmSyncScheduler},
+       {"*/5 * * * *", Florina.Workers.InboxPollScheduler}
      ]}
   ]
 
@@ -150,7 +151,8 @@ config :florina,
   oauth_provider_google: Florina.Integrations.Providers.Google,
   oauth_provider_microsoft: Florina.Integrations.Providers.Microsoft,
   pipedrive_client: Florina.Integrations.Pipedrive,
-  hubspot_client: Florina.Integrations.Hubspot
+  hubspot_client: Florina.Integrations.Hubspot,
+  imap_client: Florina.Integrations.Imap
 
 # ElevenLabs — global keys (set in runtime.exs for prod from env)
 config :florina,

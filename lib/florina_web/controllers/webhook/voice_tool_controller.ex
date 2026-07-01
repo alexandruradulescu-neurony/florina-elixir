@@ -54,6 +54,14 @@ defmodule FlorinaWeb.Webhook.VoiceToolController do
     end)
   end
 
+  def check_client_email(conn, params) do
+    with_auth(conn, fn ->
+      params["agent_id"]
+      |> Tools.check_client_email(params["client_id"])
+      |> respond(conn)
+    end)
+  end
+
   defp respond({:ok, result}, conn), do: json(conn, result)
 
   defp respond({:error, :no_recipient}, conn),

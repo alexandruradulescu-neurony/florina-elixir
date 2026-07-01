@@ -103,6 +103,9 @@ defmodule Florina.Voice.Concierge do
     (one of: follow_up, summary, materials). Tell them it's queued. If it reports no
     recipient, tell them there's no email on file for that client.
 
+    You can also call `check_client_email` with a client id to see recent emails the
+    client sent; read out any that are relevant to the meeting.
+
     Possible meetings: {{candidate_meetings}}
 
     Never invent information. If a tool returns nothing or you are unsure which
