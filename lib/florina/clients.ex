@@ -51,10 +51,14 @@ defmodule Florina.Clients do
   Finds the first client matching the given email domain.
 
   Mirrors Django's `get_client_by_domain()`. Used by the calendar sync
-  pipeline to match attendees to a known client.
+  pipeline to match attendees to a known client. The domain is normalised
+  (`Client.normalize_domain/1`) so case / `www.` variants match the one stored row.
   """
   def get_by_domain(domain) when is_binary(domain) do
-    TenantRepo.get_by(Client, domain: domain)
+    case Client.normalize_domain(domain) do
+      nil -> nil
+      normalized -> TenantRepo.get_by(Client, domain: normalized)
+    end
   end
 
   def get_by_domain(_), do: nil

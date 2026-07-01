@@ -2,10 +2,10 @@ defmodule FlorinaWeb.Manage.ClientLive do
   @moduledoc """
   Manager create / edit / delete of a client. Managers only.
 
-  Delete is blocked while the client still has meetings: the `visit → client` FK
-  is `on_delete: :delete_all`, so deleting a client with meetings would silently
-  wipe its meeting + call history. Only orphan clients (no meetings) can be
-  deleted here.
+  Create needs only a name — CRM ID is optional, so a manager can add a client by
+  hand (CRM- and calendar-synced clients carry their own IDs). Delete is guarded
+  twice: the `visit → client` FK is `:restrict`, and the view also blocks deletion
+  while the client still has meetings, so a client's history is never silently wiped.
   """
   use FlorinaWeb, :live_view
 
@@ -125,7 +125,7 @@ defmodule FlorinaWeb.Manage.ClientLive do
         >
           ← Clients
         </.link>
-        <h1 class="text-2xl font-semibold mt-1 text-gray-900 dark:text-white">
+        <h1 class="mt-2 text-3xl font-extrabold tracking-[-0.01em] text-gray-900 dark:text-white">
           {if @live_action == :new, do: "New client", else: @client.name}
         </h1>
       </div>
@@ -142,8 +142,7 @@ defmodule FlorinaWeb.Manage.ClientLive do
           :if={@live_action == :new}
           field={@form[:crm_id]}
           type="text"
-          label="CRM ID"
-          required
+          label="CRM ID (optional)"
         />
         <.input field={@form[:domain]} type="text" label="Domain" />
         <.input field={@form[:industry]} type="text" label="Industry" />
