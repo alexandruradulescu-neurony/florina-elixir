@@ -89,6 +89,28 @@ defmodule Florina.Visits do
   end
 
   @doc """
+  Meetings a caller might be phoning the concierge about: this agent's visits in a
+  window around `now` — recently passed (a post-call may be owed) or imminent (a
+  pre-call may be owed) — excluding finished / cancelled / archived ones. Preloads
+  the client and caps the list for the voice agent's context.
+  """
+  def concierge_candidates(agent_id, now \\ DateTime.utc_now()) do
+    from_t = DateTime.add(now, -24 * 3600, :second)
+    to_t = DateTime.add(now, 24 * 3600, :second)
+
+    from(v in Visit,
+      where:
+        v.agent_id == ^agent_id and
+          v.start_time >= ^from_t and v.start_time <= ^to_t and
+          v.status not in [:CANCELLED, :COMPLETE, :ARCHIVED],
+      order_by: [asc: v.start_time],
+      preload: [:client],
+      limit: 10
+    )
+    |> TenantRepo.all()
+  end
+
+  @doc """
   Returns all visits for a specific client, most-recent first.
 
   Mirrors Django's client detail view: `Visit.objects.filter(client=client)

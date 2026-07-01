@@ -11,6 +11,7 @@ defmodule Florina.Accounts do
   import Ecto.Query
   alias Florina.TenantRepo
   alias Florina.Accounts.User
+  alias Florina.Phone
   alias Florina.Strings
 
   # ---------------------------------------------------------------------------
@@ -187,6 +188,28 @@ defmodule Florina.Accounts do
   def get_user_by_email(email) when is_binary(email) do
     down = String.downcase(email)
     User |> where([u], fragment("lower(?)", u.email) == ^down) |> TenantRepo.one()
+  end
+
+  @doc """
+  Finds the active agent whose stored phone number matches `caller_id` (in any
+  common format), within the pinned tenant. Returns the `User` or `nil`.
+
+  Matching is by trailing significant digits (`Florina.Phone.match_key/1`), so a
+  `+E.164` caller ID matches a number stored in national/trunk form. Agents in one
+  tenant have distinct, same-country numbers, so this is unambiguous in practice.
+  Used by the inbound voice concierge to identify the caller.
+  """
+  def get_agent_by_phone(caller_id) do
+    case Phone.match_key(caller_id) do
+      nil ->
+        nil
+
+      key ->
+        User
+        |> where([u], u.active == true and not is_nil(u.phone_number))
+        |> TenantRepo.all()
+        |> Enum.find(fn u -> Phone.match_key(u.phone_number) == key end)
+    end
   end
 
   @doc """
