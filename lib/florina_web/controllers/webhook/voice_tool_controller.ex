@@ -41,7 +41,23 @@ defmodule FlorinaWeb.Webhook.VoiceToolController do
     end)
   end
 
+  def draft_or_send_email(conn, params) do
+    with_auth(conn, fn ->
+      conn.assigns.tenant.slug
+      |> Tools.draft_or_send_email(
+        params["agent_id"],
+        params["client_id"],
+        params["purpose"],
+        params["notes"]
+      )
+      |> respond(conn)
+    end)
+  end
+
   defp respond({:ok, result}, conn), do: json(conn, result)
+
+  defp respond({:error, :no_recipient}, conn),
+    do: conn |> put_status(422) |> json(%{error: "no email on file for this client"})
 
   defp respond({:error, :not_found}, conn),
     do: conn |> put_status(404) |> json(%{error: "meeting not found"})

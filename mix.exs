@@ -59,6 +59,9 @@ defmodule Florina.MixProject do
        compile: false,
        depth: 1},
       {:swoosh, "~> 1.16"},
+      # SMTP transport for Swoosh (per-tenant outbound email — the concierge's
+      # follow-ups). Swoosh's SMTP adapter needs gen_smtp.
+      {:gen_smtp, "~> 1.2"},
       {:req, "~> 0.5"},
       {:telemetry_metrics, "~> 1.0"},
       {:telemetry_poller, "~> 1.0"},

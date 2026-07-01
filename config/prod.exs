@@ -31,6 +31,11 @@ config :swoosh, api_client: Swoosh.ApiClient.Req
 # Disable Swoosh Local Memory Storage
 config :swoosh, local: false
 
+# Send real email over SMTP in prod. The relay + per-tenant credentials are
+# passed at deliver time from each tenant's settings (see Florina.Emails); this
+# only selects the transport. Dev uses Local (/dev/mailbox), test uses Test.
+config :florina, Florina.Mailer, adapter: Swoosh.Adapters.SMTP
+
 # Do not print debug messages in production
 config :logger, level: :info
 

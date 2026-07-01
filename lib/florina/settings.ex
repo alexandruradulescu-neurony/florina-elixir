@@ -49,6 +49,28 @@ defmodule Florina.Settings do
     |> TenantRepo.update()
   end
 
+  @doc """
+  Update only this tenant's outgoing-email (SMTP) credentials. Like `update_crm/1`
+  (and unlike `update/1`) it does NOT set `is_overridden` — these are tenant-private
+  and not part of the published central config. The password is keep-on-blank (a
+  blank field keeps the saved secret); the rest set-when-present (blank clears).
+  """
+  def update_smtp(attrs) do
+    changes =
+      %{}
+      |> put_present(attrs, :smtp_host, :allow_blank)
+      |> put_present(attrs, :smtp_port, :allow_blank)
+      |> put_present(attrs, :smtp_username, :allow_blank)
+      |> put_present(attrs, :smtp_from, :allow_blank)
+      |> put_present(attrs, :smtp_from_name, :allow_blank)
+      |> put_present(attrs, :smtp_password, :nonblank)
+      |> maybe_clear(attrs, "clear_smtp_password", :smtp_password)
+
+    GlobalSettings.load()
+    |> GlobalSettings.changeset(changes)
+    |> TenantRepo.update()
+  end
+
   defp put_present(map, attrs, key, mode) do
     if has_key?(attrs, key) do
       case {mode, Strings.blank_to_nil(fetch(attrs, key))} do

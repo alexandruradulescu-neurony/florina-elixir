@@ -30,6 +30,15 @@ defmodule Florina.Settings.GlobalSettings do
     field :pipedrive_domain, :string
     field :hubspot_api_token, Florina.Encrypted.Binary, redact: true
 
+    # Per-tenant outgoing email (SMTP) for the voice concierge's follow-ups.
+    # Password encrypted at rest like the CRM tokens; the rest are plaintext.
+    field :smtp_host, :string
+    field :smtp_port, :integer
+    field :smtp_username, :string
+    field :smtp_password, Florina.Encrypted.Binary, redact: true
+    field :smtp_from, :string
+    field :smtp_from_name, :string
+
     field :is_overridden, :boolean, default: false
 
     belongs_to :default_methodology, Florina.Methodologies.Methodology
@@ -47,6 +56,12 @@ defmodule Florina.Settings.GlobalSettings do
     :pipedrive_api_token,
     :pipedrive_domain,
     :hubspot_api_token,
+    :smtp_host,
+    :smtp_port,
+    :smtp_username,
+    :smtp_password,
+    :smtp_from,
+    :smtp_from_name,
     :default_methodology_id
     # :is_overridden is intentionally NOT castable — it's a publish-control flag
     # set only by app code (`Settings.update/1` via put_change), never from params.
@@ -83,7 +98,19 @@ defmodule Florina.Settings.GlobalSettings do
     |> cast(attrs, @cast_fields)
     |> validate_inclusion(:crm_provider, @crm_providers)
     |> validate_pipedrive_domain()
+    |> validate_smtp()
     |> Florina.Settings.GlobalSettings.validate_scheduling()
+  end
+
+  # Light bounds for the SMTP fields — only applied to fields actually present in
+  # the changeset (nil/unchanged fields are skipped by the validators).
+  defp validate_smtp(changeset) do
+    changeset
+    |> validate_number(:smtp_port, greater_than: 0, less_than_or_equal_to: 65_535)
+    |> validate_length(:smtp_host, max: 255)
+    |> validate_length(:smtp_username, max: 255)
+    |> validate_length(:smtp_from, max: 255)
+    |> validate_length(:smtp_from_name, max: 255)
   end
 
   # The Pipedrive domain is interpolated into the API base URL

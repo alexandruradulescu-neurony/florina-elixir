@@ -13,10 +13,11 @@ defmodule Florina.Voice.Tools do
   import Ecto.Query, only: [from: 2]
   require Logger
 
-  alias Florina.{Audit, TenantRepo, Visits}
+  alias Florina.{Audit, Clients, Emails, TenantRepo, Visits}
   alias Florina.Visits.Visit
   alias Florina.Calls.CallAttempt
   alias Florina.Services.Assembler
+  alias Florina.Workers.SendEmail
 
   @window_seconds 7 * 24 * 3600
   @score_floor 0.55
@@ -198,6 +199,62 @@ defmodule Florina.Voice.Tools do
     case Visits.update(visit, %{status: status}) do
       {:ok, v} -> v.status
       _ -> visit.status
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # draft_or_send_email
+  # ---------------------------------------------------------------------------
+
+  @doc """
+  Queues a follow-up email to a client from an approved template. The recipient is
+  resolved server-side from the client's contacts (never model-supplied) and the
+  actual send happens in a background job. `{:ok, %{"ok" => true, "mode" => "queued"}}`
+  or `{:error, :bad_purpose | :not_found | :no_recipient}`.
+  """
+  def draft_or_send_email(tenant_slug, agent_id, client_id, purpose, notes \\ nil) do
+    cond do
+      purpose not in Emails.purposes() ->
+        {:error, :bad_purpose}
+
+      is_nil(to_int(client_id)) ->
+        {:error, :not_found}
+
+      true ->
+        case Clients.get(to_int(client_id)) do
+          nil ->
+            {:error, :not_found}
+
+          client ->
+            resolve_and_queue(tenant_slug, agent_id, client, purpose, notes)
+        end
+    end
+  end
+
+  defp resolve_and_queue(tenant_slug, agent_id, client, purpose, notes) do
+    case Emails.recipient_for(client) do
+      nil ->
+        {:error, :no_recipient}
+
+      to ->
+        %{
+          "tenant_slug" => tenant_slug,
+          "client_id" => client.id,
+          "to" => to,
+          "purpose" => purpose,
+          "notes" => notes,
+          "agent_id" => to_int(agent_id)
+        }
+        |> SendEmail.new()
+        |> Oban.insert()
+
+        Audit.log(%{
+          action: "voice.email_queued",
+          user_id: to_int(agent_id),
+          details: %{"client_id" => client.id, "purpose" => purpose}
+        })
+
+        {:ok, %{"ok" => true, "mode" => "queued"}}
     end
   end
 

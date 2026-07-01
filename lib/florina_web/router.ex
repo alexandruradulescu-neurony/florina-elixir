@@ -64,6 +64,7 @@ defmodule FlorinaWeb.Router do
     post "/tools/find_meeting", VoiceToolController, :find_meeting
     post "/tools/get_call_script", VoiceToolController, :get_call_script
     post "/tools/save_outcome", VoiceToolController, :save_outcome
+    post "/tools/send_email", VoiceToolController, :draft_or_send_email
   end
 
   scope "/", FlorinaWeb do

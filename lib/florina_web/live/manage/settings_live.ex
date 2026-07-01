@@ -67,6 +67,17 @@ defmodule FlorinaWeb.Manage.SettingsLive do
     end
   end
 
+  def handle_event("save_smtp", %{"smtp" => params}, socket) do
+    case Settings.update_smtp(params) do
+      {:ok, settings} ->
+        {:noreply,
+         socket |> assign(:settings, settings) |> put_flash(:info, "Email settings saved.")}
+
+      {:error, _changeset} ->
+        {:noreply, put_flash(socket, :error, "Could not save email settings.")}
+    end
+  end
+
   defp assign_form(socket, changeset), do: assign(socket, :form, to_form(changeset))
 
   defp token_placeholder(saved) when saved in [nil, ""], do: "Paste the API token"
@@ -243,6 +254,65 @@ defmodule FlorinaWeb.Manage.SettingsLive do
           </fieldset>
 
           <.button type="submit" variant="primary">Save CRM settings</.button>
+        </.form>
+      </div>
+
+      <div class="mt-12 border-t border-gray-200 dark:border-white/10 pt-8 max-w-xl">
+        <h2 class="text-xl font-extrabold tracking-[-0.01em] text-gray-900 dark:text-white">
+          Outgoing email (SMTP)
+        </h2>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mb-5">
+          The mailbox Florina sends follow-up emails from. A blank password keeps the one
+          already saved.
+        </p>
+        <.form
+          :let={f}
+          for={
+            to_form(
+              %{
+                "smtp_host" => @settings.smtp_host || "",
+                "smtp_port" => @settings.smtp_port || "",
+                "smtp_username" => @settings.smtp_username || "",
+                "smtp_from" => @settings.smtp_from || "",
+                "smtp_from_name" => @settings.smtp_from_name || ""
+              },
+              as: :smtp
+            )
+          }
+          id="smtp-form"
+          phx-submit="save_smtp"
+          class="space-y-5"
+        >
+          <.input
+            field={f[:smtp_from]}
+            type="text"
+            label="From address"
+            placeholder="florina@yourcompany.com"
+          />
+          <.input field={f[:smtp_from_name]} type="text" label="From name" placeholder="Florina" />
+          <.input
+            field={f[:smtp_host]}
+            type="text"
+            label="SMTP host"
+            placeholder="smtp.yourcompany.com"
+          />
+          <.input field={f[:smtp_port]} type="number" label="SMTP port" placeholder="587" />
+          <.input field={f[:smtp_username]} type="text" label="SMTP username" />
+          <.input
+            field={f[:smtp_password]}
+            value=""
+            type="password"
+            label="SMTP password"
+            placeholder={token_placeholder(@settings.smtp_password)}
+          />
+          <label
+            :if={@settings.smtp_password}
+            class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400"
+          >
+            <input type="checkbox" name="smtp[clear_smtp_password]" value="true" class="rounded" />
+            Remove the saved password
+          </label>
+          <.button type="submit" variant="primary">Save email settings</.button>
         </.form>
       </div>
     </Layouts.agent_app>

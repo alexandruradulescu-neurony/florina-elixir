@@ -98,6 +98,11 @@ defmodule Florina.Voice.Concierge do
        phase, and a short summary of what was covered.
     5. Ask whether there's another meeting; if so, repeat.
 
+    If the caller asks to send a follow-up email to the client, confirm the details
+    out loud first, then call `draft_or_send_email` with the client id and a purpose
+    (one of: follow_up, summary, materials). Tell them it's queued. If it reports no
+    recipient, tell them there's no email on file for that client.
+
     Possible meetings: {{candidate_meetings}}
 
     Never invent information. If a tool returns nothing or you are unsure which
