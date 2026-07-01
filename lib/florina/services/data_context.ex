@@ -15,6 +15,7 @@ defmodule Florina.Services.DataContext do
 
   alias Florina.TenantRepo
   alias Florina.Visits.Visit
+  alias Florina.Clients
   alias Florina.Clients.Client
   alias Florina.Visits
   alias Florina.Services.Placeholders
@@ -63,6 +64,22 @@ defmodule Florina.Services.DataContext do
     end)
     |> Enum.join("\n")
   end
+
+  # Concatenate the plain text of a client's readable uploaded documents, each
+  # under its filename. Only successfully-extracted docs are included; the fence
+  # in `Placeholders` treats the whole block as untrusted data and caps its size.
+  defp format_client_documents(client_id) do
+    client_id
+    |> Clients.list_documents()
+    |> Enum.filter(&readable_document?/1)
+    |> Enum.map_join("\n\n", fn d -> "## #{d.original_filename}\n#{d.extracted_text}" end)
+  end
+
+  defp readable_document?(%{extraction_status: :done, extracted_text: t})
+       when is_binary(t) and t != "",
+       do: true
+
+  defp readable_document?(_), do: false
 
   defp format_past_visits([]), do: ""
   defp format_past_visits(nil), do: ""
@@ -144,6 +161,7 @@ defmodule Florina.Services.DataContext do
       client_industry: client.industry || "",
       client_summary: client.ai_summary || "",
       client_lessons_learned: client.lessons_learned || "",
+      client_documents: format_client_documents(client.id),
       visit_time: fmt_local_datetime(visit.start_time),
       scenario: scenario_name,
       manager_notes: visit.manager_notes || "",

@@ -227,7 +227,9 @@ defmodule FlorinaWeb.Manage.MegaPromptsLive do
 
           <p class="mt-3 text-xs text-gray-400">
             Supports <code>{"{placeholders}"}</code>
-            like <code>{"{client_name}"}</code>, <code>{"{methodology_summary}"}</code>, <code>{"{manager_notes}"}</code>.
+            like <code>{"{client_name}"}</code>, <code>{"{methodology_summary}"}</code>, <code>{"{manager_notes}"}</code>,
+            and <code>{"{client_documents}"}</code>
+            (the text of files uploaded to the client).
           </p>
         </div>
       </div>

@@ -38,6 +38,7 @@ defmodule Florina.Services.Placeholders do
     visit_transcript
     client_summary
     client_lessons_learned
+    client_documents
     interaction_history
     deal_history
     client_past_visits
