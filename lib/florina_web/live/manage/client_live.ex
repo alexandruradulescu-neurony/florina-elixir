@@ -15,6 +15,8 @@ defmodule FlorinaWeb.Manage.ClientLive do
   """
   use FlorinaWeb, :live_view
 
+  require Logger
+
   on_mount FlorinaWeb.TenantHook
   on_mount {FlorinaWeb.AgentAuth, :ensure_authenticated}
   on_mount {FlorinaWeb.AgentAuth, :require_manager}
@@ -86,33 +88,18 @@ defmodule FlorinaWeb.Manage.ClientLive do
     tenant = socket.assigns.tenant
     agent_id = socket.assigns.current_agent.id
 
-    consumed =
+    results =
       consume_uploaded_entries(socket, :documents, fn %{path: tmp_path}, entry ->
-        stored = Storage.stored_filename(entry.client_name)
-        Storage.store(tenant.id, client.id, tmp_path, stored)
-
-        {:ok, doc} =
-          Clients.create_document(%{
-            client_id: client.id,
-            original_filename: entry.client_name,
-            stored_filename: stored,
-            content_type: entry.client_type,
-            byte_size: entry.client_size,
-            uploaded_by_agent_id: agent_id
-          })
-
-        # Queue background text extraction so Florina can read the file.
-        %{"tenant_slug" => tenant.slug, "document_id" => doc.id}
-        |> ExtractDocumentText.new()
-        |> Oban.insert()
-
-        {:ok, doc.id}
+        {:ok, store_entry(tenant, client, agent_id, tmp_path, entry)}
       end)
+
+    ok_count = Enum.count(results, &(&1 == :ok))
+    err_count = length(results) - ok_count
 
     {:noreply,
      socket
      |> assign(:documents, Clients.list_documents(client.id))
-     |> put_flash(:info, flash_for_upload(length(consumed)))}
+     |> put_upload_flash(ok_count, err_count)}
   end
 
   def handle_event("delete_document", %{"id" => id}, socket) do
@@ -159,6 +146,43 @@ defmodule FlorinaWeb.Manage.ClientLive do
     end
   end
 
+  # Store one uploaded entry: copy the bytes, record the row, queue extraction.
+  # Any storage or DB failure is caught and reported as :error so one bad file
+  # (or an unavailable uploads volume) can't crash the upload and take the page
+  # down with it.
+  defp store_entry(tenant, client, agent_id, tmp_path, entry) do
+    stored = Storage.stored_filename(entry.client_name)
+    Storage.store(tenant.id, client.id, tmp_path, stored)
+
+    case Clients.create_document(%{
+           client_id: client.id,
+           original_filename: entry.client_name,
+           stored_filename: stored,
+           content_type: entry.client_type,
+           byte_size: entry.client_size,
+           uploaded_by_agent_id: agent_id
+         }) do
+      {:ok, doc} ->
+        # Queue background text extraction so Florina can read the file.
+        %{"tenant_slug" => tenant.slug, "document_id" => doc.id}
+        |> ExtractDocumentText.new()
+        |> Oban.insert()
+
+        :ok
+
+      {:error, changeset} ->
+        Logger.error("[ClientLive] document insert failed: #{inspect(changeset.errors)}")
+        :error
+    end
+  rescue
+    e ->
+      Logger.error(
+        "[ClientLive] could not store upload #{inspect(entry.client_name)}: #{Exception.message(e)}"
+      )
+
+      :error
+  end
+
   defp create(socket, params) do
     case Clients.create(params) do
       {:ok, client} ->
@@ -189,7 +213,26 @@ defmodule FlorinaWeb.Manage.ClientLive do
   defp assign_form(socket, changeset), do: assign(socket, :form, to_form(changeset))
   defp clients_path(socket), do: "/t/#{socket.assigns.tenant.slug}/manage/clients"
 
-  defp flash_for_upload(0), do: "No files were uploaded."
+  defp put_upload_flash(socket, 0, 0), do: put_flash(socket, :info, "No files were uploaded.")
+
+  defp put_upload_flash(socket, ok, 0), do: put_flash(socket, :info, flash_for_upload(ok))
+
+  defp put_upload_flash(socket, 0, _err) do
+    put_flash(
+      socket,
+      :error,
+      "Couldn't save the file — storage is unavailable right now. Please try again."
+    )
+  end
+
+  defp put_upload_flash(socket, ok, err) do
+    put_flash(
+      socket,
+      :error,
+      "Saved #{ok} file(s); couldn't save #{err} — please try those again."
+    )
+  end
+
   defp flash_for_upload(1), do: "1 file uploaded."
   defp flash_for_upload(n), do: "#{n} files uploaded."
 
