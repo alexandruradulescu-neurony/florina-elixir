@@ -55,6 +55,11 @@ if config_env() == :prod do
   # so deploys that add tenant migrations don't need a manual migrate_tenants rpc.
   config :florina, :migrate_tenants_on_boot, true
 
+  # Client document uploads live on the mounted persistent volume (Railway `/data`).
+  # Must be a writable path that survives redeploys — a plain container path would
+  # lose every uploaded file on the next deploy.
+  config :florina, :uploads_root, System.get_env("UPLOADS_ROOT") || "/data"
+
   # ElevenLabs outbound calling
   config :florina,
     elevenlabs_api_key: System.get_env("ELEVENLABS_API_KEY"),

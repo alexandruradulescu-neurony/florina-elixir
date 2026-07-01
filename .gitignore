@@ -53,6 +53,9 @@ npm-debug.log
 /prompts_export/
 /backups/
 
+# Client document uploads (dev stores files here; never committed)
+/priv/uploads/
+
 # macOS
 .DS_Store
 

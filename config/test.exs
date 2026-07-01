@@ -72,6 +72,9 @@ config :florina,
 
 config :florina, :tenant_base_host, "localhost"
 
+# Client document uploads land in a throwaway tmp dir (never the dev folder).
+config :florina, :uploads_root, Path.join(System.tmp_dir!(), "florina_test_uploads")
+
 # Field-level encryption (Cloak). Fixed test key — NOT used in production.
 config :florina, Florina.Vault,
   ciphers: [

@@ -10,7 +10,8 @@ defmodule Florina.Clients do
 
   import Ecto.Query, only: [order_by: 2, where: 2]
   alias Florina.TenantRepo
-  alias Florina.Clients.Client
+  alias Florina.Clients.{Client, Document}
+  alias Florina.Storage
 
   # ---------------------------------------------------------------------------
   # Queries
@@ -132,5 +133,62 @@ defmodule Florina.Clients do
       message: "has related generation runs"
     )
     |> TenantRepo.delete()
+  end
+
+  # ---------------------------------------------------------------------------
+  # Documents (uploaded files attached to a client)
+  # ---------------------------------------------------------------------------
+
+  @doc "Lists a client's uploaded documents, newest first."
+  def list_documents(client_id) do
+    Document
+    |> where(client_id: ^client_id)
+    |> order_by(desc: :created_at, desc: :id)
+    |> TenantRepo.all()
+  end
+
+  @doc "Gets a document by ID. Returns `nil` if not found or the id isn't numeric."
+  def get_document(id) when is_integer(id), do: TenantRepo.get(Document, id)
+
+  def get_document(id) when is_binary(id) do
+    case Integer.parse(id) do
+      {int, ""} -> TenantRepo.get(Document, int)
+      _ -> nil
+    end
+  end
+
+  def get_document(_), do: nil
+
+  @doc """
+  Creates a document metadata row (the bytes are written by `Florina.Storage`
+  first). Returns `{:ok, document}` or `{:error, changeset}`.
+  """
+  def create_document(attrs) do
+    %Document{}
+    |> Document.changeset(attrs)
+    |> TenantRepo.insert()
+  end
+
+  @doc "Updates a document row (used by the extraction worker to store text/status)."
+  def update_document(%Document{} = document, attrs) do
+    document
+    |> Document.changeset(attrs)
+    |> TenantRepo.update()
+  end
+
+  @doc """
+  Deletes a document: removes the DB row first, then the file on disk. If the row
+  delete fails the bytes are left in place (nothing is orphaned in the listing).
+  `tenant_id` locates the file on the uploads volume.
+  """
+  def delete_document(%Document{} = document, tenant_id) do
+    case TenantRepo.delete(document) do
+      {:ok, deleted} ->
+        Storage.delete_file(tenant_id, document.client_id, document.stored_filename)
+        {:ok, deleted}
+
+      other ->
+        other
+    end
   end
 end

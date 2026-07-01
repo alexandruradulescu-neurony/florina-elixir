@@ -100,6 +100,7 @@ defmodule FlorinaWeb.Router do
     live "/manage/clients", Manage.ClientsLive
     live "/manage/clients/new", Manage.ClientLive, :new
     live "/manage/clients/:id", Manage.ClientLive, :edit
+    get "/manage/clients/:client_id/documents/:id", Manage.ClientDocumentController, :download
     live "/manage/agents", Manage.AgentsLive
     live "/manage/methodologies", Manage.MethodologiesLive
     live "/manage/mega-prompts", Manage.MegaPromptsLive

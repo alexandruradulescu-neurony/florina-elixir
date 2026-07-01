@@ -128,6 +128,12 @@ config :phoenix, :json_library, Jason
 # migrate explicitly / via TenantCase); turned on in prod (runtime.exs).
 config :florina, :migrate_tenants_on_boot, false
 
+# Client document uploads. Files are stored on disk under
+# <uploads_root>/tenant_<id>/client_<id>/<stored_filename>. This dev default is a
+# project-local folder (git-ignored); prod points at the mounted /data volume
+# (runtime.exs) and test uses a throwaway tmp dir (test.exs).
+config :florina, :uploads_root, Path.expand("../priv/uploads", __DIR__)
+
 # Calendar-sync fan-out jitter: each per-agent `CalendarSyncAgent` job is
 # scheduled at a random delay in [0, N) seconds, so a tenant's agents (and, at
 # scale, every tenant's agents) don't all hit the calendar API at the same
