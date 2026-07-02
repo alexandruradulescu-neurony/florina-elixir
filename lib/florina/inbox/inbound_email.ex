@@ -51,9 +51,24 @@ defmodule Florina.Inbox.InboundEmail do
       :client_id,
       :visit_id
     ])
-    |> validate_length(:from_email, max: 255)
-    |> validate_length(:subject, max: 500)
+    # These columns are varchar(255); external email can exceed that. Truncate
+    # rather than reject, so one long-header message can't crash ingestion (and
+    # poison the whole poll batch). `body`/`summary` are :text — left uncapped.
+    |> truncate(:message_id, 255)
+    |> truncate(:from_email, 255)
+    |> truncate(:from_name, 255)
+    |> truncate(:subject, 255)
     |> unique_constraint(:message_id)
+  end
+
+  defp truncate(changeset, field, max) do
+    case get_change(changeset, field) do
+      value when is_binary(value) and byte_size(value) > max ->
+        put_change(changeset, field, String.slice(value, 0, max))
+
+      _ ->
+        changeset
+    end
   end
 
   @doc "Sender-trust tiers."

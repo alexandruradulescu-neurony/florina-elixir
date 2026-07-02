@@ -47,9 +47,6 @@ config :florina, Oban, testing: :manual
 # run so they're deterministically assertable/drainable.
 config :florina, :calendar_sync_jitter_seconds, 0
 
-config :florina, :elevenlabs_webhook_secret, "wsec_test"
-config :florina, :voice_tools_secret, "vtool_test"
-
 config :florina, :anthropic_client, Florina.Anthropic.Stub
 config :florina, :anthropic_api_key, "test-key"
 
@@ -62,11 +59,9 @@ config :florina,
   hubspot_client: Florina.Integrations.Hubspot.Stub,
   imap_client: Florina.Integrations.Imap.Stub
 
-# Placeholder keys — ensure config keys exist (stubs don't use them)
+# Placeholder keys — ensure config keys exist (stubs don't use them). ElevenLabs
+# config is per-tenant now, so tests that exercise it seed the tenant's settings.
 config :florina,
-  elevenlabs_api_key: nil,
-  elevenlabs_agent_id: nil,
-  elevenlabs_phone_number_id: nil,
   google_client_id: nil,
   google_client_secret: nil,
   microsoft_client_id: nil,

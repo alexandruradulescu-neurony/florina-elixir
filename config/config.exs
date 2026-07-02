@@ -41,6 +41,13 @@ config :florina, Oban,
     # Periodically delete jobs that finished more than 7 days ago.
     {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7},
 
+    # Rescue jobs orphaned when a node dies mid-execution (routine on Railway
+    # deploys / container replacement). Without this, a job interrupted after
+    # its shutdown grace window is stranded in `executing` forever and never
+    # retried. Rescue after 30 min — longer than any legitimate job runtime
+    # (PDF extraction and post-call generation are the longest, ~2 min each).
+    {Oban.Plugins.Lifeline, rescue_after: :timer.minutes(30)},
+
     # Recurring cron jobs.
     # Cron fan-out pattern: each scheduler enqueues per-tenant child jobs.
     #
@@ -154,16 +161,8 @@ config :florina,
   hubspot_client: Florina.Integrations.Hubspot,
   imap_client: Florina.Integrations.Imap
 
-# ElevenLabs — global keys (set in runtime.exs for prod from env)
-config :florina,
-  elevenlabs_api_key: nil,
-  elevenlabs_agent_id: nil,
-  elevenlabs_phone_number_id: nil
-
-# Shared secret for the inbound voice concierge's mid-call server tools
-# (`/t/:slug/voice/tools/*`). Configured as a static header on each ElevenLabs
-# tool. Set in runtime.exs for prod from env; a fixed value in test.exs.
-config :florina, :voice_tools_secret, nil
+# ElevenLabs voice config (API key, agent/phone-number ids, webhook + tools
+# secrets) is per-tenant — stored in each workspace's Settings, not global config.
 
 # Google Calendar OAuth — global client credentials (set in runtime.exs for prod)
 config :florina,

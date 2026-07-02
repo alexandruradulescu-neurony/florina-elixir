@@ -60,6 +60,79 @@ defmodule Florina.Emails do
   def build(_settings, _to, _purpose, _notes), do: {:error, :bad_purpose}
 
   @doc """
+  Build the agent-facing concierge email: a recap/reminder for the caller about a
+  meeting, with the client's materials attached. `context` carries `client_name`,
+  `meeting_title`, `meeting_time`, `notes`, and `doc_names`; `attachments` is a
+  list of `Swoosh.Attachment`. `{:ok, email}` or `{:error, :smtp_not_configured | :bad_purpose}`.
+  """
+  def build_agent_email(settings, to, purpose, context, attachments \\ [])
+
+  def build_agent_email(settings, to, purpose, context, attachments) when purpose in @purposes do
+    if present?(settings.smtp_from) do
+      from_name = settings.smtp_from_name || "Florina"
+      {subject, body} = agent_template(purpose, context, from_name)
+
+      email =
+        new()
+        |> to(to)
+        |> from({from_name, settings.smtp_from})
+        |> subject(subject)
+        |> text_body(body)
+
+      {:ok, Enum.reduce(attachments, email, &attachment(&2, &1))}
+    else
+      {:error, :smtp_not_configured}
+    end
+  end
+
+  def build_agent_email(_settings, _to, _purpose, _context, _attachments),
+    do: {:error, :bad_purpose}
+
+  # --- Agent-facing templates (Romanian) --------------------------------------
+
+  defp agent_template("materials", ctx, from_name),
+    do:
+      {"Materiale — #{client_of(ctx)}",
+       agent_body(ctx, "Atașat aveți materialele clientului pentru această întâlnire.", from_name)}
+
+  defp agent_template("summary", ctx, from_name),
+    do:
+      {"Rezumat întâlnire — #{client_of(ctx)}",
+       agent_body(ctx, "Un scurt rezumat al aspectelor discutate:", from_name)}
+
+  defp agent_template("follow_up", ctx, from_name),
+    do:
+      {"Recapitulare — #{client_of(ctx)}",
+       agent_body(ctx, "Aspecte de urmărit după discuția de azi:", from_name)}
+
+  defp agent_body(ctx, lead, from_name) do
+    meeting = meeting_line(ctx)
+    notes = if present?(ctx["notes"]), do: "\n\n#{ctx["notes"]}", else: ""
+    docs = doc_lines(ctx["doc_names"])
+
+    "Bună ziua,\n\n#{lead}#{meeting}#{notes}#{docs}\n\n— #{from_name}"
+  end
+
+  defp meeting_line(ctx) do
+    title = ctx["meeting_title"]
+    time = ctx["meeting_time"]
+
+    cond do
+      present?(title) and present?(time) -> "\n\nÎntâlnire: #{title} (#{time})."
+      present?(title) -> "\n\nÎntâlnire: #{title}."
+      true -> ""
+    end
+  end
+
+  defp doc_lines(names) when is_list(names) and names != [],
+    do: "\n\nDocumente atașate:\n" <> Enum.map_join(names, "\n", &"- #{&1}")
+
+  defp doc_lines(_), do: ""
+
+  defp client_of(ctx),
+    do: if(present?(ctx["client_name"]), do: ctx["client_name"], else: "client")
+
+  @doc """
   Swoosh runtime config (relay + credentials) from the tenant's settings, passed to
   `Mailer.deliver/2`. TLS verification is lenient for now so it works against a
   tenant's own mail server; tighten to `:verify_peer` once the host's cert is known.

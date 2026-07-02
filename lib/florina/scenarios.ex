@@ -59,10 +59,11 @@ defmodule Florina.Scenarios do
   Returns `{:ok, scenario}` or `{:error, changeset}`.
   """
   def create(attrs \\ %{}) do
-    attrs = Map.put(attrs, :is_overridden, true)
-
+    # put_change (not Map.put) so a string-keyed form map doesn't blow up with a
+    # mixed-keys CastError — matches Methodologies.create.
     %Scenario{}
     |> Scenario.changeset(attrs)
+    |> Ecto.Changeset.put_change(:is_overridden, true)
     |> TenantRepo.insert()
   end
 
@@ -75,10 +76,9 @@ defmodule Florina.Scenarios do
   Returns `{:ok, scenario}` or `{:error, changeset}`.
   """
   def update(%Scenario{} = scenario, attrs) do
-    attrs = Map.put(attrs, :is_overridden, true)
-
     scenario
     |> Scenario.changeset(attrs)
+    |> Ecto.Changeset.put_change(:is_overridden, true)
     |> TenantRepo.update()
   end
 

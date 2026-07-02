@@ -171,6 +171,9 @@ defmodule FlorinaWeb.Manage.ClientLive do
         :ok
 
       {:error, changeset} ->
+        # The bytes already landed on disk; drop them so a failed metadata insert
+        # doesn't leave an orphaned, unreferenced file on the volume.
+        Storage.delete_file(tenant.id, client.id, stored)
         Logger.error("[ClientLive] document insert failed: #{inspect(changeset.errors)}")
         :error
     end

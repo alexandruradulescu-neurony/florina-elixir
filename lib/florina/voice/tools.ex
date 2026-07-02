@@ -13,7 +13,7 @@ defmodule Florina.Voice.Tools do
   import Ecto.Query, only: [from: 2]
   require Logger
 
-  alias Florina.{Audit, Clients, Emails, TenantRepo, Visits}
+  alias Florina.{Accounts, Audit, Calls, Emails, TenantRepo, Visits}
   alias Florina.Visits.Visit
   alias Florina.Calls.CallAttempt
   alias Florina.Services.Assembler
@@ -92,7 +92,8 @@ defmodule Florina.Voice.Tools do
       "visit_id" => v.id,
       "title" => v.title,
       "client" => client_name(v),
-      "start_time" => v.start_time && DateTime.to_iso8601(v.start_time),
+      # Local (Bucharest) time the model reads back to the caller — not UTC.
+      "start_time" => v.start_time && Florina.Tz.format(v.start_time, :datetime),
       "phase_state" => phase_for(v.start_time, now),
       "score" => Float.round(score, 3)
     }
@@ -111,7 +112,14 @@ defmodule Florina.Voice.Tools do
     case owned_visit(agent_id, visit_id) do
       %Visit{} = visit ->
         {script, first_line, generated} = ensure_script(visit, phase)
-        {:ok, %{"script" => script, "first_line" => first_line, "generated" => generated}}
+
+        # A blank script means generation failed — tell Florina rather than
+        # handing her an empty "script" to improvise against.
+        if blank?(script) do
+          {:error, :generation_failed}
+        else
+          {:ok, %{"script" => script, "first_line" => first_line, "generated" => generated}}
+        end
 
       nil ->
         {:error, :not_found}
@@ -152,21 +160,20 @@ defmodule Florina.Voice.Tools do
   or `{:error, :not_found | :bad_phase}`. Explicit `visit_id` — one call may touch
   several meetings, each attributed to its own record.
   """
-  def save_outcome(agent_id, visit_id, phase, summary, notes \\ nil)
+  def save_outcome(tenant_slug, agent_id, visit_id, phase, summary, notes \\ nil)
 
-  def save_outcome(agent_id, visit_id, phase, summary, notes) when phase in ["pre", "post"] do
+  def save_outcome(tenant_slug, agent_id, visit_id, phase, summary, notes)
+      when phase in ["pre", "post"] do
     case owned_visit(agent_id, visit_id) do
       %Visit{} = visit ->
-        {:ok, _ca} =
-          %CallAttempt{}
-          |> CallAttempt.create_changeset(%{
-            visit_id: visit.id,
-            phase: String.upcase(phase),
-            status: "COMPLETED",
-            summary: summary || "",
-            analysis: %{"source" => "inbound_concierge", "notes" => notes}
-          })
-          |> TenantRepo.insert()
+        up = String.upcase(phase)
+
+        # Idempotent: ElevenLabs retries tool calls and the model may call twice.
+        # Reuse an existing concierge outcome for this visit+phase instead of
+        # inserting a duplicate COMPLETED attempt.
+        ca =
+          existing_concierge_attempt(visit.id, up) ||
+            insert_outcome_attempt(visit, up, summary, notes)
 
         new_status = advance_status(visit, phase)
 
@@ -174,8 +181,14 @@ defmodule Florina.Voice.Tools do
           action: "voice.save_outcome",
           visit_id: visit.id,
           user_id: to_int(agent_id),
-          details: %{"phase" => String.upcase(phase)}
+          details: %{"phase" => up}
         })
+
+        # Run the SAME post-call pipeline the outbound debrief runs (lessons
+        # distillation, CRM note, visit → COMPLETE) so a debrief done by phone
+        # doesn't diverge from one done by the outbound call. Oban-unique per
+        # attempt, so a duplicate save_outcome can't double-run it.
+        if up == "POST", do: Calls.maybe_enqueue_post_completion(ca, tenant_slug)
 
         {:ok, %{"ok" => true, "new_status" => to_string(new_status)}}
 
@@ -184,7 +197,34 @@ defmodule Florina.Voice.Tools do
     end
   end
 
-  def save_outcome(_agent_id, _visit_id, _phase, _summary, _notes), do: {:error, :bad_phase}
+  def save_outcome(_slug, _agent_id, _visit_id, _phase, _summary, _notes),
+    do: {:error, :bad_phase}
+
+  defp insert_outcome_attempt(visit, phase_upper, summary, notes) do
+    {:ok, ca} =
+      %CallAttempt{}
+      |> CallAttempt.create_changeset(%{
+        visit_id: visit.id,
+        phase: phase_upper,
+        status: "COMPLETED",
+        summary: summary || "",
+        analysis: %{"source" => "inbound_concierge", "notes" => notes}
+      })
+      |> TenantRepo.insert()
+
+    ca
+  end
+
+  defp existing_concierge_attempt(visit_id, phase_upper) do
+    from(ca in CallAttempt,
+      where: ca.visit_id == ^visit_id and ca.phase == ^phase_upper and ca.status == "COMPLETED",
+      order_by: [desc: ca.id]
+    )
+    |> TenantRepo.all()
+    |> Enum.find(fn ca ->
+      is_map(ca.analysis) and ca.analysis["source"] == "inbound_concierge"
+    end)
+  end
 
   defp advance_status(%Visit{status: :PLANNED} = visit, "pre"), do: bump(visit, :PRE_CALL_DONE)
   defp advance_status(%Visit{status: status}, "pre"), do: status
@@ -207,54 +247,61 @@ defmodule Florina.Voice.Tools do
   # ---------------------------------------------------------------------------
 
   @doc """
-  Queues a follow-up email to a client from an approved template. The recipient is
-  resolved server-side from the client's contacts (never model-supplied) and the
-  actual send happens in a background job. `{:ok, %{"ok" => true, "mode" => "queued"}}`
-  or `{:error, :bad_purpose | :not_found | :no_recipient}`.
+  Queues an email **to the AGENT (the caller)** about a meeting they own — a recap
+  of what surfaced on the call, plus the client's materials attached. The recipient
+  is the agent's own address, resolved server-side from `agent_id` (never a client,
+  never model-supplied), so a wrong meeting id can't mail the wrong person.
+  `visit_id` scopes which client's materials are pulled in. The actual send happens
+  in a background job. `{:ok, %{"ok" => true, "mode" => "queued"}}` or
+  `{:error, :bad_purpose | :smtp_not_configured | :not_found | :no_recipient | :queue_failed}`.
   """
-  def draft_or_send_email(tenant_slug, agent_id, client_id, purpose, notes \\ nil) do
+  def draft_or_send_email(tenant_slug, agent_id, visit_id, purpose, notes \\ nil) do
     cond do
       purpose not in Emails.purposes() ->
         {:error, :bad_purpose}
 
-      is_nil(to_int(client_id)) ->
-        {:error, :not_found}
+      not Emails.smtp_configured?(Florina.Settings.get()) ->
+        {:error, :smtp_not_configured}
 
       true ->
-        case Clients.get(to_int(client_id)) do
-          nil ->
-            {:error, :not_found}
-
-          client ->
-            resolve_and_queue(tenant_slug, agent_id, client, purpose, notes)
+        with %Visit{} = visit <- owned_visit(agent_id, visit_id),
+             %{email: to} when is_binary(to) and to != "" <- Accounts.get_user(to_int(agent_id)) do
+          queue_agent_email(tenant_slug, to_int(agent_id), visit, to, purpose, notes)
+        else
+          %{} -> {:error, :no_recipient}
+          _ -> {:error, :not_found}
         end
     end
   end
 
-  defp resolve_and_queue(tenant_slug, agent_id, client, purpose, notes) do
-    case Emails.recipient_for(client) do
-      nil ->
-        {:error, :no_recipient}
+  defp queue_agent_email(tenant_slug, agent_id, visit, to, purpose, notes) do
+    visit = TenantRepo.preload(visit, :client)
 
-      to ->
-        %{
-          "tenant_slug" => tenant_slug,
-          "client_id" => client.id,
-          "to" => to,
-          "purpose" => purpose,
-          "notes" => notes,
-          "agent_id" => to_int(agent_id)
-        }
-        |> SendEmail.new()
-        |> Oban.insert()
+    args = %{
+      "tenant_slug" => tenant_slug,
+      "to" => to,
+      "purpose" => purpose,
+      "notes" => notes,
+      "agent_id" => agent_id,
+      "visit_id" => visit.id,
+      "client_id" => visit.client_id,
+      "client_name" => visit.client && visit.client.name,
+      "meeting_title" => visit.title,
+      "meeting_time" => visit.start_time && Florina.Tz.format(visit.start_time, :datetime)
+    }
 
+    case args |> SendEmail.new() |> Oban.insert() do
+      {:ok, _job} ->
         Audit.log(%{
           action: "voice.email_queued",
-          user_id: to_int(agent_id),
-          details: %{"client_id" => client.id, "purpose" => purpose}
+          user_id: agent_id,
+          details: %{"visit_id" => visit.id, "purpose" => purpose}
         })
 
         {:ok, %{"ok" => true, "mode" => "queued"}}
+
+      {:error, _reason} ->
+        {:error, :queue_failed}
     end
   end
 
@@ -266,14 +313,16 @@ defmodule Florina.Voice.Tools do
   Recent ingested emails from a client, for Florina to read out mid-call. Read-only
   — never acts on the content. `{:ok, %{"emails" => [...]}}` or `{:error, :not_found}`.
   """
-  def check_client_email(_agent_id, client_id) do
-    case to_int(client_id) do
-      nil ->
-        {:error, :not_found}
-
-      cid ->
+  def check_client_email(agent_id, visit_id) do
+    # Scope to the client of a meeting the caller owns — an agent can't read
+    # another client's inbox by passing an arbitrary id.
+    case owned_visit(agent_id, visit_id) do
+      %Visit{client_id: cid} when not is_nil(cid) ->
         emails = cid |> Florina.Inbox.recent_for_client() |> Enum.map(&email_map/1)
         {:ok, %{"emails" => emails}}
+
+      _ ->
+        {:error, :not_found}
     end
   end
 
@@ -331,4 +380,6 @@ defmodule Florina.Voice.Tools do
   end
 
   defp to_int(_), do: nil
+
+  defp blank?(s), do: is_nil(s) or String.trim(to_string(s)) == ""
 end

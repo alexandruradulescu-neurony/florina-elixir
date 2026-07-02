@@ -30,8 +30,9 @@ defmodule FlorinaWeb.Webhook.VoiceToolController do
 
   def save_outcome(conn, params) do
     with_auth(conn, fn ->
-      params["agent_id"]
+      conn.assigns.tenant.slug
       |> Tools.save_outcome(
+        params["agent_id"],
         params["visit_id"],
         params["phase"],
         params["summary"],
@@ -46,7 +47,7 @@ defmodule FlorinaWeb.Webhook.VoiceToolController do
       conn.assigns.tenant.slug
       |> Tools.draft_or_send_email(
         params["agent_id"],
-        params["client_id"],
+        params["visit_id"],
         params["purpose"],
         params["notes"]
       )
@@ -57,7 +58,7 @@ defmodule FlorinaWeb.Webhook.VoiceToolController do
   def check_client_email(conn, params) do
     with_auth(conn, fn ->
       params["agent_id"]
-      |> Tools.check_client_email(params["client_id"])
+      |> Tools.check_client_email(params["visit_id"])
       |> respond(conn)
     end)
   end
@@ -65,7 +66,16 @@ defmodule FlorinaWeb.Webhook.VoiceToolController do
   defp respond({:ok, result}, conn), do: json(conn, result)
 
   defp respond({:error, :no_recipient}, conn),
-    do: conn |> put_status(422) |> json(%{error: "no email on file for this client"})
+    do: conn |> put_status(422) |> json(%{error: "no email address on file for you"})
+
+  defp respond({:error, :smtp_not_configured}, conn),
+    do: conn |> put_status(422) |> json(%{error: "email is not set up for your workspace"})
+
+  defp respond({:error, :generation_failed}, conn),
+    do: conn |> put_status(422) |> json(%{error: "could not generate the script right now"})
+
+  defp respond({:error, :queue_failed}, conn),
+    do: conn |> put_status(500) |> json(%{error: "could not queue the email"})
 
   defp respond({:error, :not_found}, conn),
     do: conn |> put_status(404) |> json(%{error: "meeting not found"})
@@ -74,7 +84,8 @@ defmodule FlorinaWeb.Webhook.VoiceToolController do
     do: conn |> put_status(400) |> json(%{error: "bad request"})
 
   defp with_auth(conn, fun) do
-    secret = Application.get_env(:florina, :voice_tools_secret)
+    # Per-tenant tools secret (tenant pinned by :resolve_tenant); no global fallback.
+    secret = Florina.Settings.get().elevenlabs_tools_secret
     provided = get_req_header(conn, "x-florina-voice-secret") |> List.first()
 
     cond do

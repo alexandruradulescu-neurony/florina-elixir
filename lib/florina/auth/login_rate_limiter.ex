@@ -17,6 +17,11 @@ defmodule Florina.Auth.LoginRateLimiter do
 
   @table :login_rate_limiter
   @max_attempts 5
+  # A coarse global cap across ALL emails in the window, so an attacker can't
+  # spray one password over many candidate emails (each under its own per-email
+  # limit) without also tripping this. Generous enough not to hit real operators.
+  @global_key :__global__
+  @global_max_attempts 100
   @window_ms 15 * 60 * 1000
   @sweep_ms 5 * 60 * 1000
 
@@ -44,24 +49,33 @@ defmodule Florina.Auth.LoginRateLimiter do
   @impl true
   def handle_call({:check_and_count, key}, _from, state) do
     now = now()
-
+    # Trip if EITHER the per-email limit or the coarse global limit is reached.
     reply =
-      case :ets.lookup(@table, key) do
-        [{^key, count, first_ms}] when now - first_ms < @window_ms ->
-          if count >= @max_attempts do
-            {:error, :rate_limited}
-          else
-            :ets.insert(@table, {key, count + 1, first_ms})
-            :ok
-          end
-
-        _ ->
-          # Absent or expired window — start a fresh one.
-          :ets.insert(@table, {key, 1, now})
-          :ok
+      with :ok <- bump(@global_key, @global_max_attempts, now),
+           :ok <- bump(key, @max_attempts, now) do
+        :ok
       end
 
     {:reply, reply, state}
+  end
+
+  # Record one attempt against `key` within the rolling window; `{:error,
+  # :rate_limited}` once it reaches `max`, else `:ok`.
+  defp bump(key, max, now) do
+    case :ets.lookup(@table, key) do
+      [{^key, count, first_ms}] when now - first_ms < @window_ms ->
+        if count >= max do
+          {:error, :rate_limited}
+        else
+          :ets.insert(@table, {key, count + 1, first_ms})
+          :ok
+        end
+
+      _ ->
+        # Absent or expired window — start a fresh one.
+        :ets.insert(@table, {key, 1, now})
+        :ok
+    end
   end
 
   @impl true

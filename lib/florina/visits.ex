@@ -397,6 +397,19 @@ defmodule Florina.Visits do
   Returns `{:ok, visit}` or `{:error, changeset}`.
   """
   def delete(%Visit{} = visit) do
-    TenantRepo.delete(visit)
+    # Call attempts / generation runs reference the visit with :restrict, so
+    # deleting a visit that has history raises at the DB. Map that to a clean
+    # {:error, changeset} instead (mirrors Clients.delete).
+    visit
+    |> Ecto.Changeset.change()
+    |> Ecto.Changeset.foreign_key_constraint(:id,
+      name: :voice_callattempt_visit_id_fkey,
+      message: "has related call attempts"
+    )
+    |> Ecto.Changeset.foreign_key_constraint(:id,
+      name: :voice_generationrun_visit_id_fkey,
+      message: "has related generation runs"
+    )
+    |> TenantRepo.delete()
   end
 end

@@ -25,6 +25,14 @@ defmodule FlorinaWeb.AgentAuth do
   def log_out_agent(conn) do
     slug = conn.assigns.tenant.slug
 
+    # Drop this user's OTHER open live sessions too (a backgrounded tab on a
+    # shared machine would otherwise keep working after logout).
+    with id when is_integer(id) <- get_session(conn, :agent_id),
+         %{} = tenant <- conn.assigns[:tenant] do
+      prefix = Florina.Tenants.schema_prefix(tenant)
+      Phoenix.PubSub.broadcast(Florina.PubSub, Accounts.user_socket_topic(prefix, id), :revoked)
+    end
+
     conn
     |> configure_session(drop: true)
     |> redirect(to: "/t/#{slug}/login")
@@ -73,7 +81,10 @@ defmodule FlorinaWeb.AgentAuth do
     with id when is_integer(id) <- session["agent_id"],
          true <- socket_tenant_matches?(session, socket),
          %Accounts.User{active: true} = agent <- Accounts.get_user(id) do
-      {:cont, Phoenix.Component.assign(socket, :current_agent, agent)}
+      {:cont,
+       socket
+       |> Phoenix.Component.assign(:current_agent, agent)
+       |> watch_for_revocation(agent.id)}
     else
       _ ->
         {:halt, Phoenix.LiveView.redirect(socket, to: "/t/#{session["tenant_slug"]}/login")}
@@ -102,6 +113,27 @@ defmodule FlorinaWeb.AgentAuth do
     case socket.assigns[:tenant] do
       %{slug: slug} -> session["agent_tenant_slug"] == slug
       _ -> false
+    end
+  end
+
+  # Role/active is only checked at mount. Subscribe the connected socket to this
+  # user's revoke topic so a demotion, deactivation, or logout elsewhere drops it
+  # immediately — it re-mounts and re-checks (a deactivated user then can't sign
+  # in; a demoted one loses the manager screens). Mirrors TenantHook's tenant gate.
+  defp watch_for_revocation(socket, user_id) do
+    if Phoenix.LiveView.connected?(socket) do
+      prefix = Florina.Tenants.schema_prefix(socket.assigns.tenant)
+      Phoenix.PubSub.subscribe(Florina.PubSub, Accounts.user_socket_topic(prefix, user_id))
+
+      Phoenix.LiveView.attach_hook(socket, :user_revocation_gate, :handle_info, fn
+        :revoked, sock ->
+          {:halt, Phoenix.LiveView.redirect(sock, to: "/t/#{sock.assigns.tenant.slug}/login")}
+
+        _msg, sock ->
+          {:cont, sock}
+      end)
+    else
+      socket
     end
   end
 end

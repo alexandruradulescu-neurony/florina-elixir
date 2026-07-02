@@ -680,20 +680,10 @@ defmodule FlorinaWeb.Manage.MeetingsLive do
     end)
   end
 
-  defp status_label(:PLANNED), do: "Planned"
-  defp status_label(:PRE_CALL_DONE), do: "Briefed"
-  defp status_label(:IN_PROGRESS), do: "In progress"
-  defp status_label(:POST_CALL_DONE), do: "Debriefed"
-  defp status_label(:COMPLETE), do: "Complete"
-  defp status_label(:CANCELLED), do: "Cancelled"
-  defp status_label(:MISSED), do: "Missed"
-  defp status_label(:ARCHIVED), do: "Archived"
-  defp status_label(other), do: to_string(other)
-
-  defp status_tone(s) when s in [:CANCELLED, :MISSED, :ARCHIVED],
-    do: "bg-gray-100 text-gray-400 line-through dark:bg-white/5 dark:text-gray-500"
-
-  defp status_tone(_), do: "bg-gray-100 text-gray-600 dark:bg-white/10 dark:text-gray-300"
+  defp status_label(status), do: visit_status_label(status)
+  # Delegates to the shared tone — this copy previously lacked the COMPLETE (green)
+  # and IN_PROGRESS (blue) cases, so those chips rendered grey only on this screen.
+  defp status_tone(status), do: visit_status_tone(status)
 
   defp terminal?(s), do: s in [:CANCELLED, :MISSED, :ARCHIVED]
 

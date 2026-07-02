@@ -59,7 +59,9 @@ defmodule Florina.Voice.Concierge do
     payload(
       prompt: conductor_prompt_unknown(),
       first_message: "Bună ziua! Sunt Florina. Cu cine vorbesc, vă rog?",
-      dynamic_variables: %{"agent_name" => "", "candidate_meetings" => ""}
+      # Include an empty agent_id so the tool template's {{agent_id}} always
+      # resolves (the tools reject a blank/invalid id anyway).
+      dynamic_variables: %{"agent_name" => "", "agent_id" => "", "candidate_meetings" => ""}
     )
   end
 
@@ -98,13 +100,14 @@ defmodule Florina.Voice.Concierge do
        phase, and a short summary of what was covered.
     5. Ask whether there's another meeting; if so, repeat.
 
-    If the caller asks to send a follow-up email to the client, confirm the details
-    out loud first, then call `draft_or_send_email` with the client id and a purpose
-    (one of: follow_up, summary, materials). Tell them it's queued. If it reports no
-    recipient, tell them there's no email on file for that client.
+    If the caller wants materials, a recap, or reminders emailed to THEM about a
+    meeting, confirm the details out loud first, then call `draft_or_send_email`
+    with that meeting's id and a purpose (one of: follow_up, summary, materials).
+    The email goes to the caller's own address (with the client's files attached
+    for `materials`). Tell them it's queued. If it reports email isn't set up, say so.
 
-    You can also call `check_client_email` with a client id to see recent emails the
-    client sent; read out any that are relevant to the meeting.
+    You can also call `check_client_email` with a meeting's id to see recent emails
+    from that client; read out any that are relevant to the meeting.
 
     Possible meetings: {{candidate_meetings}}
 
@@ -132,7 +135,8 @@ defmodule Florina.Voice.Concierge do
     Enum.map_join(candidates, "; ", fn v ->
       client = if v.client, do: v.client.name, else: "client necunoscut"
       phase = if DateTime.compare(v.start_time, now) == :lt, do: "post-call", else: "pre-call"
-      time = Calendar.strftime(v.start_time, "%d %b %H:%M")
+      # Local (Bucharest) time — Florina reads this to the agent on the phone.
+      time = Florina.Tz.format(v.start_time, :short)
       "#{v.title} cu #{client} la #{time} (#{phase})"
     end)
   end

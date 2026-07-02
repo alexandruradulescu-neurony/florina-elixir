@@ -60,8 +60,23 @@ defmodule Florina.Accounts.User do
     |> validate_required(@required_fields)
     |> validate_length(:username, max: 150)
     |> validate_length(:phone_number, max: 20)
+    # first_name/last_name/email are written from provider (SSO) data on sign-in;
+    # truncate to the column limits so an exotic long name can't crash first login.
+    |> truncate(:email, 254)
+    |> truncate(:first_name, 150)
+    |> truncate(:last_name, 150)
     |> unique_constraint(:username)
     |> unique_constraint(:email, name: :voice_user_email_lower_index)
+  end
+
+  defp truncate(changeset, field, max) do
+    case get_change(changeset, field) do
+      value when is_binary(value) and byte_size(value) > max ->
+        put_change(changeset, field, String.slice(value, 0, max))
+
+      _ ->
+        changeset
+    end
   end
 
   @doc "Privilege-role change — server-only, not from user params."

@@ -73,15 +73,37 @@ defmodule Florina.Anthropic do
           connect_options: [timeout: 15_000],
           into: fn {:data, data}, {req, resp} ->
             buffer = (resp.private[:sse_buf] || "") <> data
-            {deltas, rest} = SSE.parse(buffer)
-            Enum.each(deltas, on_delta)
-            {:cont, {req, put_in(resp.private[:sse_buf], rest)}}
+            {events, rest} = SSE.parse(buffer)
+
+            Enum.each(events, fn
+              {:delta, text} -> on_delta.(text)
+              _ -> :ok
+            end)
+
+            resp = put_in(resp.private[:sse_buf], rest)
+
+            resp =
+              case Enum.find_value(events, fn
+                     {:error, reason} -> reason
+                     _ -> nil
+                   end) do
+                nil -> resp
+                reason -> put_in(resp.private[:sse_error], reason)
+              end
+
+            {:cont, {req, resp}}
           end
         )
 
       case result do
-        {:ok, %{status: 200}} ->
-          :ok
+        # A 200 whose stream carried a mid-stream `error` event (Anthropic sends
+        # these under overload AFTER the 200 header) must NOT be reported as a
+        # clean completion — otherwise the partial reply is committed as final.
+        {:ok, %{status: 200} = resp} ->
+          case resp.private[:sse_error] do
+            nil -> :ok
+            reason -> {:error, {:stream_error, reason}}
+          end
 
         {:ok, %{status: status, body: resp_body}} ->
           {:error, {:http, status, resp_body |> inspect() |> String.slice(0, 300)}}
@@ -131,10 +153,15 @@ defmodule Florina.Anthropic do
              receive_timeout: 120_000,
              connect_options: [timeout: 15_000]
            ) do
-        {:ok, %{status: 200, body: %{"content" => [%{"text" => text} | _], "usage" => usage}}} ->
+        {:ok, %{status: 200, body: %{"content" => content, "usage" => usage} = body}}
+        when is_list(content) ->
           {:ok,
            %{
-             text: text,
+             text: first_text(content),
+             # `stop_reason: "max_tokens"` means the model hit the output cap and
+             # the text is truncated — callers (e.g. document extraction) need to
+             # know so they don't store a half-response as complete.
+             stop_reason: body["stop_reason"],
              input_tokens: Map.get(usage, "input_tokens", 0),
              output_tokens: Map.get(usage, "output_tokens", 0)
            }}
@@ -150,4 +177,13 @@ defmodule Florina.Anthropic do
 
   defp maybe_put(map, _k, nil), do: map
   defp maybe_put(map, k, v), do: Map.put(map, k, v)
+
+  # First text block in a Messages `content` array. Robust to a leading non-text
+  # block or an empty array (returns ""), rather than assuming content[0] is text.
+  defp first_text(content) do
+    Enum.find_value(content, "", fn
+      %{"text" => t} when is_binary(t) -> t
+      _ -> nil
+    end)
+  end
 end

@@ -112,7 +112,9 @@ defmodule FlorinaWeb.AuthController do
   end
 
   def callback(conn, %{"error" => error} = params) do
-    Logger.warning("[AuthController] provider error: #{error}")
+    # `error` is an attacker-controllable query param — inspect it so embedded
+    # newlines can't forge extra log lines (log injection).
+    Logger.warning("[AuthController] provider error: #{inspect(error)}")
 
     conn
     |> put_flash(:error, "Authorization was cancelled or failed.")

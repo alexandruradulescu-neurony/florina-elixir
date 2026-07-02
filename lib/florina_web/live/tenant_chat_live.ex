@@ -18,6 +18,12 @@ defmodule FlorinaWeb.TenantChatLive do
   end
 
   @impl true
+  # Ignore a new send while a reply is still streaming: a second concurrent Task
+  # would interleave its deltas into the same buffer and commit a garbled message.
+  def handle_event("send", _params, socket) when socket.assigns.streaming != nil do
+    {:noreply, socket}
+  end
+
   def handle_event("send", %{"message" => text}, socket) when text != "" do
     history = socket.assigns.messages ++ [%{role: "user", content: text}]
     lv = self()
@@ -97,7 +103,9 @@ defmodule FlorinaWeb.TenantChatLive do
           class="w-full rounded-md bg-white px-3 py-1.5 text-sm text-gray-900 outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:focus:outline-indigo-500"
         />
         <div class="mt-2">
-          <.button type="submit" variant="primary">Send</.button>
+          <.button type="submit" variant="primary" disabled={@streaming != nil}>
+            {if @streaming != nil, do: "Sending…", else: "Send"}
+          </.button>
         </div>
       </form>
     </Layouts.agent_app>

@@ -89,43 +89,7 @@ defmodule Florina.Workers.PostCallCompletion do
 
         case VisitPipeline.process_post_call(visit, transcript_text, :END_OF_MEETING) do
           {:ok, %{run: run, visit: updated_visit}} ->
-            # Only mark fully COMPLETE when the post-call generation actually
-            # succeeded. A failed run (LLM/parse/validation error) must leave the
-            # visit in its prior status so it can be retried/inspected, not be
-            # silently stamped done.
-            if run.success and
-                 updated_visit.status in [
-                   :POST_CALL_DONE,
-                   :PRE_CALL_DONE,
-                   :IN_PROGRESS,
-                   :PLANNED,
-                   :MISSED,
-                   :ARCHIVED
-                 ] do
-              case Visits.update(updated_visit, %{status: :COMPLETE}) do
-                {:ok, _v} ->
-                  Logger.info("[PostCallCompletion] visit=#{visit.id} marked COMPLETE")
-
-                {:error, cs} ->
-                  Logger.warning(
-                    "[PostCallCompletion] could not mark COMPLETE for visit=#{visit.id}: #{inspect(cs.errors)}"
-                  )
-              end
-            else
-              unless run.success do
-                Logger.warning(
-                  "[PostCallCompletion] post-call generation failed for visit=#{visit.id} — leaving status=#{updated_visit.status}, not marking COMPLETE"
-                )
-              end
-            end
-
-            # Best-effort: push the debrief summary to the client's CRM deal. This
-            # is independent of the prompt-generation run above — the summary (from
-            # the call itself) is the payload, so it ships even if generation failed.
-            # updated_visit already carries the stored summary + crm_deal_id.
-            maybe_sync_crm(updated_visit)
-
-            :ok
+            complete_after_run(visit, run, updated_visit)
 
           {:error, reason} ->
             Logger.error(
@@ -135,6 +99,76 @@ defmodule Florina.Workers.PostCallCompletion do
             {:error, reason}
         end
     end
+  end
+
+  # Decide the outcome after the post-call generation run.
+  # - success + a completable status  → mark COMPLETE, push CRM, :ok
+  # - success (other status)          → push CRM, :ok
+  # - transient generation failure    → push CRM, return {:error} so Oban retries
+  #   (a passing Anthropic overload must not permanently drop the debrief/lessons)
+  # - permanent generation failure    → push CRM, :ok (retrying won't help)
+  @completable_statuses [
+    :POST_CALL_DONE,
+    :PRE_CALL_DONE,
+    :IN_PROGRESS,
+    :PLANNED,
+    :MISSED,
+    :ARCHIVED
+  ]
+
+  defp complete_after_run(visit, run, updated_visit) do
+    cond do
+      run.success and updated_visit.status in @completable_statuses ->
+        case Visits.update(updated_visit, %{status: :COMPLETE}) do
+          {:ok, _v} ->
+            Logger.info("[PostCallCompletion] visit=#{visit.id} marked COMPLETE")
+
+          {:error, cs} ->
+            Logger.warning(
+              "[PostCallCompletion] could not mark COMPLETE for visit=#{visit.id}: #{inspect(cs.errors)}"
+            )
+        end
+
+        maybe_sync_crm(updated_visit)
+        :ok
+
+      run.success ->
+        maybe_sync_crm(updated_visit)
+        :ok
+
+      retryable_generation_error?(run.error) ->
+        # Best-effort CRM push first (the summary is available regardless), then
+        # retry the whole pipeline so the debrief prompt + lessons get generated.
+        maybe_sync_crm(updated_visit)
+
+        Logger.warning(
+          "[PostCallCompletion] transient post-call generation failure for visit=#{visit.id} (#{run.error}) — will retry"
+        )
+
+        {:error, :post_call_generation_failed}
+
+      true ->
+        Logger.warning(
+          "[PostCallCompletion] post-call generation failed for visit=#{visit.id} — leaving status=#{updated_visit.status}, not marking COMPLETE"
+        )
+
+        maybe_sync_crm(updated_visit)
+        :ok
+    end
+  end
+
+  # Heuristic on the recorded run error: retry network/overload/5xx/rate-limit
+  # failures; don't retry deterministic ones (e.g. "No active MegaPrompt").
+  defp retryable_generation_error?(nil), do: false
+  defp retryable_generation_error?(""), do: false
+
+  defp retryable_generation_error?(error) when is_binary(error) do
+    e = String.downcase(error)
+
+    Enum.any?(
+      ["timeout", "overload", "econnrefused", "closed", "429", "500", "502", "503", "504", "529"],
+      &String.contains?(e, &1)
+    )
   end
 
   defp store_post_call_summary(visit, summary) when is_binary(summary) and summary != "" do

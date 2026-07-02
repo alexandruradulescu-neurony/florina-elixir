@@ -358,7 +358,9 @@ defmodule Florina.Integrations.Pipedrive do
             {:ok, all}
           end
         else
-          {:ok, acc}
+          # `success: false` (bad token/scope) is an error, not an empty result —
+          # otherwise a broken sync looks like a healthy "0 organizations" run.
+          {:error, {:pipedrive_error, body["error"] || "success=false"}}
         end
 
       {:ok, %{status: status, body: body}} ->

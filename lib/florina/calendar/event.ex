@@ -41,8 +41,25 @@ defmodule Florina.Calendar.Event do
     event
     |> cast(attrs, @fields)
     |> validate_required([:user_id, :provider, :external_event_id, :start_time, :end_time])
+    # Provider-supplied strings can exceed the column limits (a long event title
+    # or a recurring-instance id). Truncate so one oversized event can't crash the
+    # whole agent's calendar sync. (`description` is :text — left uncapped.)
+    |> truncate(:external_event_id, 512)
+    |> truncate(:title, 1024)
+    |> truncate(:location, 1024)
+    |> truncate(:status, 50)
     |> unique_constraint([:user_id, :provider, :external_event_id],
       name: :calendar_events_user_provider_extid_index
     )
+  end
+
+  defp truncate(changeset, field, max) do
+    case get_change(changeset, field) do
+      value when is_binary(value) and byte_size(value) > max ->
+        put_change(changeset, field, String.slice(value, 0, max))
+
+      _ ->
+        changeset
+    end
   end
 end

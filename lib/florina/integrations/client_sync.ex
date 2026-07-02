@@ -91,26 +91,33 @@ defmodule Florina.Integrations.ClientSync do
   Enriches a local client with CRM data: contacts, deal history, and
   interaction history (notes + activities), then sets `last_synced_at`.
 
-  Each list is bounded to a maximum of `#{@max_interactions}` / `#{@max_deals}` /
-  `#{@max_contacts}` entries. Errors from individual Pipedrive calls are
-  logged and skipped — they do not abort the enrichment.
+  **Merge, never overwrite.** Freshly-fetched CRM data is unioned into what's
+  already stored: a fresh entry wins over the matching stored one, but any stored
+  entry the CRM no longer returns is KEPT. And if a fetch ERRORS (timeout / rate
+  limit / auth), that field is left completely untouched. So a transient or
+  partial CRM failure can never wipe a client's contacts/deals/history — the data
+  only ever accumulates or is refreshed, never lost. Each list is bounded to
+  `#{@max_contacts}`/`#{@max_deals}`/`#{@max_interactions}` entries (fresh first).
 
   Returns `{:ok, %Florina.Clients.Client{}}` or `{:error, reason}`.
   """
   def enrich_client(%Florina.Clients.Client{crm_id: crm_id} = client)
       when is_binary(crm_id) and crm_id != "" do
-    contacts = fetch_contacts(crm_id)
-    deal_history = fetch_deal_history(crm_id)
-    interaction_history = fetch_interaction_history(crm_id)
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+    contacts_result = fetch_contacts(crm_id)
 
     attrs =
-      %{
-        contacts: contacts,
-        deal_history: deal_history,
-        interaction_history: interaction_history,
-        last_synced_at: DateTime.utc_now() |> DateTime.truncate(:second)
-      }
-      |> maybe_put_domain(domain_from_contacts(contacts))
+      %{last_synced_at: now}
+      |> merge_list(:contacts, client.contacts, contacts_result, &contact_key/1, @max_contacts)
+      |> merge_list(
+        :deal_history,
+        client.deal_history,
+        fetch_deal_history(crm_id),
+        &deal_key/1,
+        @max_deals
+      )
+      |> merge_interactions(client.interaction_history, fetch_interaction_history(crm_id))
+      |> maybe_put_domain(domain_from_result(contacts_result))
 
     Clients.update(client, attrs)
   end
@@ -119,6 +126,43 @@ defmodule Florina.Integrations.ClientSync do
     # No crm_id — nothing to enrich, just return the client as-is.
     {:ok, client}
   end
+
+  # --- Merge helpers (never lose stored data on a failed/partial fetch) -------
+
+  # {:ok, fetched} → union fresh with stored, cap. {:error, _} → leave stored as-is.
+  defp merge_list(attrs, key, existing, {:ok, fetched}, keyfn, cap) do
+    merged = existing |> List.wrap() |> union_by(fetched, keyfn) |> Enum.take(cap)
+    Map.put(attrs, key, merged)
+  end
+
+  defp merge_list(attrs, _key, _existing, {:error, _reason}, _keyfn, _cap), do: attrs
+
+  defp merge_interactions(attrs, existing, {:ok, fetched}) do
+    merged =
+      existing
+      |> List.wrap()
+      |> union_by(fetched, &interaction_key/1)
+      |> Enum.sort_by(&Map.get(&1, "date", ""), :desc)
+      |> Enum.take(@max_interactions)
+
+    Map.put(attrs, :interaction_history, merged)
+  end
+
+  defp merge_interactions(attrs, _existing, {:error, _reason}), do: attrs
+
+  # Fresh entries first (they win the cap and refresh matching stored ones), then
+  # stored entries the CRM didn't return this time (kept — never dropped).
+  defp union_by(existing, fetched, keyfn) do
+    fetched_keys = MapSet.new(fetched, keyfn)
+    kept = Enum.reject(existing, fn m -> MapSet.member?(fetched_keys, keyfn.(m)) end)
+    fetched ++ kept
+  end
+
+  # Stored maps are string-keyed (JSON round-trip); fetched maps are built
+  # string-keyed too, so identity keys read string keys throughout.
+  defp contact_key(m), do: {m["email"] || "", m["name"] || ""}
+  defp deal_key(m), do: m["id"] || {m["title"], m["value"], m["status"]}
+  defp interaction_key(m), do: {m["type"], m["content"], m["date"]}
 
   # ---------------------------------------------------------------------------
   # Private helpers
@@ -174,102 +218,109 @@ defmodule Florina.Integrations.ClientSync do
     end
   end
 
-  # Fetches and maps organization contacts (persons) from Pipedrive.
-  # Returns a bounded list of `%{name, email, phone}` maps.
+  # Fetch org contacts (persons). `{:ok, [%{"name","email","phone"}]}` (string-keyed
+  # to match the stored/merged shape) or `{:error, reason}` on a failed CRM call.
   defp fetch_contacts(crm_id) do
     case CRM.get_organization_persons(crm_id) do
       {:ok, persons} ->
-        persons
-        |> Enum.take(@max_contacts)
-        |> Enum.map(fn p ->
-          %{
-            name: p["name"] || "",
-            email: extract_primary(p["email"]),
-            phone: extract_primary(p["phone"])
-          }
-        end)
+        {:ok,
+         Enum.map(persons, fn p ->
+           %{
+             "name" => p["name"] || "",
+             "email" => extract_primary(p["email"]),
+             "phone" => extract_primary(p["phone"])
+           }
+         end)}
 
       {:error, reason} ->
         Logger.warning("[ClientSync] contacts fetch failed crm_id=#{crm_id}: #{inspect(reason)}")
-        []
+        {:error, reason}
     end
   end
 
-  # Fetches and maps deal history from Pipedrive.
-  # Returns a bounded list of `%{title, value, currency, status}` maps.
+  # Fetch deal history. `{:ok, [%{"id","title","value","currency","status"}]}` or
+  # `{:error, reason}`. `id` gives a stable identity so a status change refreshes
+  # the same deal instead of duplicating it.
   defp fetch_deal_history(crm_id) do
     case CRM.get_organization_deals(crm_id) do
       {:ok, deals} ->
-        deals
-        |> Enum.take(@max_deals)
-        |> Enum.map(fn d ->
-          %{
-            title: d["title"] || "",
-            value: d["value"],
-            currency: d["currency"] || "",
-            status: d["status"] || ""
-          }
-        end)
+        {:ok,
+         Enum.map(deals, fn d ->
+           %{
+             "id" => d["id"] && to_string(d["id"]),
+             "title" => d["title"] || "",
+             "value" => d["value"],
+             "currency" => d["currency"] || "",
+             "status" => d["status"] || ""
+           }
+         end)}
 
       {:error, reason} ->
         Logger.warning(
           "[ClientSync] deal_history fetch failed crm_id=#{crm_id}: #{inspect(reason)}"
         )
 
-        []
+        {:error, reason}
     end
   end
 
-  # Fetches notes and activities, merges them into a unified interaction history
-  # sorted most-recent first. Returns a bounded list of `%{type, content, date}` maps.
+  # Combine notes + activities. `{:ok, list}` if at least one call succeeded (a
+  # partial result still only adds via the union); `{:error, reason}` only when
+  # BOTH failed, so the stored history is left untouched.
   defp fetch_interaction_history(crm_id) do
     notes = fetch_notes(crm_id)
     activities = fetch_activities(crm_id)
 
-    (notes ++ activities)
-    |> Enum.sort_by(& &1.date, {:desc, Date})
-    |> Enum.take(@max_interactions)
-    |> Enum.map(fn item ->
-      %{type: item.type, content: item.content, date: item.date}
-    end)
+    case {notes, activities} do
+      {{:error, reason}, {:error, _}} -> {:error, reason}
+      _ -> {:ok, ok_list(notes) ++ ok_list(activities)}
+    end
   end
+
+  defp ok_list({:ok, list}), do: list
+  defp ok_list(_), do: []
 
   defp fetch_notes(crm_id) do
     case CRM.get_organization_notes(crm_id) do
       {:ok, notes} ->
-        Enum.map(notes, fn n ->
-          %{
-            type: "note",
-            content: n["content"] || "",
-            date: parse_date(n["add_time"])
-          }
-        end)
+        {:ok,
+         Enum.map(notes, fn n ->
+           %{
+             "type" => "note",
+             "content" => n["content"] || "",
+             "date" => iso(parse_date(n["add_time"]))
+           }
+         end)}
 
       {:error, reason} ->
         Logger.warning("[ClientSync] notes fetch failed crm_id=#{crm_id}: #{inspect(reason)}")
-        []
+        {:error, reason}
     end
   end
 
   defp fetch_activities(crm_id) do
     case CRM.get_organization_activities(crm_id) do
       {:ok, activities} ->
-        Enum.map(activities, fn a ->
-          %{
-            type: a["type"] || "activity",
-            content: a["subject"] || a["note"] || "",
-            date: parse_date(a["due_date"] || a["add_time"])
-          }
-        end)
+        {:ok,
+         Enum.map(activities, fn a ->
+           %{
+             "type" => a["type"] || "activity",
+             "content" => a["subject"] || a["note"] || "",
+             "date" => iso(parse_date(a["due_date"] || a["add_time"]))
+           }
+         end)}
 
       {:error, reason} ->
         Logger.warning(
           "[ClientSync] activities fetch failed crm_id=#{crm_id}: #{inspect(reason)}"
         )
 
-        []
+        {:error, reason}
     end
   end
+
+  defp iso(%Date{} = d), do: Date.to_iso8601(d)
+  defp iso(_), do: ""
 
   # Fallback domain from the Pipedrive org's `cc_email`. Pipedrive's cc_email is
   # an auto-generated forwarding address whose domain is "<account>.pipedrivemail.com"
@@ -285,11 +336,16 @@ defmodule Florina.Integrations.ClientSync do
 
   defp extract_domain(_), do: nil
 
+  # Domain is only inferred when the contacts fetch succeeded (never on error, so
+  # we don't clobber a stored domain because the CRM was briefly unreachable).
+  defp domain_from_result({:ok, contacts}), do: domain_from_contacts(contacts)
+  defp domain_from_result({:error, _reason}), do: nil
+
   # Prefer the real company domain inferred from the org's contacts' email
   # addresses: the most common domain that isn't a free provider or pipedrivemail.
   defp domain_from_contacts(contacts) do
     contacts
-    |> Enum.map(& &1.email)
+    |> Enum.map(& &1["email"])
     |> Enum.map(&email_domain/1)
     |> Enum.map(&usable_domain/1)
     |> Enum.reject(&is_nil/1)

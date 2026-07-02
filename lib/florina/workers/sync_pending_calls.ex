@@ -24,10 +24,14 @@ defmodule Florina.Workers.SyncPendingCalls do
   @pending_statuses ["INITIATED", "IN_PROGRESS", "SCHEDULED"]
   # Poll only calls that started more than 5 minutes ago (avoid race with webhooks)
   @cutoff_minutes 5
+  # A SCHEDULED attempt with no external_call_id this old was orphaned by a crash
+  # between the insert and the dial — nothing else can resolve it.
+  @stuck_scheduled_minutes 15
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"tenant_slug" => slug}}) do
     with :ok <- Tenant.pin_active(slug) do
+      reap_stuck_scheduled(slug)
       cutoff = DateTime.add(DateTime.utc_now(), -@cutoff_minutes * 60, :second)
 
       pending =
@@ -57,6 +61,30 @@ defmodule Florina.Workers.SyncPendingCalls do
         Logger.info("[SyncPendingCalls] tenant=#{slug} not active — skipping")
         :ok
     end
+  end
+
+  # Fail attempts stuck SCHEDULED with no external_call_id (orphaned by a crash
+  # between the CallAttempt insert and the outbound dial). Left alone they block
+  # every future dial for that visit/phase and stop the visit from being retired.
+  defp reap_stuck_scheduled(slug) do
+    cutoff = DateTime.add(DateTime.utc_now(), -@stuck_scheduled_minutes * 60, :second)
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    {count, _} =
+      from(ca in CallAttempt,
+        where:
+          ca.status == "SCHEDULED" and is_nil(ca.external_call_id) and
+            ca.updated_at < ^cutoff
+      )
+      |> TenantRepo.update_all(set: [status: "FAILED", updated_at: now])
+
+    if count > 0 do
+      Logger.warning(
+        "[SyncPendingCalls] tenant=#{slug} reaped #{count} stuck SCHEDULED attempt(s) with no call id"
+      )
+    end
+
+    :ok
   end
 
   defp sync_one(%CallAttempt{external_call_id: ext_id} = ca, slug) do

@@ -37,7 +37,7 @@ defmodule Florina.Integrations.Hubspot do
 
   @company_props ~w(name domain industry)
   @contact_props ~w(firstname lastname email phone)
-  @deal_props ~w(dealname amount dealstage deal_currency_code hs_is_closed hs_is_closed_won)
+  @deal_props ~w(dealname amount dealstage deal_currency_code hs_is_closed hs_is_closed_won hs_lastmodifieddate)
   @note_props ~w(hs_note_body hs_timestamp hs_createdate)
 
   # HubSpot engagement object types pulled into interaction history, with the
@@ -112,17 +112,17 @@ defmodule Florina.Integrations.Hubspot do
 
   def do_get_organization_activities(id) do
     with {:ok, token} <- token() do
-      activities =
-        Enum.flat_map(@engagement_types, fn {assoc, label, props} ->
-          with {:ok, ids} <- associated_ids(token, "companies", id, assoc),
-               {:ok, objs} <- batch_read(token, assoc, ids, props) do
-            map_skip(objs, &engagement_to_activity(&1, label))
-          else
-            _ -> []
-          end
-        end)
-
-      {:ok, activities}
+      # Propagate a fetch error instead of swallowing it to `[]` — otherwise an
+      # auth/network failure reads as "this org has no activity", and (with the
+      # merge-not-overwrite sync) we want the error so stored history is kept.
+      Enum.reduce_while(@engagement_types, {:ok, []}, fn {assoc, label, props}, {:ok, acc} ->
+        with {:ok, ids} <- associated_ids(token, "companies", id, assoc),
+             {:ok, objs} <- batch_read(token, assoc, ids, props) do
+          {:cont, {:ok, acc ++ map_skip(objs, &engagement_to_activity(&1, label))}}
+        else
+          {:error, reason} -> {:halt, {:error, reason}}
+        end
+      end)
     end
   end
 
@@ -170,9 +170,15 @@ defmodule Florina.Integrations.Hubspot do
           |> Enum.map(fn r -> r["toObjectId"] || r["id"] end)
           |> Enum.reject(&is_nil/1)
           |> Enum.map(&to_string/1)
-          |> Enum.take(@batch_limit)
 
-        {:ok, ids}
+        if length(ids) > @batch_limit do
+          Logger.warning(
+            "[HubSpot] #{to_type} associations for #{from_type}/#{from_id} exceeded " <>
+              "#{@batch_limit} — keeping the first #{@batch_limit} (pagination not implemented)"
+          )
+        end
+
+        {:ok, Enum.take(ids, @batch_limit)}
 
       {:ok, _} ->
         {:ok, []}
@@ -288,7 +294,9 @@ defmodule Florina.Integrations.Hubspot do
       "title" => props["dealname"] || "",
       "value" => parse_amount(props["amount"]),
       "currency" => props["deal_currency_code"] || "",
-      "status" => deal_status(props)
+      "status" => deal_status(props),
+      # ISO8601 modified date; sorts chronologically as text for the recency sort.
+      "update_time" => props["hs_lastmodifieddate"] || ""
     }
   end
 
@@ -337,10 +345,14 @@ defmodule Florina.Integrations.Hubspot do
 
   defp truthy(v), do: v in [true, "true"]
 
-  # Open/won deals first (mirrors Pipedrive's ordering) so the deal-picking in
-  # calendar_sync prefers an active deal.
-  defp sort_deals(deals),
-    do: Enum.sort_by(deals, &if(&1["status"] in ["open", "won"], do: 0, else: 1))
+  # Recency (desc) first, then stable-sort open/won ahead of the rest — identical
+  # to Pipedrive's ordering, so calendar_sync's "most recent active deal" pick
+  # behaves the same on either provider. Enum.sort_by is stable.
+  defp sort_deals(deals) do
+    deals
+    |> Enum.sort_by(&(&1["update_time"] || ""), :desc)
+    |> Enum.sort_by(&if(&1["status"] in ["open", "won"], do: 0, else: 1))
+  end
 
   defp props_of(obj) when is_map(obj), do: obj["properties"] || %{}
   defp props_of(_), do: %{}

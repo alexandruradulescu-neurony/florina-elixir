@@ -24,17 +24,13 @@ defmodule Florina.Services.DataContext do
   # Formatting helpers
   # ---------------------------------------------------------------------------
 
+  # These feed generated call scripts, so they MUST render Bucharest local time —
+  # a UTC time in the script would tell the agent/client the wrong hour.
   defp fmt_local_date(nil), do: "?"
-
-  defp fmt_local_date(%DateTime{} = dt) do
-    Calendar.strftime(dt, "%Y-%m-%d")
-  end
+  defp fmt_local_date(%DateTime{} = dt), do: Florina.Tz.format(dt, :iso_date)
 
   defp fmt_local_datetime(nil), do: ""
-
-  defp fmt_local_datetime(%DateTime{} = dt) do
-    Calendar.strftime(dt, "%d %B %Y, %H:%M")
-  end
+  defp fmt_local_datetime(%DateTime{} = dt), do: Florina.Tz.format(dt, :long)
 
   defp format_interaction_history(nil), do: ""
   defp format_interaction_history([]), do: ""

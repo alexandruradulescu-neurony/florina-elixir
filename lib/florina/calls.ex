@@ -113,7 +113,17 @@ defmodule Florina.Calls do
 
   def get(id), do: TenantRepo.get(CallAttempt, id)
 
-  @doc "Apply an ElevenLabs post-call webhook payload to the matching call row."
+  @doc """
+  Apply an ElevenLabs post-call webhook payload to the matching call row. Only the
+  transcription event carries call status/transcript; other event types (e.g.
+  `post_call_audio`) share the conversation_id but no status, so running them
+  through the interpreter would wrongly mark a live call FAILED — those are ignored.
+  """
+  def apply_elevenlabs_webhook(%{"type" => type}, _tenant_slug)
+      when is_binary(type) and type != "post_call_transcription" do
+    {:ok, :ignored}
+  end
+
   def apply_elevenlabs_webhook(%{} = payload, tenant_slug) do
     data = Map.get(payload, "data", payload)
     conversation_id = data["conversation_id"]

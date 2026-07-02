@@ -99,6 +99,49 @@ defmodule Florina.Services.Assembler do
     body_locked = Keyword.fetch!(opts, :body_locked)
     first_message_locked = Keyword.fetch!(opts, :first_message_locked)
 
+    do_run_assembly(visit, domain, triggered_by, context_fn, %{
+      body_field: body_field,
+      first_message_field: first_message_field,
+      body_locked: body_locked,
+      first_message_locked: first_message_locked
+    })
+  rescue
+    e ->
+      # Honor the documented contract: any exception (e.g. the visit/client was
+      # deleted between enqueue and run, so a get! inside context_fn raises) is
+      # caught and surfaced as a failed GenerationRun instead of crashing the
+      # caller (an Oban job or a mid-call concierge tool request).
+      visit = Keyword.fetch!(opts, :visit)
+      domain = Keyword.fetch!(opts, :domain)
+      triggered_by = Keyword.fetch!(opts, :triggered_by)
+      error = "Assembler crashed: #{Exception.message(e)}"
+      Logger.error("#{error} (visit=#{visit.id} domain=#{domain})")
+
+      record_run(%{
+        visit_id: visit.id,
+        client_id: nil,
+        mega_prompt_id: nil,
+        domain: domain,
+        triggered_by: triggered_by,
+        context_bundle: %{},
+        claude_request: "",
+        claude_response: "",
+        parsed_outputs: %{},
+        input_tokens: 0,
+        output_tokens: 0,
+        success: false,
+        error: error
+      })
+  end
+
+  defp do_run_assembly(visit, domain, triggered_by, context_fn, fields) do
+    %{
+      body_field: body_field,
+      first_message_field: first_message_field,
+      body_locked: body_locked,
+      first_message_locked: first_message_locked
+    } = fields
+
     mega = Prompts.get_active(domain)
 
     if is_nil(mega) do

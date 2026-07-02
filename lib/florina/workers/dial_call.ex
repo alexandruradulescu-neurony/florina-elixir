@@ -24,10 +24,14 @@ defmodule Florina.Workers.DialCall do
   # this window, so two overlapping ScanTenantCalls runs can't both dial. The window
   # MUST stay shorter than `retry_interval_minutes` (default 5 min) or the legitimate
   # retry — enqueued ~5 min later — would be swallowed as a duplicate of the first.
+  #
+  # `manual` is a unique key too: an agent's "call me" (manual=true) must NOT be
+  # deduped against a scheduled dial (manual absent) for the same visit/phase —
+  # otherwise tapping the button right around meeting time silently no-ops.
   use Oban.Worker,
     queue: :calls,
     max_attempts: 2,
-    unique: [period: 120, keys: [:visit_id, :phase, :tenant_slug]]
+    unique: [period: 120, keys: [:visit_id, :phase, :tenant_slug, :manual]]
 
   require Logger
 
@@ -73,6 +77,19 @@ defmodule Florina.Workers.DialCall do
         Logger.info("[DialCall] tenant=#{slug} not active — skipping")
         :ok
     end
+  end
+
+  # Florina is turned OFF for this meeting (the manager's per-meeting switch).
+  # Never dial — not even on a manual "call me" / "run call". The automatic
+  # scheduler already filters these out; this closes the manual path, which
+  # otherwise bypassed the switch entirely. Re-enabling the meeting is the way
+  # to allow a call.
+  defp do_dial(%Visit{calls_enabled: false} = visit, phase, _tenant_slug, _manual) do
+    Logger.info(
+      "[DialCall] visit=#{visit.id} phase=#{phase} calls disabled for this meeting — skip"
+    )
+
+    :ok
   end
 
   # COMPLETED or CANCELLED visits are terminal — never dial, even on a manual trigger.
@@ -377,17 +394,39 @@ defmodule Florina.Workers.DialCall do
         :ok
 
       {:error, reason} ->
-        Logger.error(
-          "[DialCall] ElevenLabs error visit=#{visit.id} phase=#{attempt.phase}: #{inspect(reason)}"
-        )
+        if ambiguous_failure?(reason) do
+          # The provider may already have PLACED the call (a timeout after we sent
+          # the request, or a 200 whose body we didn't recognize). Marking FAILED
+          # and retrying would ring the agent a second time. Leave the attempt
+          # SCHEDULED and don't retry — the SyncPendingCalls reaper fails it after
+          # 15 min if it turns out no call ever connected.
+          Logger.warning(
+            "[DialCall] visit=#{visit.id} phase=#{attempt.phase} ambiguous dial result, leaving SCHEDULED (no retry): #{inspect(reason)}"
+          )
 
-        attempt
-        |> CallAttempt.webhook_changeset(%{status: "FAILED"})
-        |> TenantRepo.update()
+          :ok
+        else
+          Logger.error(
+            "[DialCall] ElevenLabs error visit=#{visit.id} phase=#{attempt.phase}: #{inspect(reason)}"
+          )
 
-        {:error, reason}
+          attempt
+          |> CallAttempt.webhook_changeset(%{status: "FAILED"})
+          |> TenantRepo.update()
+
+          {:error, reason}
+        end
     end
   end
+
+  # A failure where the call MIGHT already have been placed (so a retry could
+  # double-dial): a request timeout, a 200 with no recognizable call id, or any
+  # transport error. Clear provider rejections (4xx/5xx bodies, missing config)
+  # are NOT ambiguous — no call was placed — and stay retryable.
+  defp ambiguous_failure?(:timeout), do: true
+  defp ambiguous_failure?({:no_call_id, _body}), do: true
+  defp ambiguous_failure?(reason) when is_exception(reason), do: true
+  defp ambiguous_failure?(_reason), do: false
 
   # ---------------------------------------------------------------------------
   # CallAttempt helpers

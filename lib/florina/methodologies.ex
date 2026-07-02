@@ -40,10 +40,17 @@ defmodule Florina.Methodologies do
     TenantRepo.get!(Methodology, id)
   end
 
-  @doc "Gets a methodology by ID. Returns `nil` if not found."
-  def get(id) do
-    TenantRepo.get(Methodology, id)
+  @doc "Gets a methodology by ID. Returns `nil` if not found (or on a non-integer id)."
+  def get(id) when is_integer(id), do: TenantRepo.get(Methodology, id)
+
+  def get(id) when is_binary(id) do
+    case Integer.parse(id) do
+      {int, ""} -> TenantRepo.get(Methodology, int)
+      _ -> nil
+    end
   end
+
+  def get(_), do: nil
 
   # ---------------------------------------------------------------------------
   # Mutations

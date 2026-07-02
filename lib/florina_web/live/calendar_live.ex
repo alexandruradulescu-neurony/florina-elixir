@@ -9,7 +9,8 @@ defmodule FlorinaWeb.CalendarLive do
 
   Views:
     * **Day** — a mini-month picker + a meeting list (handles many same-time meetings).
-    * **Week** — a Mon–Sun time grid; events placed on a 5-minute row grid.
+    * **Week** — a Mon–Fri time grid (no weekend meetings by design); events
+      placed on a 5-minute row grid.
     * **Month** — a day-cell grid with up to 3 meeting chips per day, then "+N more".
 
   Crowded days overflow into the Day view, which is a list and never runs out of room.
@@ -666,7 +667,7 @@ defmodule FlorinaWeb.CalendarLive do
 
   defp secondary(_), do: ""
 
-  defp fmt(%DateTime{} = dt), do: Calendar.strftime(Florina.Tz.local(dt), "%H:%M")
+  defp fmt(%DateTime{} = dt), do: Florina.Tz.format(dt, :time)
 
   # ---- Week-grid placement --------------------------------------------------
 

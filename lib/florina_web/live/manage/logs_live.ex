@@ -141,8 +141,7 @@ defmodule FlorinaWeb.Manage.LogsLive do
   defp level_tone(:INFO), do: "bg-blue-100 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400"
   defp level_tone(_), do: "bg-gray-100 text-gray-700 dark:bg-white/10 dark:text-gray-200"
 
-  defp time_label(%DateTime{} = dt),
-    do: Calendar.strftime(Florina.Tz.local(dt), "%d %b %Y · %H:%M:%S")
+  defp time_label(%DateTime{} = dt), do: Florina.Tz.format(dt, :datetime_seconds)
 
   defp time_label(_), do: "—"
 

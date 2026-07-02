@@ -19,6 +19,34 @@ defmodule Florina.Tz do
   def local(%DateTime{} = dt), do: DateTime.shift_zone!(dt, @zone)
   def local(other), do: other
 
+  @doc """
+  Format a UTC `DateTime` in local time using a named style. The single source of
+  truth for human-facing time strings — web views AND the voice/prompt paths use
+  this so a meeting never reads one time on screen and another on the phone.
+
+  `nil` → `""`. Styles:
+  - `:time`             → `14:30`
+  - `:short`            → `03 Jul · 14:30`
+  - `:datetime`         → `03 Jul 2026 · 14:30` (default)
+  - `:datetime_seconds` → `03 Jul 2026 · 14:30:05`
+  - `:day_time`         → `Fri 14:30`
+  - `:date`             → `03 Jul 2026`
+  - `:long`             → `3 July 2026, 14:30`
+  - `:iso_date`         → `2026-07-03`
+  """
+  def format(dt, style \\ :datetime)
+  def format(nil, _style), do: ""
+  def format(%DateTime{} = dt, style), do: dt |> local() |> Calendar.strftime(pattern(style))
+
+  defp pattern(:time), do: "%H:%M"
+  defp pattern(:short), do: "%d %b · %H:%M"
+  defp pattern(:datetime), do: "%d %b %Y · %H:%M"
+  defp pattern(:datetime_seconds), do: "%d %b %Y · %H:%M:%S"
+  defp pattern(:day_time), do: "%a %H:%M"
+  defp pattern(:date), do: "%d %b %Y"
+  defp pattern(:long), do: "%d %B %Y, %H:%M"
+  defp pattern(:iso_date), do: "%Y-%m-%d"
+
   @doc "Today's date in the local zone."
   def today, do: DateTime.utc_now() |> DateTime.shift_zone!(@zone) |> DateTime.to_date()
 

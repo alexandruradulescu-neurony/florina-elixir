@@ -90,6 +90,29 @@ defmodule Florina.Settings do
     |> TenantRepo.update()
   end
 
+  @doc """
+  Update only this tenant's ElevenLabs voice config. The three secrets (API key,
+  webhook secret, tools secret) are keep-on-blank (a blank field keeps the saved
+  value); the agent id + phone-number id are set-when-present. Each secret has a
+  matching `clear_*` flag to remove it. No `is_overridden` — never published.
+  """
+  def update_elevenlabs(attrs) do
+    changes =
+      %{}
+      |> put_present(attrs, :elevenlabs_agent_id, :allow_blank)
+      |> put_present(attrs, :elevenlabs_phone_number_id, :allow_blank)
+      |> put_present(attrs, :elevenlabs_api_key, :nonblank)
+      |> put_present(attrs, :elevenlabs_webhook_secret, :nonblank)
+      |> put_present(attrs, :elevenlabs_tools_secret, :nonblank)
+      |> maybe_clear(attrs, "clear_elevenlabs_api_key", :elevenlabs_api_key)
+      |> maybe_clear(attrs, "clear_elevenlabs_webhook_secret", :elevenlabs_webhook_secret)
+      |> maybe_clear(attrs, "clear_elevenlabs_tools_secret", :elevenlabs_tools_secret)
+
+    GlobalSettings.load()
+    |> GlobalSettings.changeset(changes)
+    |> TenantRepo.update()
+  end
+
   defp put_present(map, attrs, key, mode) do
     if has_key?(attrs, key) do
       case {mode, Strings.blank_to_nil(fetch(attrs, key))} do

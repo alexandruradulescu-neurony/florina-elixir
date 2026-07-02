@@ -7,12 +7,17 @@ defmodule FlorinaWeb.Endpoint do
   # `secure: true` (HTTPS-only cookie) is enabled in production via
   # `config :florina, :session_secure, true`; left off in dev/test where there's
   # no TLS on localhost. `http_only` keeps the cookie out of reach of JS.
+  # `max_age` bounds a stolen/copied cookie's lifetime — a cookie-store session
+  # has no server-side state to revoke, so without this it would be valid until
+  # the signing key rotates. 14 days balances that against re-login friction.
+  # (Account deactivation is the immediate revocation path — re-checked per request.)
   @session_options [
     store: :cookie,
     key: "_florina_key",
     signing_salt: "MgpuMbo4",
     same_site: "Lax",
     http_only: true,
+    max_age: 60 * 60 * 24 * 14,
     secure: Application.compile_env(:florina, :session_secure, false)
   ]
 

@@ -13,9 +13,9 @@ defmodule Florina.Integrations.ElevenLabs do
 
   Tests swap in `Florina.Integrations.ElevenLabs.Stub`.
 
-  Auth: global `xi-api-key` from `config :florina, :elevenlabs_api_key`.
-  Required config keys also include `:elevenlabs_agent_id` and
-  `:elevenlabs_phone_number_id`.
+  Auth is per-tenant: the `xi-api-key`, agent id, and phone-number id come from the
+  pinned tenant's settings (`Florina.Settings.get/0`), not global config. Callers
+  run with the tenant pinned, so each tenant dials from its own ElevenLabs account.
 
   Deferred from the Django source (not needed for the core call path):
   - `format_prompt_for_visit/3` (Romanian token substitution) — the Elixir
@@ -71,9 +71,12 @@ defmodule Florina.Integrations.ElevenLabs do
 
   @doc false
   def do_initiate_call(to_number, prompt, first_message, _context) do
-    with {:ok, api_key} <- get_config(:elevenlabs_api_key),
-         {:ok, agent_id} <- get_config(:elevenlabs_agent_id),
-         {:ok, phone_number_id} <- get_config(:elevenlabs_phone_number_id) do
+    settings = Florina.Settings.get()
+
+    with {:ok, api_key} <- tenant_config(settings.elevenlabs_api_key, :elevenlabs_api_key),
+         {:ok, agent_id} <- tenant_config(settings.elevenlabs_agent_id, :elevenlabs_agent_id),
+         {:ok, phone_number_id} <-
+           tenant_config(settings.elevenlabs_phone_number_id, :elevenlabs_phone_number_id) do
       payload = build_call_payload(agent_id, phone_number_id, to_number, prompt, first_message)
 
       case Req.post("#{@convai_url}/twilio/outbound-call",
@@ -103,7 +106,8 @@ defmodule Florina.Integrations.ElevenLabs do
 
   @doc false
   def do_get_conversation(conversation_id) do
-    with {:ok, api_key} <- get_config(:elevenlabs_api_key) do
+    with {:ok, api_key} <-
+           tenant_config(Florina.Settings.get().elevenlabs_api_key, :elevenlabs_api_key) do
       # Try endpoints in priority order; ElevenLabs has been inconsistent across versions.
       endpoints = [
         "#{@convai_url}/conversations/#{conversation_id}",
@@ -132,13 +136,11 @@ defmodule Florina.Integrations.ElevenLabs do
     [{"xi-api-key", api_key}, {"content-type", "application/json"}]
   end
 
-  defp get_config(key) do
-    case Application.get_env(:florina, key) do
-      nil -> {:error, {:missing_config, key}}
-      "" -> {:error, {:missing_config, key}}
-      val -> {:ok, val}
-    end
-  end
+  # ElevenLabs credentials are per-tenant (from the tenant's settings), not global.
+  # Callers (DialCall, SyncPendingCalls) run with the tenant pinned, so
+  # `Florina.Settings.get()` resolves the right tenant's config.
+  defp tenant_config(val, _key) when is_binary(val) and val != "", do: {:ok, val}
+  defp tenant_config(_val, key), do: {:error, {:missing_config, key}}
 
   defp build_call_payload(agent_id, phone_number_id, to_number, prompt, first_message) do
     base = %{

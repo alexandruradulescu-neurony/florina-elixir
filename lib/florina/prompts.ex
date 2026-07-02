@@ -20,7 +20,19 @@ defmodule Florina.Prompts do
       )
 
   def get_mega!(id), do: TenantRepo.get!(MegaPrompt, id)
-  def get_mega(id), do: TenantRepo.get(MegaPrompt, id)
+
+  # Tolerate a non-integer id (a tampered/garbage phx-value) with nil rather than
+  # an Ecto.Query.CastError that crashes the LiveView — matches get_run/1.
+  def get_mega(id) when is_integer(id), do: TenantRepo.get(MegaPrompt, id)
+
+  def get_mega(id) when is_binary(id) do
+    case Integer.parse(id) do
+      {int, ""} -> TenantRepo.get(MegaPrompt, int)
+      _ -> nil
+    end
+  end
+
+  def get_mega(_), do: nil
 
   @doc "The single active mega-prompt for a domain, or nil."
   def get_active(domain),
@@ -58,8 +70,12 @@ defmodule Florina.Prompts do
       )
       |> TenantRepo.update_all(set: [is_active: false])
 
-      {:ok, updated} = mp |> MegaPrompt.changeset(%{is_active: true}) |> TenantRepo.update()
-      updated
+      case mp |> MegaPrompt.changeset(%{is_active: true}) |> TenantRepo.update() do
+        {:ok, updated} -> updated
+        # A concurrent activate can trip the one-active-per-domain index; roll
+        # back cleanly instead of crashing with a MatchError.
+        {:error, changeset} -> TenantRepo.rollback(changeset)
+      end
     end)
   end
 

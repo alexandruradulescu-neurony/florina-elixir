@@ -358,6 +358,23 @@ defmodule Florina.CentralConfig do
       )
     end
 
+    sync_sequences()
+  end
+
+  # After copying canonical rows (which keep their control-plane ids) into a
+  # tenant, advance each table's id sequence past the highest copied id.
+  # Otherwise the tenant's sequence still starts at 1 and the FIRST tenant-created
+  # methodology / mega-prompt version would reuse a seeded row's PK and crash.
+  # Runs after the rows are committed, with the tenant prefix pinned.
+  defp sync_sequences do
+    prefix = TenantRepo.prefix!()
+
+    for table <- ~w(voice_methodology voice_scenario voice_megaprompt) do
+      Repo.query!(
+        ~s|SELECT setval(pg_get_serial_sequence('"#{prefix}"."#{table}"', 'id'), (SELECT COALESCE(MAX(id), 1) FROM "#{prefix}"."#{table}"))|
+      )
+    end
+
     :ok
   end
 
@@ -397,7 +414,10 @@ defmodule Florina.CentralConfig do
 
       tenant ->
         Tenants.with_prefix(tenant, fn ->
-          TenantRepo.transaction(fn -> do_publish() end)
+          result = TenantRepo.transaction(fn -> do_publish() end)
+          # Bump sequences AFTER the txn commits, so MAX(id) sees the copied rows.
+          with {:ok, _} <- result, do: sync_sequences()
+          result
         end)
     end
   end

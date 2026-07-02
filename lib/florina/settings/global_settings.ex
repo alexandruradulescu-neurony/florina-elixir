@@ -46,6 +46,15 @@ defmodule Florina.Settings.GlobalSettings do
     field :imap_username, :string
     field :imap_password, Florina.Encrypted.Binary, redact: true
 
+    # Per-tenant ElevenLabs voice config. Each tenant has its own agent, phone
+    # number, API key, and webhook/tool secrets — there is NO shared global
+    # config, so voice only works once these are set. Secrets encrypted at rest.
+    field :elevenlabs_api_key, Florina.Encrypted.Binary, redact: true
+    field :elevenlabs_agent_id, :string
+    field :elevenlabs_phone_number_id, :string
+    field :elevenlabs_webhook_secret, Florina.Encrypted.Binary, redact: true
+    field :elevenlabs_tools_secret, Florina.Encrypted.Binary, redact: true
+
     field :is_overridden, :boolean, default: false
 
     belongs_to :default_methodology, Florina.Methodologies.Methodology
@@ -73,6 +82,11 @@ defmodule Florina.Settings.GlobalSettings do
     :imap_port,
     :imap_username,
     :imap_password,
+    :elevenlabs_api_key,
+    :elevenlabs_agent_id,
+    :elevenlabs_phone_number_id,
+    :elevenlabs_webhook_secret,
+    :elevenlabs_tools_secret,
     :default_methodology_id
     # :is_overridden is intentionally NOT castable — it's a publish-control flag
     # set only by app code (`Settings.update/1` via put_change), never from params.
@@ -89,14 +103,14 @@ defmodule Florina.Settings.GlobalSettings do
 
     case TenantRepo.get(__MODULE__, 1) do
       nil ->
-        # Insert with pk=1; ignore conflict (race-safe)
+        # Insert with pk=1; ignore conflict (race-safe). With on_conflict: :nothing
+        # a losing insert returns the in-memory struct (defaults), NOT the row a
+        # concurrent writer persisted — so always re-read to get the real values.
         %__MODULE__{id: 1}
         |> change()
         |> TenantRepo.insert(on_conflict: :nothing, conflict_target: :id)
-        |> case do
-          {:ok, row} -> row
-          {:error, _} -> TenantRepo.get!(__MODULE__, 1)
-        end
+
+        TenantRepo.get!(__MODULE__, 1)
 
       row ->
         row
@@ -125,6 +139,8 @@ defmodule Florina.Settings.GlobalSettings do
     |> validate_length(:smtp_from_name, max: 255)
     |> validate_length(:imap_host, max: 255)
     |> validate_length(:imap_username, max: 255)
+    |> validate_length(:elevenlabs_agent_id, max: 255)
+    |> validate_length(:elevenlabs_phone_number_id, max: 255)
   end
 
   # The Pipedrive domain is interpolated into the API base URL

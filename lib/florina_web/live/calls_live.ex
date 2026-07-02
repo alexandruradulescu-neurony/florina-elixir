@@ -61,7 +61,7 @@ defmodule FlorinaWeb.CallsLive do
               </td>
               <td class={td_class()}>{call.summary}</td>
               <td class={[td_class(), "whitespace-nowrap text-gray-500 dark:text-gray-400"]}>
-                {call.updated_at}
+                {Florina.Tz.format(call.updated_at, :datetime)}
               </td>
             </tr>
           </tbody>

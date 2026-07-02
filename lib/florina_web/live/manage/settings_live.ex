@@ -89,6 +89,17 @@ defmodule FlorinaWeb.Manage.SettingsLive do
     end
   end
 
+  def handle_event("save_elevenlabs", %{"elevenlabs" => params}, socket) do
+    case Settings.update_elevenlabs(params) do
+      {:ok, settings} ->
+        {:noreply,
+         socket |> assign(:settings, settings) |> put_flash(:info, "Voice settings saved.")}
+
+      {:error, _changeset} ->
+        {:noreply, put_flash(socket, :error, "Could not save voice settings.")}
+    end
+  end
+
   defp assign_form(socket, changeset), do: assign(socket, :form, to_form(changeset))
 
   defp token_placeholder(saved) when saved in [nil, ""], do: "Paste the API token"
@@ -376,7 +387,80 @@ defmodule FlorinaWeb.Manage.SettingsLive do
           <.button type="submit" variant="primary">Save email settings</.button>
         </.form>
       </div>
+
+      <div class="mt-12 border-t border-gray-200 dark:border-white/10 pt-8 max-w-xl">
+        <h2 class="text-xl font-extrabold tracking-[-0.01em] text-gray-900 dark:text-white">
+          Voice (ElevenLabs)
+        </h2>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mb-5">
+          This workspace's own ElevenLabs account. Voice calls (outbound briefings and the
+          inbound concierge) work only once these are filled in. Blank secrets keep the ones
+          already saved.
+        </p>
+        <.form
+          :let={f}
+          for={
+            to_form(
+              %{
+                "elevenlabs_agent_id" => @settings.elevenlabs_agent_id || "",
+                "elevenlabs_phone_number_id" => @settings.elevenlabs_phone_number_id || ""
+              },
+              as: :elevenlabs
+            )
+          }
+          id="elevenlabs-form"
+          phx-submit="save_elevenlabs"
+          class="space-y-5"
+        >
+          <.input field={f[:elevenlabs_agent_id]} type="text" label="Agent ID" />
+          <.input field={f[:elevenlabs_phone_number_id]} type="text" label="Phone number ID" />
+          <.input
+            field={f[:elevenlabs_api_key]}
+            value=""
+            type="password"
+            label="API key"
+            placeholder={token_placeholder(@settings.elevenlabs_api_key)}
+          />
+          <.secret_clear field="elevenlabs_api_key" saved={@settings.elevenlabs_api_key} />
+          <.input
+            field={f[:elevenlabs_webhook_secret]}
+            value=""
+            type="password"
+            label="Webhook secret"
+            placeholder={token_placeholder(@settings.elevenlabs_webhook_secret)}
+          />
+          <.secret_clear
+            field="elevenlabs_webhook_secret"
+            saved={@settings.elevenlabs_webhook_secret}
+          />
+          <.input
+            field={f[:elevenlabs_tools_secret]}
+            value=""
+            type="password"
+            label="Tools secret"
+            placeholder={token_placeholder(@settings.elevenlabs_tools_secret)}
+          />
+          <.secret_clear field="elevenlabs_tools_secret" saved={@settings.elevenlabs_tools_secret} />
+          <.button type="submit" variant="primary">Save voice settings</.button>
+        </.form>
+      </div>
     </Layouts.agent_app>
+    """
+  end
+
+  # A "remove the saved secret" checkbox, shown only when one is stored.
+  attr :field, :string, required: true
+  attr :saved, :any, required: true
+
+  defp secret_clear(assigns) do
+    ~H"""
+    <label
+      :if={@saved}
+      class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400"
+    >
+      <input type="checkbox" name={"elevenlabs[clear_#{@field}]"} value="true" class="rounded" />
+      Remove the saved value
+    </label>
     """
   end
 end

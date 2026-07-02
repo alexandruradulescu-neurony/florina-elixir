@@ -20,10 +20,6 @@ if System.get_env("PHX_SERVER") do
   config :florina, FlorinaWeb.Endpoint, server: true
 end
 
-if secret = System.get_env("ELEVENLABS_WEBHOOK_SECRET") do
-  config :florina, :elevenlabs_webhook_secret, secret
-end
-
 config :florina, FlorinaWeb.Endpoint,
   http: [port: String.to_integer(System.get_env("PORT", "4000"))]
 
@@ -36,11 +32,16 @@ if config_env() == :prod do
       then set it in your deployment environment (e.g. Railway).
       """
 
+  vault_key = Base.decode64!(field_encryption_key)
+
+  # AES-256-GCM needs a 32-byte key; a wrong-length one boots fine then raises on
+  # the FIRST encrypt/decrypt (every sign-in / settings save). Fail loud at boot.
+  byte_size(vault_key) == 32 ||
+    raise "FIELD_ENCRYPTION_KEY must decode (base64) to exactly 32 bytes, got #{byte_size(vault_key)}."
+
   config :florina, Florina.Vault,
     ciphers: [
-      default:
-        {Cloak.Ciphers.AES.GCM,
-         tag: "AES.GCM.V1", key: Base.decode64!(field_encryption_key), iv_length: 12}
+      default: {Cloak.Ciphers.AES.GCM, tag: "AES.GCM.V1", key: vault_key, iv_length: 12}
     ]
 
   # Required: prompt generation, post-call lessons, and chat all depend on it.
@@ -60,14 +61,10 @@ if config_env() == :prod do
   # lose every uploaded file on the next deploy.
   config :florina, :uploads_root, System.get_env("UPLOADS_ROOT") || "/data"
 
-  # ElevenLabs outbound calling
-  config :florina,
-    elevenlabs_api_key: System.get_env("ELEVENLABS_API_KEY"),
-    elevenlabs_agent_id: System.get_env("ELEVENLABS_AGENT_ID"),
-    elevenlabs_phone_number_id: System.get_env("ELEVENLABS_PHONE_NUMBER_ID")
-
-  # Shared secret for the inbound voice concierge's mid-call server tools.
-  config :florina, :voice_tools_secret, System.get_env("VOICE_TOOLS_SECRET")
+  # ElevenLabs voice config (API key, agent id, phone-number id, webhook secret,
+  # tools secret) is per-tenant — entered per workspace in Settings, NOT via env.
+  # There is no global fallback: a tenant's voice features work only once its own
+  # ElevenLabs settings are filled in.
 
   # Google Calendar OAuth app credentials
   config :florina,

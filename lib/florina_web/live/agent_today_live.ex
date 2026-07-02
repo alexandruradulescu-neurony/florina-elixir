@@ -94,28 +94,10 @@ defmodule FlorinaWeb.AgentTodayLive do
     """
   end
 
-  defp time(%DateTime{} = dt), do: Calendar.strftime(Florina.Tz.local(dt), "%H:%M")
+  defp time(%DateTime{} = dt), do: Florina.Tz.format(dt, :time)
 
-  defp status_label(:PLANNED), do: "Planned"
-  defp status_label(:PRE_CALL_DONE), do: "Briefed"
-  defp status_label(:IN_PROGRESS), do: "In progress"
-  defp status_label(:POST_CALL_DONE), do: "Debriefed"
-  defp status_label(:COMPLETE), do: "Complete"
-  defp status_label(:CANCELLED), do: "Cancelled"
-  defp status_label(:MISSED), do: "Missed"
-  defp status_label(:ARCHIVED), do: "Archived"
-  defp status_label(other), do: to_string(other)
-
-  defp status_tone(:COMPLETE),
-    do: "bg-green-100 text-green-700 dark:bg-green-500/10 dark:text-green-400"
-
-  defp status_tone(:IN_PROGRESS),
-    do: "bg-blue-100 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400"
-
-  defp status_tone(s) when s in [:CANCELLED, :MISSED, :ARCHIVED],
-    do: "bg-gray-100 text-gray-400 line-through dark:bg-white/5 dark:text-gray-500"
-
-  defp status_tone(_), do: "bg-gray-100 text-gray-600 dark:bg-white/10 dark:text-gray-300"
+  defp status_label(status), do: visit_status_label(status)
+  defp status_tone(status), do: visit_status_tone(status)
 
   defp client_label(%{name: n}) when is_binary(n), do: n
   defp client_label(_), do: "—"

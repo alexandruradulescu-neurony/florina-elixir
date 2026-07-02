@@ -9,6 +9,7 @@ defmodule Florina.Accounts do
   """
 
   import Ecto.Query
+  require Logger
   alias Florina.TenantRepo
   alias Florina.Accounts.User
   alias Florina.Phone
@@ -132,6 +133,7 @@ defmodule Florina.Accounts do
     guard_last_manager(removes_manager?(user, role: role), fn ->
       user |> User.role_changeset(role) |> TenantRepo.update()
     end)
+    |> broadcast_revoke_on_success()
   end
 
   @doc """
@@ -142,7 +144,29 @@ defmodule Florina.Accounts do
     guard_last_manager(removes_manager?(user, active: active), fn ->
       user |> User.active_changeset(active) |> TenantRepo.update()
     end)
+    |> broadcast_revoke_on_success()
   end
+
+  @doc """
+  PubSub topic for a user's live sessions, namespaced by tenant schema prefix so
+  ids can't collide across tenants. A `:revoked` message on it drops that user's
+  connected LiveViews so they re-mount and re-check role/active (see AgentAuth).
+  """
+  def user_socket_topic(prefix, user_id) when is_binary(prefix),
+    do: "user_revoked:#{prefix}:#{user_id}"
+
+  # After a role/active change, disconnect the user's open sockets so a demoted or
+  # deactivated user can't keep acting (e.g. re-promote themselves) from a tab that
+  # was open before the change. Runs with the tenant pinned, so the prefix is in scope.
+  defp broadcast_revoke_on_success({:ok, %User{id: id}} = result) do
+    if prefix = Process.get(:tenant_prefix) do
+      Phoenix.PubSub.broadcast(Florina.PubSub, user_socket_topic(prefix, id), :revoked)
+    end
+
+    result
+  end
+
+  defp broadcast_revoke_on_success(other), do: other
 
   defp removes_manager?(%User{role: :manager, active: true}, role: :agent), do: true
   defp removes_manager?(%User{role: :manager, active: true}, active: false), do: true
@@ -195,9 +219,13 @@ defmodule Florina.Accounts do
   common format), within the pinned tenant. Returns the `User` or `nil`.
 
   Matching is by trailing significant digits (`Florina.Phone.match_key/1`), so a
-  `+E.164` caller ID matches a number stored in national/trunk form. Agents in one
-  tenant have distinct, same-country numbers, so this is unambiguous in practice.
-  Used by the inbound voice concierge to identify the caller.
+  `+E.164` caller ID matches a number stored in national/trunk form.
+
+  On an AMBIGUOUS match (two active users share the same trailing digits — a shared
+  desk phone, a duplicate record), returns `nil` rather than picking one arbitrarily:
+  greeting the wrong person by name and letting them act on that person's meetings
+  is worse than falling back to the "who's calling?" flow. Used by the inbound
+  concierge to identify the caller.
   """
   def get_agent_by_phone(caller_id) do
     case Phone.match_key(caller_id) do
@@ -205,10 +233,26 @@ defmodule Florina.Accounts do
         nil
 
       key ->
-        User
-        |> where([u], u.active == true and not is_nil(u.phone_number))
-        |> TenantRepo.all()
-        |> Enum.find(fn u -> Phone.match_key(u.phone_number) == key end)
+        matches =
+          User
+          |> where([u], u.active == true and not is_nil(u.phone_number))
+          |> TenantRepo.all()
+          |> Enum.filter(fn u -> Phone.match_key(u.phone_number) == key end)
+
+        case matches do
+          [user] ->
+            user
+
+          [] ->
+            nil
+
+          many ->
+            Logger.warning(
+              "[Accounts] ambiguous caller-id match (#{length(many)} users) — treating as unknown"
+            )
+
+            nil
+        end
     end
   end
 

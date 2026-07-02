@@ -15,7 +15,8 @@ defmodule FlorinaWeb.Webhook.VoiceController do
   alias Florina.Voice.Concierge
 
   def personalize(conn, params) do
-    secret = Application.get_env(:florina, :elevenlabs_webhook_secret)
+    # Per-tenant secret (tenant pinned by :resolve_tenant); no global fallback.
+    secret = Florina.Settings.get().elevenlabs_webhook_secret
     raw_body = conn.assigns |> Map.get(:raw_body, []) |> Enum.reverse() |> IO.iodata_to_binary()
     signature = get_req_header(conn, "elevenlabs-signature") |> List.first()
 

@@ -424,6 +424,30 @@ defmodule FlorinaWeb.CoreComponents do
   def td_top_class,
     do: "px-4 py-3 align-top font-tile text-sm font-semibold text-gray-700 dark:text-gray-300"
 
+  @doc "Human label for a visit status atom. One source of truth for every screen."
+  def visit_status_label(:PLANNED), do: "Planned"
+  def visit_status_label(:PRE_CALL_DONE), do: "Briefed"
+  def visit_status_label(:IN_PROGRESS), do: "In progress"
+  def visit_status_label(:POST_CALL_DONE), do: "Debriefed"
+  def visit_status_label(:COMPLETE), do: "Complete"
+  def visit_status_label(:CANCELLED), do: "Cancelled"
+  def visit_status_label(:MISSED), do: "Missed"
+  def visit_status_label(:ARCHIVED), do: "Archived"
+  def visit_status_label(other), do: to_string(other)
+
+  @doc "Tailwind chip classes for a visit status atom (shared so screens can't drift)."
+  def visit_status_tone(:COMPLETE),
+    do: "bg-green-100 text-green-700 dark:bg-green-500/10 dark:text-green-400"
+
+  def visit_status_tone(:IN_PROGRESS),
+    do: "bg-blue-100 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400"
+
+  def visit_status_tone(s) when s in [:CANCELLED, :MISSED, :ARCHIVED],
+    do: "bg-gray-100 text-gray-400 line-through dark:bg-white/5 dark:text-gray-500"
+
+  def visit_status_tone(_),
+    do: "bg-gray-100 text-gray-600 dark:bg-white/10 dark:text-gray-300"
+
   @doc """
   Renders a table with generic styling.
 
