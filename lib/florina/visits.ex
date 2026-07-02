@@ -178,14 +178,15 @@ defmodule Florina.Visits do
 
   @doc """
   Visits whose `start_time` falls on `date` (UTC), every agent, ascending, with
-  agent + client preloaded. Powers the manager dashboard's "today" list.
+  agent + client + call_attempts preloaded. Powers the manager dashboard's "today"
+  list and its shared "needs attention" check (which reads each visit's attempts).
   """
   def list_for_day(%Date{} = date) do
     {day_start, day_end} = Florina.Tz.day_bounds(date)
 
     from(v in Visit,
       where: v.start_time >= ^day_start and v.start_time <= ^day_end,
-      preload: [:agent, :client],
+      preload: [:agent, :client, :call_attempts],
       order_by: [asc: :start_time]
     )
     |> TenantRepo.all()

@@ -10,6 +10,10 @@ defmodule FlorinaWeb.Manage.LogsLive do
   on_mount {FlorinaWeb.AgentAuth, :require_manager}
 
   alias Florina.{Accounts, Audit}
+  alias Florina.Accounts.User
+
+  # Hard cap on rows this screen loads; when hit, we show a "newest N" note.
+  @row_cap 200
 
   @impl true
   def mount(_params, _session, socket) do
@@ -27,8 +31,15 @@ defmodule FlorinaWeb.Manage.LogsLive do
   def handle_event("clear", _params, socket),
     do: {:noreply, socket |> assign(:filters, %{"level" => "", "user_id" => ""}) |> load_logs()}
 
-  defp load_logs(socket),
-    do: assign(socket, :logs, Audit.list_filtered(socket.assigns.filters))
+  defp load_logs(socket) do
+    logs = Audit.list_filtered(socket.assigns.filters, @row_cap)
+
+    socket
+    |> assign(:logs, logs)
+    |> assign(:capped?, length(logs) >= @row_cap)
+  end
+
+  defp row_cap, do: @row_cap
 
   @impl true
   def render(assigns) do
@@ -58,7 +69,7 @@ defmodule FlorinaWeb.Manage.LogsLive do
               value={a.id}
               selected={@filters["user_id"] == to_string(a.id)}
             >
-              {agent_name(a)}
+              {user_label(a)}
             </option>
           </select>
         </label>
@@ -121,6 +132,10 @@ defmodule FlorinaWeb.Manage.LogsLive do
           </tbody>
         </table>
       </div>
+
+      <p :if={@capped?} class="mt-3 text-center text-xs text-gray-400">
+        Showing the newest {row_cap()} entries. Narrow the filters to see older ones.
+      </p>
     </Layouts.agent_app>
     """
   end
@@ -145,17 +160,8 @@ defmodule FlorinaWeb.Manage.LogsLive do
 
   defp time_label(_), do: "—"
 
-  defp user_label(%{} = u), do: agent_name(u)
+  defp user_label(%{} = u), do: User.display_name(u) || "—"
   defp user_label(_), do: "System"
-
-  defp agent_name(%{first_name: f, last_name: l, email: e}) do
-    case [f, l] |> Enum.reject(&(&1 in [nil, ""])) |> Enum.join(" ") do
-      "" -> e || "—"
-      n -> n
-    end
-  end
-
-  defp agent_name(_), do: "—"
 
   defp pretty(map) do
     case Jason.encode(map, pretty: true) do

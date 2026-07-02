@@ -45,6 +45,19 @@ defmodule Florina.Integrations.CRM do
   def create_note(deal_id, text, subject \\ ""),
     do: dispatch(:create_note, [deal_id, text, subject])
 
+  @doc """
+  Order normalized deals for the "most recent active deal" pick: recency (desc)
+  first, then stable-sort open/won deals ahead of the rest. Shared by both
+  provider adapters so the ordering is identical regardless of CRM. `update_time`
+  is a string that sorts chronologically as text; deals with none sort last.
+  Enum.sort_by is stable, so recency order is preserved within each status group.
+  """
+  def sort_deals(deals) when is_list(deals) do
+    deals
+    |> Enum.sort_by(&(&1["update_time"] || ""), :desc)
+    |> Enum.sort_by(&if(&1["status"] in ["open", "won"], do: 0, else: 1))
+  end
+
   # Resolve settings once, cache them for the provider's credential lookup, pick
   # the provider module, and delegate. Always restores the previous cache value
   # so nested/sequential calls don't leak a stale tenant's settings.

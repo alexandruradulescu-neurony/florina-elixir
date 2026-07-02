@@ -178,8 +178,8 @@ defmodule FlorinaWeb.AuthController do
   # when nil, the verified email's domain (workspace-agnostic start). Only an
   # active, fully provisioned tenant is accepted.
   defp resolve_tenant(slug, _identity) when is_binary(slug) do
-    case Tenants.get_by_slug(slug) do
-      %Tenants.Tenant{active: true, status: "active"} = tenant -> {:ok, tenant}
+    case Tenants.get_accessible(slug) do
+      %Tenants.Tenant{} = tenant -> {:ok, tenant}
       _ -> {:error, :unknown_workspace}
     end
   end

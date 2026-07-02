@@ -13,7 +13,7 @@ defmodule Florina.Inbox do
   import Ecto.Query, only: [from: 2]
   require Logger
 
-  alias Florina.{Clients, TenantRepo, Visits}
+  alias Florina.{Clients, Strings, TenantRepo, Visits}
   alias Florina.Inbox.InboundEmail
 
   @summarize_system "You summarise an email in one or two sentences of plain " <>
@@ -81,20 +81,11 @@ defmodule Florina.Inbox do
   end
 
   defp match_client(from_email) do
-    case domain_of(from_email) do
+    case Strings.email_domain(from_email) do
       nil -> nil
       domain -> Clients.get_by_domain(domain)
     end
   end
-
-  defp domain_of(email) when is_binary(email) do
-    case String.split(email, "@") do
-      [_local, domain] -> domain
-      _ -> nil
-    end
-  end
-
-  defp domain_of(_), do: nil
 
   defp recent_visit(client_id) do
     client_id |> Visits.list_for_client() |> List.first()

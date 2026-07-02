@@ -7,22 +7,8 @@ defmodule Florina.Workers.CrmSyncScheduler do
   """
   use Oban.Worker, queue: :scheduler, max_attempts: 3
 
-  require Logger
-
-  alias Florina.Tenants
-  alias Florina.Workers.CrmSync
+  alias Florina.Workers.{CrmSync, TenantFanOut}
 
   @impl Oban.Worker
-  def perform(%Oban.Job{}) do
-    tenants = Tenants.list_active()
-    Logger.info("[CrmSyncScheduler] fanning out to #{length(tenants)} active tenant(s)")
-
-    for tenant <- tenants do
-      %{tenant_slug: tenant.slug}
-      |> CrmSync.new()
-      |> Oban.insert()
-    end
-
-    :ok
-  end
+  def perform(%Oban.Job{}), do: TenantFanOut.fan_out(CrmSync, "CrmSyncScheduler")
 end

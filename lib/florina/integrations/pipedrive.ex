@@ -31,6 +31,7 @@ defmodule Florina.Integrations.Pipedrive do
 
   require Logger
 
+  alias Florina.Integrations.CRM
   alias Florina.Strings
 
   # Runaway guard for organization pagination (50 * 100 = 5000 orgs/run).
@@ -147,7 +148,7 @@ defmodule Florina.Integrations.Pipedrive do
          {:ok, token} <- api_token() do
       case pipedrive_get("#{base_url}/organizations/#{org_id}/deals", token) do
         {:ok, deals} when is_list(deals) ->
-          {:ok, sort_deals(deals)}
+          {:ok, CRM.sort_deals(deals)}
 
         {:ok, _other} ->
           {:ok, []}
@@ -156,19 +157,6 @@ defmodule Florina.Integrations.Pipedrive do
           {:error, reason}
       end
     end
-  end
-
-  @doc false
-  # Sort by recency (desc) first, then stable-sort open/won deals ahead of the
-  # rest. Pipedrive returns `update_time` as a string ("YYYY-MM-DD HH:MM:SS"),
-  # which sorts chronologically as text; the old `-(update_time)` negated a
-  # string and crashed with ArithmeticError. Enum.sort_by is stable, so the
-  # recency order is preserved within each status group. Deals with no
-  # update_time sort last.
-  def sort_deals(deals) when is_list(deals) do
-    deals
-    |> Enum.sort_by(&(&1["update_time"] || ""), :desc)
-    |> Enum.sort_by(&if(&1["status"] in ["open", "won"], do: 0, else: 1))
   end
 
   @doc false
@@ -286,7 +274,7 @@ defmodule Florina.Integrations.Pipedrive do
   defp tenant_creds do
     settings =
       try do
-        Florina.Integrations.CRM.tenant_settings()
+        CRM.tenant_settings()
       rescue
         _ -> nil
       end

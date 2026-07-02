@@ -9,10 +9,27 @@ defmodule Florina.Emails do
   """
   import Swoosh.Email
 
+  import Florina.Strings, only: [present?: 1]
+
+  alias Florina.Emails.Draft
+  alias Florina.TenantRepo
+
   @purposes ~w(follow_up summary materials)
 
   @doc "Approved email purposes (the only bodies the concierge can send)."
   def purposes, do: @purposes
+
+  @doc """
+  Persist a concierge email draft in the current tenant's schema, returning
+  `{:ok, %Draft{}}` or `{:error, changeset}`. The recipient/notes/labels live here
+  (never in the shared Oban args); `SendEmail` reloads by id.
+  """
+  def create_draft(attrs) do
+    %Draft{} |> Draft.changeset(attrs) |> TenantRepo.insert()
+  end
+
+  @doc "Fetch a queued draft by id from the current tenant's schema, or `nil`."
+  def get_draft(id), do: TenantRepo.get(Draft, id)
 
   @doc """
   The first usable contact email on record for a client, or `nil`. Recipients are
@@ -168,6 +185,4 @@ defmodule Florina.Emails do
     content = if present?(notes), do: notes, else: fallback
     "Bună ziua,\n\n#{content}\n\nCu stimă,\n#{from_name}"
   end
-
-  defp present?(v), do: is_binary(v) and String.trim(v) != ""
 end

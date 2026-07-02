@@ -14,6 +14,7 @@ defmodule FlorinaWeb.Manage.MeetingFormLive do
   on_mount {FlorinaWeb.AgentAuth, :require_manager}
 
   alias Florina.{Accounts, Clients, Methodologies, Scenarios, Strings, Visits}
+  alias Florina.Accounts.User
 
   @impl true
   def mount(params, _session, socket) do
@@ -72,7 +73,7 @@ defmodule FlorinaWeb.Manage.MeetingFormLive do
     with {:ok, date} <- Date.from_iso8601(to_string(p["date"])),
          {:ok, time} <- Time.from_iso8601(to_string(p["time"]) <> ":00"),
          {:ok, start_dt} <- Florina.Tz.to_utc(date, time) do
-      duration = to_int(p["duration"], 30)
+      duration = Strings.to_int(p["duration"], 30)
       end_dt = DateTime.add(start_dt, duration * 60, :second)
 
       {:ok,
@@ -215,19 +216,7 @@ defmodule FlorinaWeb.Manage.MeetingFormLive do
     """
   end
 
-  defp agent_label(%{first_name: f, last_name: l, email: e}) do
-    case [f, l] |> Enum.reject(&(&1 in [nil, ""])) |> Enum.join(" ") do
-      "" -> e || "—"
-      n -> n
-    end
-  end
-
-  defp to_int(v, default) do
-    case Integer.parse(to_string(v)) do
-      {n, _} -> n
-      :error -> default
-    end
-  end
+  defp agent_label(agent), do: User.display_name(agent) || "—"
 
   defp errors(changeset) do
     changeset

@@ -20,6 +20,7 @@ defmodule FlorinaWeb.Manage.MeetingLive do
 
   alias Florina.{Audit, Methodologies, Prompts, Tenants, Visits}
   alias Florina.Services.VisitPipeline
+  alias Florina.Accounts.User
   alias Florina.Visits.Visit
   alias Florina.Workers.DialCall
 
@@ -114,23 +115,24 @@ defmodule FlorinaWeb.Manage.MeetingLive do
 
   def handle_event("regenerate", %{"phase" => phase}, socket) when phase in ["PRE", "POST"] do
     id = socket.assigns.visit.id
-    prefix = Tenants.schema_prefix(socket.assigns.tenant)
+    tenant = socket.assigns.tenant
 
     socket =
       socket
       |> assign(:regenerating, phase)
       |> start_async(:regenerate, fn ->
         # Re-pin the tenant schema in this Task process before any TenantRepo call.
-        Process.put(:tenant_prefix, prefix)
-        visit = Visits.get_with_associations(id)
+        Tenants.with_prefix(tenant, fn ->
+          visit = Visits.get_with_associations(id)
 
-        result =
-          case phase do
-            "PRE" -> VisitPipeline.process_pre_call(visit, :MANUAL)
-            "POST" -> VisitPipeline.process_post_call(visit, "", :MANUAL)
-          end
+          result =
+            case phase do
+              "PRE" -> VisitPipeline.process_pre_call(visit, :MANUAL)
+              "POST" -> VisitPipeline.process_post_call(visit, "", :MANUAL)
+            end
 
-        {phase, result}
+          {phase, result}
+        end)
       end)
 
     {:noreply, socket}
@@ -475,17 +477,9 @@ defmodule FlorinaWeb.Manage.MeetingLive do
   defp time_label(%DateTime{} = dt), do: Florina.Tz.format(dt, :short)
   defp time_label(_), do: "—"
 
-  defp agent_label(%{first_name: f, last_name: l, email: e}), do: name_of(f, l, e)
-  defp agent_label(_), do: "—"
+  defp agent_label(agent), do: User.display_name(agent) || "—"
   defp client_label(%{name: n}) when is_binary(n), do: n
   defp client_label(_), do: "—"
-
-  defp name_of(f, l, e) do
-    case [f, l] |> Enum.reject(&(&1 in [nil, ""])) |> Enum.join(" ") do
-      "" -> e || "—"
-      n -> n
-    end
-  end
 
   defp humanize(value) do
     value

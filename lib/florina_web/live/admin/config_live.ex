@@ -61,26 +61,37 @@ defmodule FlorinaWeb.Admin.ConfigLive do
         {:noreply, socket}
 
       int ->
-        mp = CentralConfig.get_mega_prompt!(int)
-        form = to_form(%{"name" => mp.name, "meta_prompt" => mp.meta_prompt}, as: :mega_prompt)
-        {:noreply, socket |> assign(:editing, {:mega_prompt, mp}) |> assign(:edit_form, form)}
+        case CentralConfig.get_mega_prompt(int) do
+          nil ->
+            {:noreply, put_flash(socket, :error, "That mega prompt no longer exists.")}
+
+          mp ->
+            form =
+              to_form(%{"name" => mp.name, "meta_prompt" => mp.meta_prompt}, as: :mega_prompt)
+
+            {:noreply, socket |> assign(:editing, {:mega_prompt, mp}) |> assign(:edit_form, form)}
+        end
     end
   end
 
   def handle_event("save_mega_prompt", %{"mega_prompt" => params}, socket) do
-    {:mega_prompt, mp} = socket.assigns.editing
+    case socket.assigns.editing do
+      {:mega_prompt, mp} ->
+        case CentralConfig.update_mega_prompt(mp, params) do
+          {:ok, _updated} ->
+            {:noreply,
+             socket
+             |> put_flash(:info, "Mega prompt updated.")
+             |> assign(:editing, nil)
+             |> assign(:edit_form, nil)
+             |> load_config()}
 
-    case CentralConfig.update_mega_prompt(mp, params) do
-      {:ok, _updated} ->
-        {:noreply,
-         socket
-         |> put_flash(:info, "Mega prompt updated.")
-         |> assign(:editing, nil)
-         |> assign(:edit_form, nil)
-         |> load_config()}
+          {:error, cs} ->
+            {:noreply, assign(socket, :edit_form, to_form(cs, as: :mega_prompt))}
+        end
 
-      {:error, cs} ->
-        {:noreply, assign(socket, :edit_form, to_form(cs, as: :mega_prompt))}
+      _ ->
+        {:noreply, socket}
     end
   end
 
@@ -131,36 +142,44 @@ defmodule FlorinaWeb.Admin.ConfigLive do
         {:noreply, socket}
 
       int ->
-        m = CentralConfig.get_methodology!(int)
+        case CentralConfig.get_methodology(int) do
+          nil ->
+            {:noreply, put_flash(socket, :error, "That methodology no longer exists.")}
 
-        form =
-          to_form(
-            %{
-              "name" => m.name,
-              "description" => m.description,
-              "source_material" => m.source_material
-            },
-            as: :methodology
-          )
+          m ->
+            form =
+              to_form(
+                %{
+                  "name" => m.name,
+                  "description" => m.description,
+                  "source_material" => m.source_material
+                },
+                as: :methodology
+              )
 
-        {:noreply, socket |> assign(:editing, {:methodology, m}) |> assign(:edit_form, form)}
+            {:noreply, socket |> assign(:editing, {:methodology, m}) |> assign(:edit_form, form)}
+        end
     end
   end
 
   def handle_event("save_methodology", %{"methodology" => params}, socket) do
-    {:methodology, m} = socket.assigns.editing
+    case socket.assigns.editing do
+      {:methodology, m} ->
+        case CentralConfig.update_methodology(m, params) do
+          {:ok, _updated} ->
+            {:noreply,
+             socket
+             |> put_flash(:info, "Methodology updated.")
+             |> assign(:editing, nil)
+             |> assign(:edit_form, nil)
+             |> load_config()}
 
-    case CentralConfig.update_methodology(m, params) do
-      {:ok, _updated} ->
-        {:noreply,
-         socket
-         |> put_flash(:info, "Methodology updated.")
-         |> assign(:editing, nil)
-         |> assign(:edit_form, nil)
-         |> load_config()}
+          {:error, cs} ->
+            {:noreply, assign(socket, :edit_form, to_form(cs, as: :methodology))}
+        end
 
-      {:error, cs} ->
-        {:noreply, assign(socket, :edit_form, to_form(cs, as: :methodology))}
+      _ ->
+        {:noreply, socket}
     end
   end
 
@@ -199,26 +218,35 @@ defmodule FlorinaWeb.Admin.ConfigLive do
         {:noreply, socket}
 
       int ->
-        s = CentralConfig.get_scenario!(int)
-        form = to_form(%{"name" => s.name, "description" => s.description}, as: :scenario)
-        {:noreply, socket |> assign(:editing, {:scenario, s}) |> assign(:edit_form, form)}
+        case CentralConfig.get_scenario(int) do
+          nil ->
+            {:noreply, put_flash(socket, :error, "That scenario no longer exists.")}
+
+          s ->
+            form = to_form(%{"name" => s.name, "description" => s.description}, as: :scenario)
+            {:noreply, socket |> assign(:editing, {:scenario, s}) |> assign(:edit_form, form)}
+        end
     end
   end
 
   def handle_event("save_scenario", %{"scenario" => params}, socket) do
-    {:scenario, s} = socket.assigns.editing
+    case socket.assigns.editing do
+      {:scenario, s} ->
+        case CentralConfig.update_scenario(s, params) do
+          {:ok, _updated} ->
+            {:noreply,
+             socket
+             |> put_flash(:info, "Scenario updated.")
+             |> assign(:editing, nil)
+             |> assign(:edit_form, nil)
+             |> load_config()}
 
-    case CentralConfig.update_scenario(s, params) do
-      {:ok, _updated} ->
-        {:noreply,
-         socket
-         |> put_flash(:info, "Scenario updated.")
-         |> assign(:editing, nil)
-         |> assign(:edit_form, nil)
-         |> load_config()}
+          {:error, cs} ->
+            {:noreply, assign(socket, :edit_form, to_form(cs, as: :scenario))}
+        end
 
-      {:error, cs} ->
-        {:noreply, assign(socket, :edit_form, to_form(cs, as: :scenario))}
+      _ ->
+        {:noreply, socket}
     end
   end
 
@@ -306,19 +334,23 @@ defmodule FlorinaWeb.Admin.ConfigLive do
   end
 
   def handle_event("save_settings", %{"settings" => params}, socket) do
-    {:settings, _s} = socket.assigns.editing
+    case socket.assigns.editing do
+      {:settings, _s} ->
+        case CentralConfig.update_settings(params) do
+          {:ok, _updated} ->
+            {:noreply,
+             socket
+             |> put_flash(:info, "Global settings updated.")
+             |> assign(:editing, nil)
+             |> assign(:edit_form, nil)
+             |> load_config()}
 
-    case CentralConfig.update_settings(params) do
-      {:ok, _updated} ->
-        {:noreply,
-         socket
-         |> put_flash(:info, "Global settings updated.")
-         |> assign(:editing, nil)
-         |> assign(:edit_form, nil)
-         |> load_config()}
+          {:error, cs} ->
+            {:noreply, assign(socket, :edit_form, to_form(cs, as: :settings))}
+        end
 
-      {:error, cs} ->
-        {:noreply, assign(socket, :edit_form, to_form(cs, as: :settings))}
+      _ ->
+        {:noreply, socket}
     end
   end
 

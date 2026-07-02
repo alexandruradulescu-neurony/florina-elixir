@@ -10,6 +10,8 @@ defmodule Florina.Workers.InboxPoll do
 
   require Logger
 
+  import Florina.Strings, only: [present?: 1]
+
   alias Florina.{Inbox, Settings}
   alias Florina.Inbox.InboundEmail
   alias Florina.Integrations.Imap
@@ -57,6 +59,4 @@ defmodule Florina.Workers.InboxPoll do
         :ok
     end
   end
-
-  defp present?(v), do: is_binary(v) and String.trim(v) != ""
 end

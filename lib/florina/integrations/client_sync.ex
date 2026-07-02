@@ -23,6 +23,7 @@ defmodule Florina.Integrations.ClientSync do
 
   alias Florina.Clients
   alias Florina.Integrations.CRM
+  alias Florina.Strings
 
   # Maximum number of items stored per enrichment list to avoid DB bloat.
   @max_contacts 20
@@ -346,20 +347,11 @@ defmodule Florina.Integrations.ClientSync do
   defp domain_from_contacts(contacts) do
     contacts
     |> Enum.map(& &1["email"])
-    |> Enum.map(&email_domain/1)
+    |> Enum.map(&Strings.email_domain/1)
     |> Enum.map(&usable_domain/1)
     |> Enum.reject(&is_nil/1)
     |> most_common()
   end
-
-  defp email_domain(email) when is_binary(email) do
-    case String.split(email, "@") do
-      [_, d] when d != "" -> String.downcase(d)
-      _ -> nil
-    end
-  end
-
-  defp email_domain(_), do: nil
 
   @free_email_domains ~w(gmail.com googlemail.com yahoo.com hotmail.com outlook.com live.com icloud.com aol.com proton.me protonmail.com)
 

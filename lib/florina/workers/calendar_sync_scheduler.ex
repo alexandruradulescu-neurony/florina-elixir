@@ -8,22 +8,8 @@ defmodule Florina.Workers.CalendarSyncScheduler do
   """
   use Oban.Worker, queue: :scheduler, max_attempts: 3
 
-  require Logger
-
-  alias Florina.Tenants
-  alias Florina.Workers.CalendarSync
+  alias Florina.Workers.{CalendarSync, TenantFanOut}
 
   @impl Oban.Worker
-  def perform(%Oban.Job{}) do
-    tenants = Tenants.list_active()
-    Logger.info("[CalendarSyncScheduler] fanning out to #{length(tenants)} active tenant(s)")
-
-    for tenant <- tenants do
-      %{tenant_slug: tenant.slug}
-      |> CalendarSync.new()
-      |> Oban.insert()
-    end
-
-    :ok
-  end
+  def perform(%Oban.Job{}), do: TenantFanOut.fan_out(CalendarSync, "CalendarSyncScheduler")
 end

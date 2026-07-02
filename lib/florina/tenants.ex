@@ -79,16 +79,7 @@ defmodule Florina.Tenants do
   `nil` if `email` isn't a binary or has no domain. The single source of truth
   for turning a sign-in email into a workspace domain.
   """
-  def email_domain(email) when is_binary(email) do
-    email
-    |> String.split("@")
-    |> List.last()
-    |> to_string()
-    |> String.downcase()
-    |> Strings.blank_to_nil()
-  end
-
-  def email_domain(_), do: nil
+  def email_domain(email), do: Strings.email_domain(email)
 
   @doc """
   True if `email`'s domain is one of `tenant`'s configured `allowed_email_domains`
@@ -114,14 +105,25 @@ defmodule Florina.Tenants do
   tenant is never reachable even if `active` happens to be true. (Provisioning
   itself uses `Workers.Tenant.pin!/1` directly, so it is exempt.)
   """
-  def accessible?(slug) when is_binary(slug) do
+  def accessible?(%Tenant{active: true, status: "active"}), do: true
+  def accessible?(%Tenant{}), do: false
+
+  def accessible?(slug) when is_binary(slug), do: accessible?(get_by_slug(slug))
+  def accessible?(_), do: false
+
+  @doc """
+  Look up a tenant by slug and return it only if it is accessible (active +
+  fully provisioned), otherwise `nil`. The single lookup+gate the request plug,
+  LiveView hook and auth controller all share so they enforce the same rule.
+  """
+  def get_accessible(slug) when is_binary(slug) do
     case get_by_slug(slug) do
-      %Tenant{active: true, status: "active"} -> true
-      _ -> false
+      %Tenant{} = tenant -> if accessible?(tenant), do: tenant, else: nil
+      _ -> nil
     end
   end
 
-  def accessible?(_), do: false
+  def get_accessible(_), do: nil
 
   @doc "Insert a tenant. Idempotent on slug: an existing slug is left unchanged."
   def register(attrs) do

@@ -79,6 +79,44 @@ defmodule Florina.Accounts.User do
     end
   end
 
+  @doc """
+  Human-friendly label for a user: full name (first + last) if present, else the
+  email, else the username, else `nil`. The single source of truth for the
+  "who is this agent" label shown across the manager/calendar screens. Accepts any
+  map with the relevant keys so it also works on association-preloaded structs.
+  """
+  def display_name(%{first_name: f, last_name: l} = u) do
+    case [f, l] |> Enum.reject(&blank?/1) |> Enum.join(" ") do
+      "" -> email_or_username(u)
+      name -> name
+    end
+  end
+
+  def display_name(%{} = u), do: email_or_username(u)
+  def display_name(_), do: nil
+
+  # Map.get (not `u[...]`) so this works on %User{} structs, which don't implement
+  # the Access behaviour.
+  defp email_or_username(u) do
+    cond do
+      present?(Map.get(u, :email)) -> Map.get(u, :email)
+      present?(Map.get(u, :username)) -> Map.get(u, :username)
+      true -> nil
+    end
+  end
+
+  defp present?(v), do: is_binary(v) and v != ""
+
+  @doc """
+  Short first-person greeting name for voice: the first name if present, else the
+  username. Used where Florina addresses the caller by name.
+  """
+  def greeting_name(%{first_name: f, username: un}) do
+    if is_binary(f) and f != "", do: f, else: un
+  end
+
+  defp blank?(v), do: v in [nil, ""]
+
   @doc "Privilege-role change — server-only, not from user params."
   def role_changeset(user, role) when role in [:manager, :agent], do: change(user, role: role)
 

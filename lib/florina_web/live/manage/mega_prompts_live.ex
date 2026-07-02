@@ -83,8 +83,14 @@ defmodule FlorinaWeb.Manage.MegaPromptsLive do
         {:noreply, put_flash(socket, :error, "Mega prompt not found.")}
 
       mp ->
-        {:ok, _} = Prompts.activate(mp)
-        {:noreply, socket |> load_domains() |> put_flash(:info, "Activated v#{mp.version}.")}
+        case Prompts.activate(mp) do
+          {:ok, _} ->
+            {:noreply, socket |> load_domains() |> put_flash(:info, "Activated v#{mp.version}.")}
+
+          {:error, _} ->
+            {:noreply,
+             socket |> load_domains() |> put_flash(:error, "Could not activate this version.")}
+        end
     end
   end
 

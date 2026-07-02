@@ -13,7 +13,7 @@ defmodule Florina.Voice.Tools do
   import Ecto.Query, only: [from: 2]
   require Logger
 
-  alias Florina.{Accounts, Audit, Calls, Emails, TenantRepo, Visits}
+  alias Florina.{Accounts, Audit, Calls, Emails, Strings, TenantRepo, Visits}
   alias Florina.Visits.Visit
   alias Florina.Calls.CallAttempt
   alias Florina.Services.Assembler
@@ -32,7 +32,7 @@ defmodule Florina.Voice.Tools do
   never a single blind guess.
   """
   def find_meeting(agent_id, query, _phase \\ nil) do
-    with aid when is_integer(aid) <- to_int(agent_id),
+    with aid when is_integer(aid) <- Strings.to_int(agent_id),
          q when q != "" <- normalize_for_match(query) do
       now = DateTime.utc_now()
 
@@ -115,7 +115,7 @@ defmodule Florina.Voice.Tools do
 
         # A blank script means generation failed — tell Florina rather than
         # handing her an empty "script" to improvise against.
-        if blank?(script) do
+        if Strings.blank?(script) do
           {:error, :generation_failed}
         else
           {:ok, %{"script" => script, "first_line" => first_line, "generated" => generated}}
@@ -180,7 +180,7 @@ defmodule Florina.Voice.Tools do
         Audit.log(%{
           action: "voice.save_outcome",
           visit_id: visit.id,
-          user_id: to_int(agent_id),
+          user_id: Strings.to_int(agent_id),
           details: %{"phase" => up}
         })
 
@@ -265,8 +265,9 @@ defmodule Florina.Voice.Tools do
 
       true ->
         with %Visit{} = visit <- owned_visit(agent_id, visit_id),
-             %{email: to} when is_binary(to) and to != "" <- Accounts.get_user(to_int(agent_id)) do
-          queue_agent_email(tenant_slug, to_int(agent_id), visit, to, purpose, notes)
+             %{email: to} when is_binary(to) and to != "" <-
+               Accounts.get_user(Strings.to_int(agent_id)) do
+          queue_agent_email(tenant_slug, Strings.to_int(agent_id), visit, to, purpose, notes)
         else
           %{} -> {:error, :no_recipient}
           _ -> {:error, :not_found}
@@ -277,31 +278,35 @@ defmodule Florina.Voice.Tools do
   defp queue_agent_email(tenant_slug, agent_id, visit, to, purpose, notes) do
     visit = TenantRepo.preload(visit, :client)
 
-    args = %{
-      "tenant_slug" => tenant_slug,
-      "to" => to,
-      "purpose" => purpose,
-      "notes" => notes,
-      "agent_id" => agent_id,
-      "visit_id" => visit.id,
-      "client_id" => visit.client_id,
-      "client_name" => visit.client && visit.client.name,
-      "meeting_title" => visit.title,
-      "meeting_time" => visit.start_time && Florina.Tz.format(visit.start_time, :datetime)
+    # PII (recipient, dictated notes, client/meeting labels) is persisted to a
+    # per-tenant draft row; only its id + the tenant slug ride in the shared Oban
+    # args, so client data never lands in the public `oban_jobs` table.
+    draft_attrs = %{
+      recipient: to,
+      purpose: purpose,
+      notes: notes,
+      agent_id: agent_id,
+      visit_id: visit.id,
+      client_id: visit.client_id,
+      client_name: visit.client && visit.client.name,
+      meeting_title: visit.title,
+      meeting_time: visit.start_time && Florina.Tz.format(visit.start_time, :datetime)
     }
 
-    case args |> SendEmail.new() |> Oban.insert() do
-      {:ok, _job} ->
-        Audit.log(%{
-          action: "voice.email_queued",
-          user_id: agent_id,
-          details: %{"visit_id" => visit.id, "purpose" => purpose}
-        })
+    with {:ok, draft} <- Emails.create_draft(draft_attrs),
+         {:ok, _job} <-
+           %{"tenant_slug" => tenant_slug, "draft_id" => draft.id}
+           |> SendEmail.new()
+           |> Oban.insert() do
+      Audit.log(%{
+        action: "voice.email_queued",
+        user_id: agent_id,
+        details: %{"visit_id" => visit.id, "purpose" => purpose}
+      })
 
-        {:ok, %{"ok" => true, "mode" => "queued"}}
-
-      {:error, _reason} ->
-        {:error, :queue_failed}
+      {:ok, %{"ok" => true, "mode" => "queued"}}
+    else
+      _ -> {:error, :queue_failed}
     end
   end
 
@@ -341,8 +346,8 @@ defmodule Florina.Voice.Tools do
 
   # Load a visit only if it belongs to this caller — the per-agent data boundary.
   defp owned_visit(agent_id, visit_id) do
-    with aid when is_integer(aid) <- to_int(agent_id),
-         vid when is_integer(vid) <- to_int(visit_id),
+    with aid when is_integer(aid) <- Strings.to_int(agent_id),
+         vid when is_integer(vid) <- Strings.to_int(visit_id),
          %Visit{agent_id: ^aid} = visit <- Visits.get(vid) do
       visit
     else
@@ -369,17 +374,4 @@ defmodule Florina.Voice.Tools do
     |> String.replace(~r/[\x{0300}-\x{036f}]/u, "")
     |> String.trim()
   end
-
-  defp to_int(v) when is_integer(v), do: v
-
-  defp to_int(v) when is_binary(v) do
-    case Integer.parse(v) do
-      {n, _} -> n
-      _ -> nil
-    end
-  end
-
-  defp to_int(_), do: nil
-
-  defp blank?(s), do: is_nil(s) or String.trim(to_string(s)) == ""
 end

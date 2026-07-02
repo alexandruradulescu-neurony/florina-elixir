@@ -160,13 +160,11 @@ defmodule Florina.Services.VisitPipeline do
   Returns the domain string or `nil` if the email is invalid.
   Mirrors `extract_domain_from_email` in Django's visit_pipeline.py.
   """
-  def extract_domain_from_email(nil), do: nil
-  def extract_domain_from_email(""), do: nil
-
-  def extract_domain_from_email(email) when is_binary(email) do
-    case String.split(email, "@") do
-      [_local, domain] ->
-        domain = String.downcase(String.trim(domain))
+  def extract_domain_from_email(email) do
+    # Shared canonical parse (lowercase, after-@, blank → nil), then a plausibility
+    # gate: only accept a domain with a dot and more than 3 bytes.
+    case Florina.Strings.email_domain(email) do
+      domain when is_binary(domain) ->
         if String.contains?(domain, ".") and byte_size(domain) > 3, do: domain, else: nil
 
       _ ->

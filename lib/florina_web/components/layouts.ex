@@ -321,15 +321,7 @@ defmodule FlorinaWeb.Layouts do
   defp show_mobile_sidebar(js \\ %JS{}), do: JS.show(js, to: "#mobile-sidebar")
   defp hide_mobile_sidebar(js \\ %JS{}), do: JS.hide(js, to: "#mobile-sidebar")
 
-  defp agent_name(%{first_name: f, last_name: l} = a)
-       when is_binary(f) or is_binary(l) do
-    case [f, l] |> Enum.reject(&(&1 in [nil, ""])) |> Enum.join(" ") do
-      "" -> agent_email(a)
-      name -> name
-    end
-  end
-
-  defp agent_name(a), do: agent_email(a)
+  defp agent_name(a), do: Florina.Accounts.User.display_name(a) || "Agent"
 
   defp agent_email(%{email: e}) when is_binary(e) and e != "", do: e
   defp agent_email(%{username: u}) when is_binary(u) and u != "", do: u

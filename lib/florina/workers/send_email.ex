@@ -2,17 +2,19 @@ defmodule Florina.Workers.SendEmail do
   @moduledoc """
   Delivers the concierge email — to the AGENT (the caller) — through the tenant's
   own SMTP settings. Queued by `draft_or_send_email` (which resolved the agent
-  recipient), so this worker builds the agent-facing email, attaches the client's
+  recipient and persisted a per-tenant draft), so this worker loads the draft from
+  the tenant schema, builds the agent-facing email, attaches the client's
   documents for the "materials" purpose, and sends. Audit-logged.
 
-  Args: `tenant_slug`, `to` (agent email), `purpose`, `notes`, `agent_id`,
-  `visit_id`, `client_id`, `client_name`, `meeting_title`, `meeting_time`.
+  Args: `tenant_slug`, `draft_id`. The recipient/notes/labels live in the tenant's
+  `voice_email_draft` row — never in the shared public Oban args.
   """
   use Oban.Worker, queue: :default, max_attempts: 3
 
   require Logger
 
   alias Florina.{Audit, Clients, Emails, Mailer, Settings, Storage, Tenants}
+  alias Florina.Emails.Draft
   alias Florina.Workers.Tenant
 
   # Bound what we attach so one huge/many documents can't blow the SMTP message.
@@ -20,21 +22,29 @@ defmodule Florina.Workers.SendEmail do
   @max_attachment_bytes 10_000_000
 
   @impl Oban.Worker
-  def perform(%Oban.Job{args: %{"tenant_slug" => slug} = args}) do
+  def perform(%Oban.Job{args: %{"tenant_slug" => slug, "draft_id" => draft_id}}) do
     case Tenant.pin_active(slug) do
       :skip ->
         Logger.info("[SendEmail] tenant=#{slug} not active — skipping")
         :ok
 
       :ok ->
-        deliver(slug, args)
+        case Emails.get_draft(draft_id) do
+          %Draft{} = draft ->
+            deliver(slug, draft)
+
+          nil ->
+            # Draft gone (tenant reset / manual delete) — nothing to send; don't retry.
+            Logger.warning("[SendEmail] tenant=#{slug} draft=#{inspect(draft_id)} not found")
+            {:cancel, :draft_not_found}
+        end
     end
   end
 
-  defp deliver(slug, args) do
+  defp deliver(slug, %Draft{} = draft) do
     settings = Settings.get()
-    atts = attachment_data(slug, args)
-    context = email_context(args, Enum.map(atts, & &1.filename))
+    atts = attachment_data(slug, draft)
+    context = email_context(draft, Enum.map(atts, & &1.filename))
 
     swoosh_atts =
       Enum.map(atts, fn a ->
@@ -43,12 +53,18 @@ defmodule Florina.Workers.SendEmail do
 
     with true <- Emails.smtp_configured?(settings),
          {:ok, email} <-
-           Emails.build_agent_email(settings, args["to"], args["purpose"], context, swoosh_atts),
+           Emails.build_agent_email(
+             settings,
+             draft.recipient,
+             draft.purpose,
+             context,
+             swoosh_atts
+           ),
          {:ok, _meta} <- Mailer.deliver(email, Emails.smtp_config(settings)) do
       Audit.log(%{
         action: "voice.email_sent",
-        user_id: to_int(args["agent_id"]),
-        details: %{"visit_id" => args["visit_id"], "purpose" => args["purpose"]}
+        user_id: draft.agent_id,
+        details: %{"visit_id" => draft.visit_id, "purpose" => draft.purpose}
       })
 
       :ok
@@ -60,7 +76,7 @@ defmodule Florina.Workers.SendEmail do
         Audit.log(%{
           action: "voice.email_failed",
           level: :ERROR,
-          details: %{"visit_id" => args["visit_id"], "reason" => "smtp_not_configured"}
+          details: %{"visit_id" => draft.visit_id, "reason" => "smtp_not_configured"}
         })
 
         {:cancel, :smtp_not_configured}
@@ -68,13 +84,13 @@ defmodule Florina.Workers.SendEmail do
       other ->
         # Log by agent/visit, never the recipient address (PII discipline).
         Logger.error(
-          "[SendEmail] tenant=#{slug} agent_id=#{args["agent_id"]} visit=#{args["visit_id"]} failed: #{inspect(other)}"
+          "[SendEmail] tenant=#{slug} agent_id=#{draft.agent_id} visit=#{draft.visit_id} failed: #{inspect(other)}"
         )
 
         Audit.log(%{
           action: "voice.email_failed",
           level: :ERROR,
-          details: %{"visit_id" => args["visit_id"], "purpose" => args["purpose"]}
+          details: %{"visit_id" => draft.visit_id, "purpose" => draft.purpose}
         })
 
         {:error, :send_failed}
@@ -83,11 +99,11 @@ defmodule Florina.Workers.SendEmail do
 
   # Read the client's documents into attachment tuples for the "materials" purpose
   # only. Defensive: skips missing/oversized files rather than failing the send.
-  defp attachment_data(_slug, %{"purpose" => purpose}) when purpose != "materials", do: []
+  defp attachment_data(_slug, %Draft{purpose: purpose}) when purpose != "materials", do: []
 
-  defp attachment_data(slug, args) do
+  defp attachment_data(slug, %Draft{} = draft) do
     with %{id: tenant_id} <- Tenants.get_by_slug(slug),
-         client_id when is_integer(client_id) <- args["client_id"] do
+         client_id when is_integer(client_id) <- draft.client_id do
       client_id
       |> Clients.list_documents()
       |> Enum.filter(&(&1.byte_size in 1..@max_attachment_bytes))
@@ -111,24 +127,13 @@ defmodule Florina.Workers.SendEmail do
     end
   end
 
-  defp email_context(args, doc_names) do
+  defp email_context(%Draft{} = draft, doc_names) do
     %{
-      "client_name" => args["client_name"],
-      "meeting_title" => args["meeting_title"],
-      "meeting_time" => args["meeting_time"],
-      "notes" => args["notes"],
+      "client_name" => draft.client_name,
+      "meeting_title" => draft.meeting_title,
+      "meeting_time" => draft.meeting_time,
+      "notes" => draft.notes,
       "doc_names" => doc_names
     }
   end
-
-  defp to_int(v) when is_integer(v), do: v
-
-  defp to_int(v) when is_binary(v) do
-    case Integer.parse(v) do
-      {n, _} -> n
-      _ -> nil
-    end
-  end
-
-  defp to_int(_), do: nil
 end

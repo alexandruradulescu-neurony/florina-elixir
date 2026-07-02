@@ -13,6 +13,8 @@ defmodule FlorinaWeb.Manage.DashboardLive do
   on_mount {FlorinaWeb.AgentAuth, :require_manager}
 
   alias Florina.{Calls, Settings, Visits}
+  alias Florina.Accounts.User
+  alias Florina.Visits.Attention
 
   @impl true
   def mount(_params, _session, socket) do
@@ -35,44 +37,8 @@ defmodule FlorinaWeb.Manage.DashboardLive do
     |> assign(:today, today)
     |> assign(:meetings, meetings)
     |> assign(:recent_calls, recent_calls)
-    |> assign(:attention, attention_items(meetings, recent_calls, default_methodology_id))
+    |> assign(:attention, Attention.items(meetings, default_methodology_id))
   end
-
-  # Build the "needs attention" list, most severe first.
-  defp attention_items(meetings, recent_calls, default_methodology_id) do
-    meeting_issues =
-      Enum.flat_map(meetings, fn v ->
-        []
-        |> phone_issue(v)
-        |> methodology_issue(v, default_methodology_id)
-      end)
-
-    call_issues =
-      recent_calls
-      |> Enum.filter(&(&1.status in ["FAILED", "NO_ANSWER"]))
-      |> Enum.map(fn c ->
-        %{severity: :error, message: "#{phase_word(c.phase)} call #{String.downcase(c.status)}"}
-      end)
-
-    (meeting_issues ++ call_issues) |> Enum.sort_by(&(&1.severity == :error), :desc)
-  end
-
-  defp phone_issue(acc, %{agent: %{phone_number: p} = a, title: t}) when p in [nil, ""],
-    do: [
-      %{severity: :error, message: "#{agent_label(a)} has no phone — can't be called (“#{t}”)"}
-      | acc
-    ]
-
-  defp phone_issue(acc, _), do: acc
-
-  defp methodology_issue(
-         acc,
-         %{methodology_id: nil, agent: %{default_methodology_id: nil}} = v,
-         nil
-       ),
-       do: [%{severity: :warning, message: "“#{v.title}” has no methodology set"} | acc]
-
-  defp methodology_issue(acc, _v, _default), do: acc
 
   @impl true
   def render(assigns) do
@@ -203,15 +169,7 @@ defmodule FlorinaWeb.Manage.DashboardLive do
 
   defp call_tone(_), do: "bg-gray-100 text-gray-600 dark:bg-white/10 dark:text-gray-300"
 
-  defp agent_label(%{first_name: f, last_name: l, email: e}), do: name_of(f, l, e)
-  defp agent_label(_), do: "—"
+  defp agent_label(agent), do: User.display_name(agent) || "—"
   defp client_label(%{name: n}) when is_binary(n), do: n
   defp client_label(_), do: "—"
-
-  defp name_of(f, l, e) do
-    case [f, l] |> Enum.reject(&(&1 in [nil, ""])) |> Enum.join(" ") do
-      "" -> e || "—"
-      n -> n
-    end
-  end
 end

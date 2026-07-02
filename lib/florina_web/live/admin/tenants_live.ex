@@ -9,7 +9,7 @@ defmodule FlorinaWeb.Admin.TenantsLive do
 
   on_mount FlorinaWeb.Admin.AdminAuth
 
-  alias Florina.{Settings, Tenants}
+  alias Florina.{Settings, Strings, Tenants}
   alias Florina.Workers.ProvisionTenant
 
   @impl true
@@ -129,7 +129,7 @@ defmodule FlorinaWeb.Admin.TenantsLive do
         {:noreply, put_flash(socket, :error, "Tenant #{slug} not found.")}
 
       tenant ->
-        result = with_tenant(tenant, fn -> Settings.update_crm(params) end)
+        result = Tenants.with_prefix(tenant, fn -> Settings.update_crm(params) end)
 
         case result do
           {:ok, _} ->
@@ -440,30 +440,18 @@ defmodule FlorinaWeb.Admin.TenantsLive do
   end
 
   defp read_crm(tenant) do
-    with_tenant(tenant, fn ->
+    Tenants.with_prefix(tenant, fn ->
       s = Settings.get()
 
       %{
         provider: s.crm_provider || "pipedrive",
         domain: s.pipedrive_domain,
-        has_pd_token: present?(s.pipedrive_api_token),
-        has_hs_token: present?(s.hubspot_api_token)
+        has_pd_token: Strings.present?(s.pipedrive_api_token),
+        has_hs_token: Strings.present?(s.hubspot_api_token)
       }
     end)
   rescue
     _ -> %{provider: "pipedrive", domain: nil, has_pd_token: false, has_hs_token: false}
-  end
-
-  # Run `fun` with the tenant's schema prefix pinned, always clearing it after so
-  # this long-lived LiveView process can't leak the prefix into later work.
-  defp with_tenant(tenant, fun) do
-    Process.put(:tenant_prefix, Tenants.schema_prefix(tenant))
-
-    try do
-      fun.()
-    after
-      Process.delete(:tenant_prefix)
-    end
   end
 
   defp crm_domain(crm, slug), do: get_in(crm, [slug, :domain]) || ""
@@ -479,9 +467,6 @@ defmodule FlorinaWeb.Admin.TenantsLive do
       do: "•••••• (set — blank keeps it)",
       else: if(which == :pd, do: "Pipedrive token", else: "HubSpot token")
   end
-
-  defp present?(v) when v in [nil, ""], do: false
-  defp present?(_), do: true
 
   # ---------------------------------------------------------------------------
   # Helpers

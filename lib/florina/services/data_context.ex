@@ -152,7 +152,7 @@ defmodule Florina.Services.DataContext do
       end
 
     raw = %{
-      agent_first_name: agent.first_name || agent.username,
+      agent_first_name: Florina.Accounts.User.greeting_name(agent),
       client_name: client.name,
       client_industry: client.industry || "",
       client_summary: client.ai_summary || "",
@@ -244,7 +244,7 @@ defmodule Florina.Services.DataContext do
 
           agent_name =
             if v.agent,
-              do: sanitize(v.agent.first_name || v.agent.username),
+              do: sanitize(Florina.Accounts.User.greeting_name(v.agent)),
               else: "unknown agent"
 
           dt = fmt_local_datetime(v.start_time)

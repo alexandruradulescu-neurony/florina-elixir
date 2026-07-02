@@ -31,7 +31,7 @@ defmodule FlorinaWeb.Plugs.ResolveTenant do
 
     with slug when is_binary(slug) <-
            conn.path_params["tenant_slug"] || Subdomain.extract(conn.host, base),
-         %Tenants.Tenant{active: true, status: "active"} = tenant <- Tenants.get_by_slug(slug) do
+         %Tenants.Tenant{} = tenant <- Tenants.get_accessible(slug) do
       Process.put(:tenant_prefix, Tenants.schema_prefix(tenant))
       Logger.metadata(tenant: tenant.slug)
 

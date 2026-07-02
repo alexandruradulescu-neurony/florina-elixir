@@ -6,22 +6,9 @@ defmodule Florina.Workers.SyncPendingCallsScheduler do
   """
   use Oban.Worker, queue: :scheduler, max_attempts: 3
 
-  require Logger
-
-  alias Florina.Tenants
-  alias Florina.Workers.SyncPendingCalls
+  alias Florina.Workers.{SyncPendingCalls, TenantFanOut}
 
   @impl Oban.Worker
-  def perform(%Oban.Job{}) do
-    tenants = Tenants.list_active()
-    Logger.info("[SyncPendingCallsScheduler] fanning out to #{length(tenants)} active tenant(s)")
-
-    for tenant <- tenants do
-      %{tenant_slug: tenant.slug}
-      |> SyncPendingCalls.new()
-      |> Oban.insert()
-    end
-
-    :ok
-  end
+  def perform(%Oban.Job{}),
+    do: TenantFanOut.fan_out(SyncPendingCalls, "SyncPendingCallsScheduler")
 end

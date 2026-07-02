@@ -14,7 +14,12 @@ defmodule FlorinaWeb.Manage.CallsLive do
   on_mount {FlorinaWeb.AgentAuth, :ensure_authenticated}
   on_mount {FlorinaWeb.AgentAuth, :require_manager}
 
-  alias Florina.{Accounts, Calls}
+  alias Florina.{Accounts, Calls, Strings}
+  alias Florina.Accounts.User
+
+  # Hard cap on rows this screen loads; when hit, we show a "newest N" note rather
+  # than silently dropping older calls.
+  @row_cap 200
 
   @impl true
   def mount(_params, _session, socket) do
@@ -46,8 +51,11 @@ defmodule FlorinaWeb.Manage.CallsLive do
   def handle_info({:call_updated, _call}, socket), do: {:noreply, load_calls(socket)}
 
   defp load_calls(socket) do
+    calls = Calls.list_for_manager(socket.assigns.filters, @row_cap)
+
     socket
-    |> assign(:calls, Calls.list_for_manager(socket.assigns.filters))
+    |> assign(:calls, calls)
+    |> assign(:capped?, length(calls) >= @row_cap)
     |> assign(:stats, Calls.status_counts())
   end
 
@@ -172,7 +180,8 @@ defmodule FlorinaWeb.Manage.CallsLive do
                 <audio :if={call.recording_url} controls src={call.recording_url} class="mt-1 h-8" />
                 <span
                   :if={
-                    blank?(call.summary_title) and blank?(call.summary) and blank?(call.transcript)
+                    Strings.blank?(call.summary_title) and Strings.blank?(call.summary) and
+                      Strings.blank?(call.transcript)
                   }
                   class="text-gray-400"
                 >
@@ -183,9 +192,15 @@ defmodule FlorinaWeb.Manage.CallsLive do
           </tbody>
         </table>
       </div>
+
+      <p :if={@capped?} class="mt-3 text-center text-xs text-gray-400">
+        Showing the newest {row_cap()} calls. Narrow the filters to see older ones.
+      </p>
     </Layouts.agent_app>
     """
   end
+
+  defp row_cap, do: @row_cap
 
   defp status_options, do: Enum.map(Florina.Enums.call_status_values(), fn {_k, v} -> v end)
 
@@ -219,20 +234,11 @@ defmodule FlorinaWeb.Manage.CallsLive do
   defp context_label(%{client: %{name: n}}) when is_binary(n), do: n
   defp context_label(_), do: "Visit"
 
-  defp agent_name(%{first_name: f, last_name: l, email: e}) do
-    case [f, l] |> Enum.reject(&(&1 in [nil, ""])) |> Enum.join(" ") do
-      "" -> e || "—"
-      n -> n
-    end
-  end
-
-  defp agent_name(_), do: "—"
+  defp agent_name(agent), do: User.display_name(agent) || "—"
 
   defp snippet(text) when is_binary(text) and text != "" do
     if String.length(text) > 140, do: String.slice(text, 0, 140) <> "…", else: text
   end
 
   defp snippet(_), do: nil
-
-  defp blank?(v), do: v in [nil, ""]
 end

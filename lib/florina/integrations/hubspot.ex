@@ -98,7 +98,7 @@ defmodule Florina.Integrations.Hubspot do
     with {:ok, token} <- token(),
          {:ok, ids} <- associated_ids(token, "companies", id, "deals"),
          {:ok, deals} <- batch_read(token, "deals", ids, @deal_props) do
-      {:ok, deals |> map_skip(&deal_to_deal/1) |> sort_deals()}
+      {:ok, deals |> map_skip(&deal_to_deal/1) |> CRM.sort_deals()}
     end
   end
 
@@ -344,15 +344,6 @@ defmodule Florina.Integrations.Hubspot do
   end
 
   defp truthy(v), do: v in [true, "true"]
-
-  # Recency (desc) first, then stable-sort open/won ahead of the rest — identical
-  # to Pipedrive's ordering, so calendar_sync's "most recent active deal" pick
-  # behaves the same on either provider. Enum.sort_by is stable.
-  defp sort_deals(deals) do
-    deals
-    |> Enum.sort_by(&(&1["update_time"] || ""), :desc)
-    |> Enum.sort_by(&if(&1["status"] in ["open", "won"], do: 0, else: 1))
-  end
 
   defp props_of(obj) when is_map(obj), do: obj["properties"] || %{}
   defp props_of(_), do: %{}

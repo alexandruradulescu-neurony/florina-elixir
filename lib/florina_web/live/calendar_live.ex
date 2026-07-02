@@ -21,6 +21,7 @@ defmodule FlorinaWeb.CalendarLive do
   on_mount {FlorinaWeb.AgentAuth, :ensure_authenticated}
 
   alias Florina.{Accounts, Authz, CalendarEvents, Visits}
+  alias Florina.Accounts.User
 
   # Deterministic avatar colors, indexed by agent id (literal classes so Tailwind compiles them).
   @palettes [
@@ -305,11 +306,23 @@ defmodule FlorinaWeb.CalendarLive do
   defp week_view(assigns) do
     days = Enum.map(0..4, &Date.add(week_monday(assigns.cursor), &1))
     weekday_items = Enum.filter(assigns.items, &(weekday(&1) <= 5))
-    placed = place_week(weekday_items)
+
+    # Events outside the 8 AM–8 PM grid window can't be positioned honestly (early
+    # ones would pin to the 8 AM line, late ones collapse to a sliver). Pull them
+    # out and list them in a per-day off-hours strip so they stay visible.
+    {in_window, off_hours} = Enum.split_with(weekday_items, &in_window?/1)
+    off_hours_by_day = Enum.group_by(off_hours, &weekday/1)
+
+    placed = place_week(in_window)
     overflow = placed |> Enum.filter(& &1.hidden) |> Enum.frequencies_by(&weekday(&1.item))
 
     assigns =
-      assign(assigns, days: days, placed: Enum.reject(placed, & &1.hidden), overflow: overflow)
+      assign(assigns,
+        days: days,
+        placed: Enum.reject(placed, & &1.hidden),
+        overflow: overflow,
+        off_hours_by_day: off_hours_by_day
+      )
 
     ~H"""
     <div class="flex h-[75vh] flex-col rounded-lg border border-gray-200 overflow-hidden dark:border-white/10">
@@ -357,6 +370,31 @@ defmodule FlorinaWeb.CalendarLive do
                   </span>
                 </span>
               </button>
+            </div>
+          </div>
+
+          <div
+            :if={@off_hours_by_day != %{}}
+            class="hidden flex-none border-b border-gray-100 bg-gray-50 sm:flex dark:border-white/10 dark:bg-white/5"
+          >
+            <div class="w-14 flex-none py-1 pr-2 text-right text-[0.625rem] text-gray-400 dark:text-gray-500">
+              Off-hours
+            </div>
+            <div class="grid flex-auto grid-cols-5 divide-x divide-gray-100 sm:pr-8 dark:divide-white/10">
+              <div :for={d <- @days} class="flex flex-wrap gap-1 p-1">
+                <.event_link
+                  :for={item <- Map.get(@off_hours_by_day, Date.day_of_week(d), [])}
+                  item={item}
+                  slug={@tenant.slug}
+                  class={[
+                    "flex items-center gap-1 rounded px-1.5 py-0.5 text-[0.625rem]",
+                    ev_color(item).box
+                  ]}
+                >
+                  <span class="font-semibold">{fmt(item.start_time)}</span>
+                  <span class="truncate">{item.title}</span>
+                </.event_link>
+              </div>
             </div>
           </div>
 
@@ -746,6 +784,13 @@ defmodule FlorinaWeb.CalendarLive do
   defp day_start_hour, do: 8
   defp day_end_hour, do: 20
 
+  # True when an event's local start falls inside the grid window; off-window
+  # events are surfaced separately (see the week view's off-hours strip).
+  defp in_window?(item) do
+    s = Florina.Tz.local(item.start_time)
+    s.hour >= day_start_hour() and s.hour < day_end_hour()
+  end
+
   defp grid_row(item) do
     start_min = minutes_into_window(item.start_time)
     row = 2 + div(start_min, 5)
@@ -825,12 +870,7 @@ defmodule FlorinaWeb.CalendarLive do
         "text-gray-500 group-hover:text-gray-700 dark:text-gray-400 dark:group-hover:text-gray-300"
     }
 
-  defp agent_label(nil), do: "—"
-
-  defp agent_label(user) do
-    name = [user.first_name, user.last_name] |> Enum.reject(&(&1 in [nil, ""])) |> Enum.join(" ")
-    if name == "", do: user.email || user.username, else: name
-  end
+  defp agent_label(user), do: User.display_name(user) || "—"
 
   defp client_label(%{name: n}) when is_binary(n), do: n
   defp client_label(_), do: "—"

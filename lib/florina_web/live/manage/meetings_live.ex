@@ -17,6 +17,8 @@ defmodule FlorinaWeb.Manage.MeetingsLive do
   on_mount {FlorinaWeb.AgentAuth, :require_manager}
 
   alias Florina.{Accounts, Calls, Settings, Visits}
+  alias Florina.Accounts.User
+  alias Florina.Visits.Attention
 
   @tick_ms 60_000
   @default_filters %{"range" => "week", "agent_id" => "", "status" => "", "florina" => ""}
@@ -68,7 +70,7 @@ defmodule FlorinaWeb.Manage.MeetingsLive do
     sys_default = Settings.get().default_methodology_id
     visits = Visits.list_for_manager_board(socket.assigns.filters)
     buckets = bucketize(visits, now, today)
-    attention = attention_items(visits, sys_default)
+    attention = Attention.items(visits, sys_default)
 
     socket
     |> assign(:now, now)
@@ -492,41 +494,6 @@ defmodule FlorinaWeb.Manage.MeetingsLive do
 
   defp future_day?(_, _), do: false
 
-  defp attention_items(visits, sys_default) do
-    visits
-    |> Enum.filter(&actionable?/1)
-    |> Enum.flat_map(&issues_for(&1, sys_default))
-    |> Enum.sort_by(&(&1.severity == :error), :desc)
-  end
-
-  defp actionable?(v), do: v.calls_enabled and v.status not in [:CANCELLED, :MISSED, :ARCHIVED]
-
-  defp issues_for(v, sys_default) do
-    []
-    |> add_issue(no_phone?(v), :error, "#{agent_label(v.agent)} has no phone — can't be called")
-    |> add_issue(no_methodology?(v, sys_default), :warning, "No methodology set")
-    |> add_issue(failed_call?(v), :error, "A call failed — needs a retry")
-    |> Enum.map(fn {severity, msg} ->
-      %{severity: severity, message: "#{v.title} — #{msg}", visit_id: v.id}
-    end)
-  end
-
-  defp add_issue(acc, true, severity, msg), do: [{severity, msg} | acc]
-  defp add_issue(acc, false, _severity, _msg), do: acc
-
-  defp no_phone?(%{agent: %{phone_number: p}}), do: p in [nil, ""]
-  defp no_phone?(_), do: false
-
-  defp no_methodology?(%{methodology_id: nil, agent: %{default_methodology_id: nil}}, nil),
-    do: true
-
-  defp no_methodology?(_, _), do: false
-
-  defp failed_call?(%{call_attempts: attempts}) when is_list(attempts),
-    do: Enum.any?(attempts, &(&1.status in ["FAILED", "NO_ANSWER"]))
-
-  defp failed_call?(_), do: false
-
   # ---------------------------------------------------------------------------
   # Per-phase status (derived from call attempts + meeting time)
   # ---------------------------------------------------------------------------
@@ -687,17 +654,9 @@ defmodule FlorinaWeb.Manage.MeetingsLive do
 
   defp terminal?(s), do: s in [:CANCELLED, :MISSED, :ARCHIVED]
 
-  defp agent_label(%{first_name: f, last_name: l, email: e}), do: name_of(f, l, e)
-  defp agent_label(_), do: "—"
+  defp agent_label(agent), do: User.display_name(agent) || "—"
   defp client_label(%{name: n}) when is_binary(n), do: n
   defp client_label(_), do: "—"
-
-  defp name_of(f, l, e) do
-    case [f, l] |> Enum.reject(&(&1 in [nil, ""])) |> Enum.join(" ") do
-      "" -> e || "—"
-      n -> n
-    end
-  end
 
   defp filter_select,
     do:

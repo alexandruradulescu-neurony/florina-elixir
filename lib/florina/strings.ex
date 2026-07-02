@@ -41,4 +41,26 @@ defmodule Florina.Strings do
   end
 
   def to_int(_), do: nil
+
+  @doc """
+  Like `to_int/1` but returns `default` instead of `nil` when the value isn't a
+  clean integer. For form params that must fall back to a sensible number.
+  """
+  def to_int(v, default), do: to_int(v) || default
+
+  @doc """
+  The lowercased domain part of an email (everything after the last `@`), or
+  `nil` when `email` isn't a binary or has no non-blank domain. The single source
+  of truth for turning an email address into a bare domain.
+  """
+  def email_domain(email) when is_binary(email) do
+    email
+    |> String.split("@")
+    |> List.last()
+    |> to_string()
+    |> String.downcase()
+    |> blank_to_nil()
+  end
+
+  def email_domain(_), do: nil
 end

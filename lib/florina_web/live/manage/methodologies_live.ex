@@ -61,13 +61,20 @@ defmodule FlorinaWeb.Manage.MethodologiesLive do
         {:noreply, socket}
 
       m ->
-        {:ok, _} = Methodologies.delete(m)
+        case Methodologies.delete(m) do
+          {:ok, _} ->
+            {:noreply,
+             socket
+             |> assign(:methodologies, Methodologies.list())
+             |> start_new()
+             |> put_flash(:info, "Methodology deleted.")}
 
-        {:noreply,
-         socket
-         |> assign(:methodologies, Methodologies.list())
-         |> start_new()
-         |> put_flash(:info, "Methodology deleted.")}
+          {:error, _} ->
+            {:noreply,
+             socket
+             |> assign(:methodologies, Methodologies.list())
+             |> put_flash(:error, "Could not delete this methodology.")}
+        end
     end
   end
 

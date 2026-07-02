@@ -41,7 +41,7 @@ defmodule Florina.Voice.Concierge do
   # --- Response builders -----------------------------------------------------
 
   defp known_caller_response(agent) do
-    name = agent.first_name || agent.username
+    name = Florina.Accounts.User.greeting_name(agent)
     candidates = Visits.concierge_candidates(agent.id)
 
     payload(
